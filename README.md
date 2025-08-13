@@ -1,312 +1,88 @@
-# 卖书网站价差数据分析系统 v2.0
+# 卖书网站价差数据分析系统
 
-一个专门用于分析孔夫子旧书网和多抓鱼两个平台书籍价差的数据分析系统。通过爬取两个平台的数据，自动计算价差和利润率，帮助用户发现套利机会。
+## 系统简介
 
-## 核心模块架构
-
-### 模块1：FastAPI分析服务 (`book_analysis_api.py`)
-**功能**：提供Web API和前端界面，实时分析书籍销售数据
-- **核心特性**：
-  - RESTful API接口设计
-  - 实时ISBN销售数据分析
-  - Playwright浏览器自动化
-  - 多维度销售统计（1天/7天/30天）
-  - 价格分析（最高/最低/平均价格）
-  - 可视化图表展示
-
-- **技术实现**：
-  - FastAPI框架 + Pydantic数据模型
-  - 异步浏览器连接管理
-  - Chrome调试协议集成
-  - 数据持久化到CSV
-
-### 模块2：店铺书籍爬取器 (`incremental_scraper.py`)
-**功能**：批量爬取指定店铺的书籍基础信息
-- **核心特性**：
-  - 多店铺并发爬取
-  - 增量式断点续爬
-  - 自动去重机制
-  - 实时数据保存
-  - 爬取进度统计
-
-- **技术实现**：
-  - 基于店铺ID列表批量处理
-  - Playwright页面自动化
-  - CSV增量写入策略
-  - itemid去重算法
-
-### 模块3：销售记录分析器 (`sales_analyzer.py`)
-**功能**：基于书籍数据，深度分析每本书的销售记录
-- **核心特性**：
-  - ISBN维度销售分析
-  - 时间范围过滤（30天内）
-  - 销售趋势统计
-  - 价格波动分析
-  - 详细销售记录导出
-
-- **技术实现**：
-  - 从books_data.csv读取书籍列表
-  - 搜索页面销售记录提取
-  - 时间戳解析和过滤
-  - 销售数据聚合统计
-
-### 模块4：辅助工具
-- **`findbook.py`**：单本书籍搜索和数据提取工具
-- **`real_browser_scraper.py`**：真实浏览器环境爬取工具
-- **`shop_list.txt`**：目标店铺ID配置文件
-
-## 技术栈
-
-- **后端框架**：FastAPI + Python 3.9+
-- **浏览器自动化**：Playwright (Chrome CDP)
-- **前端**：原生HTML/CSS/JavaScript + Chart.js
-- **数据存储**：CSV文件 (计划迁移至SQLite)
-- **异步处理**：asyncio + aiohttp
+专门分析孔夫子旧书网和多抓鱼两个平台书籍价差的数据系统，通过爬取对比发现套利机会。
 
 ## 快速开始
 
-### 1. 环境准备
-
+### 1. 安装依赖
 ```bash
-# 使用uv包管理器（推荐）
-uv install
-
-# 或使用pip
-pip install fastapi uvicorn playwright aiohttp pydantic
-
-# 安装浏览器
+pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 2. 启动Chrome调试模式
+### 2. 数据迁移（如有历史数据）
+```bash
+python migrate_data.py
+```
 
+### 3. 启动Chrome（爬虫需要）
 ```bash
 # macOS
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
 
-# Windows
-chrome.exe --remote-debugging-port=9222 --user-data-dir=c:\temp\chrome-debug
+# Windows  
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
 
 # Linux
-google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
+google-chrome --remote-debugging-port=9222
 ```
 
-### 3. 数据收集流程
-
+### 4. 启动系统
 ```bash
-# 步骤1：配置店铺列表
-echo "534779" >> shop_list.txt
-
-# 步骤2：爬取店铺书籍数据
-python incremental_scraper.py
-
-# 步骤3：分析销售记录（可选）
-python sales_analyzer.py
-
-# 步骤4：启动API服务
-python book_analysis_api.py
+python app.py
 ```
 
-### 4. 访问服务
+## 访问地址
 
-- **主页面**：http://localhost:8000
-- **API文档**：http://localhost:8000/docs  
-- **健康检查**：http://localhost:8000/health
+- **主页**: http://127.0.0.1:8000/ - 数据展示和分析
+- **爬虫控制**: http://127.0.0.1:8000/crawler-admin - 管理爬虫任务（隐藏入口）
+- **API文档**: http://127.0.0.1:8000/docs
 
-## API接口说明
+## 核心功能
 
-### 核心分析接口
+### 数据展示（主页）
+- 销售统计（1/3/7/30天）
+- 价格分析（去异常值的平均值/中位数/众数）
+- 热销排行榜
+- 利润商品排行（价差分析）
+- 分类统计
+- 店铺业绩
 
-```http
-POST /analyze
-Content-Type: application/json
-
-{
-    "book_isbn": "9787521724493"
-}
-```
-
-**响应数据结构：**
-
-```json
-{
-    "isbn": "9787521724493",
-    "stats": {
-        "sales_1_day": 0,
-        "sales_7_days": 2, 
-        "sales_30_days": 15,
-        "total_records": 15,
-        "latest_sale_date": "2025-08-13",
-        "average_price": 45.67,
-        "price_range": {
-            "min": 30.0,
-            "max": 69.0
-        }
-    },
-    "message": "成功分析ISBN 9787521724493，找到 15 条销售记录",
-    "success": true
-}
-```
-
-### 健康检查接口
-
-```http
-GET /health
-```
-
-## 数据流架构
-
-```
-shop_list.txt → incremental_scraper.py → books_data.csv
-                                               ↓
-sales_analyzer.py → sales_detail_*.csv + book_sales.csv
-                                               ↓
-book_analysis_api.py → Chrome Debug → 孔夫子网站 → api_sales_data.csv
-                    ↓
-                Web Frontend
-```
+### 爬虫控制（管理页）
+- 批量添加店铺
+- 更新店铺书籍数据
+- 更新多抓鱼价格
+- 查看任务状态
+- 手动触发爬虫
 
 ## 项目结构
 
 ```
 sellbook/
-├── book_analysis_api.py    # 模块1：FastAPI分析服务
-├── incremental_scraper.py  # 模块2：店铺书籍爬取器  
-├── sales_analyzer.py       # 模块3：销售记录分析器
-├── findbook.py            # 辅助：单书搜索工具
-├── real_browser_scraper.py # 辅助：浏览器爬取工具
-├── static/
-│   └── index.html         # 前端用户界面
-├── shop_list.txt          # 配置：店铺ID列表
-├── books_data.csv         # 数据：书籍基础信息
-├── api_sales_data.csv     # 数据：API销售记录
-├── book_sales.csv         # 数据：销售统计汇总
-├── pyproject.toml         # Python项目配置
-└── uv.lock               # 依赖版本锁定
+├── src/
+│   ├── models/          # 数据模型
+│   ├── services/        # 业务服务
+│   ├── routes/          # API路由
+│   ├── static/          # 前端文件
+│   └── main.py          # 应用入口
+├── data/
+│   └── sellbook.db      # SQLite数据库
+├── app.py               # 启动脚本
+├── migrate_data.py      # 数据迁移
+└── requirements.txt     # 依赖包
 ```
 
-## 版本说明
+## 技术栈
 
-### 📊 数据库版本 (v2.0) - 推荐
-**已完成的数据库迁移功能**：
-- ✅ SQLite轻量级数据库集成
-- ✅ 统一的数据模型设计
-- ✅ 完整的数据库操作API
-- ✅ CSV到SQLite自动迁移工具
-- ✅ 数据库版本的三大核心模块
-
-**新增文件**：
-- `database.py` - 数据库管理核心
-- `book_analysis_api_v2.py` - 数据库版API服务
-- `incremental_scraper_v2.py` - 数据库版爬虫
-- `sales_analyzer_v2.py` - 数据库版销售分析器
-- `migrate_to_database.py` - 数据迁移工具
-- `run.py` - 统一启动脚本
-
-### 📁 CSV版本 (v1.0) - 兼容保留
-保持原有CSV文件格式的完整功能，确保向后兼容。
-
-## 快速启动 🚀
-
-### 方法1：使用统一启动脚本 (推荐)
-```bash
-python run.py
-```
-然后根据菜单选择对应功能模块。
-
-### 方法2：直接运行数据库版本
-```bash
-# 1. 数据迁移 (首次使用)
-python migrate_to_database.py
-
-# 2. 启动API服务
-python book_analysis_api_v2.py
-
-# 3. 运行爬虫
-python incremental_scraper_v2.py
-
-# 4. 分析销售记录
-python sales_analyzer_v2.py
-```
-
-## 数据库架构
-
-### SQLite表结构
-```sql
--- 书籍基础信息表
-CREATE TABLE books (
-    itemid TEXT PRIMARY KEY,
-    shopid TEXT NOT NULL,
-    isbn TEXT,
-    title TEXT,
-    author TEXT,
-    publisher TEXT,
-    -- 更多字段...
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 销售记录详情表  
-CREATE TABLE sales_records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    book_isbn TEXT NOT NULL,
-    sale_date TEXT,
-    price REAL,
-    quality TEXT,
-    -- 更多字段...
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- API销售数据表
-CREATE TABLE api_sales_data (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    book_isbn TEXT NOT NULL,
-    sale_date TEXT,
-    -- 更多字段...
-);
-```
-
-### 数据操作API
-```python
-from database import BookRepository, SalesRepository
-
-# 书籍数据操作
-book_repo = BookRepository()
-await book_repo.save_books(books_data)
-existing_ids = await book_repo.get_existing_itemids()
-
-# 销售数据操作
-sales_repo = SalesRepository()
-await sales_repo.save_sales_data(sales_data)
-sales = await sales_repo.get_sales_by_isbn(isbn)
-```
-
-## 开发计划
-
-### 第一阶段：数据库迁移 ✅ 已完成
-- ✅ 选择SQLite轻量级数据库
-- ✅ 设计统一的数据模型  
-- ✅ 重构CSV读写逻辑为数据库操作
-- ✅ CSV自动迁移脚本
-
-### 第二阶段：性能优化
-- [ ] 并发爬取优化
-- [ ] 缓存机制实现
-- [ ] API响应优化
-- [ ] 错误重试机制
-
-### 第三阶段：功能扩展
-- [ ] 用户管理系统
-- [ ] 批量分析功能
-- [ ] 数据导出功能
-- [ ] 监控告警机制
+- 后端：FastAPI + SQLite
+- 爬虫：Playwright + Aiohttp  
+- 前端：原生HTML/CSS/JavaScript
 
 ## 注意事项
 
-- **Chrome调试**：需要手动启动Chrome调试模式连接
-- **爬取规范**：请遵守网站robots.txt和使用条款
-- **频率控制**：建议添加适当请求间隔避免被限制
-- **数据合规**：仅用于合法的数据分析用途
-
-## 许可证
-
-MIT License
+1. 爬虫需要Chrome浏览器调试模式
+2. 所有爬虫手动触发，无定时任务
+3. 爬虫控制页面建议仅管理员使用
+4. 定期备份`data/sellbook.db`数据库
