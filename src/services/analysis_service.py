@@ -162,12 +162,12 @@ class AnalysisService:
         """获取分类统计数据"""
         query = """
             SELECT b.category, 
-                   COUNT(DISTINCT sr.book_id) as book_count,
+                   COUNT(DISTINCT sr.isbn) as book_count,
                    COUNT(sr.id) as sales_count,
                    SUM(sr.sale_price) as total_revenue,
                    AVG(sr.sale_price) as avg_price
             FROM sales_records sr
-            JOIN books b ON sr.book_id = b.id
+            JOIN books b ON sr.isbn = b.isbn
             WHERE b.category IS NOT NULL
             GROUP BY b.category
             ORDER BY sales_count DESC
@@ -187,7 +187,7 @@ class AnalysisService:
         """获取店铺业绩统计"""
         query = """
             SELECT s.shop_name, s.shop_id,
-                   COUNT(DISTINCT bi.book_id) as book_count,
+                   COUNT(DISTINCT bi.isbn) as book_count,
                    COUNT(sr.id) as sales_count,
                    COALESCE(SUM(sr.sale_price), 0) as total_revenue,
                    COALESCE(AVG(sr.sale_price), 0) as avg_price
@@ -196,7 +196,7 @@ class AnalysisService:
             LEFT JOIN sales_records sr ON s.id = sr.shop_id
             WHERE s.status = 'active'
             GROUP BY s.id
-            ORDER BY total_revenue DESC
+            ORDER BY book_count DESC
         """
         
         from ..models.database import db
@@ -228,7 +228,7 @@ class AnalysisService:
             SELECT bi.*, s.shop_name
             FROM book_inventory bi
             JOIN shops s ON bi.shop_id = s.id
-            WHERE bi.book_id = ?
+            WHERE bi.isbn = ?
             ORDER BY bi.kongfuzi_price ASC
         """
         

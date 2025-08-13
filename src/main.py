@@ -246,7 +246,7 @@ async def health_check():
 
 def run_server(host: str = "127.0.0.1", port: int = 8000):
     """运行服务器"""
-    uvicorn.run(app, host=host, port=port, reload=True)
+    uvicorn.run("src.main:app", host=host, port=port, reload=True)
 
 if __name__ == "__main__":
     run_server()

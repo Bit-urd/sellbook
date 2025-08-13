@@ -164,7 +164,7 @@ async def add_shops(shop_ids: List[str]):
         raise HTTPException(status_code=500, detail=str(e))
 
 @crawler_router.post("/shop/{shop_id}/crawl")
-async def crawl_shop_books(shop_id: str, max_pages: int = Query(10, ge=1, le=100)):
+async def crawl_shop_books(shop_id: str, max_pages: int = Query(50, ge=1, le=100)):
     """爬取店铺书籍"""
     try:
         # 检查店铺是否存在
@@ -229,9 +229,9 @@ async def update_duozhuayu_prices():
     try:
         # 获取所有需要更新的库存项
         query = """
-            SELECT DISTINCT bi.book_id, bi.shop_id
+            SELECT DISTINCT bi.isbn, bi.shop_id
             FROM book_inventory bi
-            JOIN books b ON bi.book_id = b.id
+            JOIN books b ON bi.isbn = b.isbn
             WHERE b.isbn IS NOT NULL
               AND (bi.duozhuayu_second_hand_price IS NULL 
                    OR bi.updated_at < datetime('now', '-1 day'))
@@ -243,11 +243,11 @@ async def update_duozhuayu_prices():
         task_ids = []
         for item in items:
             task = CrawlTask(
-                task_name=f"更新书籍 {item['book_id']} 的多抓鱼价格",
+                task_name=f"更新书籍 {item['isbn']} 的多抓鱼价格",
                 task_type="duozhuayu_price",
                 target_platform="duozhuayu",
                 task_params={
-                    "book_id": item['book_id'],
+                    "isbn": item['isbn'],
                     "shop_id": item['shop_id']
                 }
             )
@@ -287,4 +287,21 @@ async def run_pending_tasks():
         return {"success": True, "message": "任务执行已启动"}
     except Exception as e:
         logger.error(f"运行任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+from pydantic import BaseModel
+
+class DeleteTasksRequest(BaseModel):
+    task_ids: List[int]
+
+@crawler_router.post("/tasks/delete")
+async def delete_tasks(request: DeleteTasksRequest):
+    """删除指定的爬虫任务"""
+    try:
+        deleted_count = task_repo.batch_delete(request.task_ids)
+        if deleted_count == 0:
+            raise HTTPException(status_code=404, detail="没有找到要删除的任务")
+        return {"success": True, "message": f"成功删除 {deleted_count} 个任务"}
+    except Exception as e:
+        logger.error(f"删除任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

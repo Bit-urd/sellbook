@@ -1,0 +1,189 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>爬虫控制面板</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .success { color: green; }
+        .error { color: red; }
+        #log { background: #f5f5f5; padding: 10px; height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>爬虫控制面板</h1>
+        
+        <div class="section">
+            <h2>店铺管理</h2>
+            <div>
+                <input type="text" id="shopIds" placeholder="输入店铺ID，多个用逗号分隔" style="width: 300px;">
+                <button onclick="addShops()">添加店铺</button>
+            </div>
+            <div>
+                <button onclick="updateAllShops()">更新所有店铺数据</button>
+                <button onclick="updateDuozhuayuPrices()">更新多抓鱼价格</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>任务状态</h2>
+            <div>
+                <button onclick="getTaskStatus('pending')">待执行任务</button>
+                <button onclick="getTaskStatus('running')">运行中任务</button>
+                <button onclick="getTaskStatus()">所有任务</button>
+                <button onclick="runPendingTasks()">执行待处理任务</button>
+                <button onclick="deleteSelectedTasks()">删除选中任务</button>
+            </div>
+            <div id="taskList" style="margin-top: 10px;"></div>
+        </div>
+        
+        <div class="section">
+            <h2>操作日志</h2>
+            <div id="log"></div>
+        </div>
+    </div>
+    
+    <script>
+        function log(message, isError = false) {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const className = isError ? 'error' : 'success';
+            logDiv.innerHTML = `<div class="${className}">[${time}] ${message}</div>` + logDiv.innerHTML;
+        }
+        
+        async function addShops() {
+            const shopIds = document.getElementById('shopIds').value.split(',').map(s => s.trim()).filter(s => s);
+            if (shopIds.length === 0) {
+                log('请输入店铺ID', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch('/crawler/shop/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(shopIds)
+                });
+                const data = await response.json();
+                log(data.message);
+                document.getElementById('shopIds').value = '';
+            } catch (error) {
+                log('添加店铺失败: ' + error.message, true);
+            }
+        }
+        
+        async function updateAllShops() {
+            try {
+                const response = await fetch('/crawler/update/all-shops', {method: 'POST'});
+                const data = await response.json();
+                log(data.message);
+            } catch (error) {
+                log('更新失败: ' + error.message, true);
+            }
+        }
+        
+        async function updateDuozhuayuPrices() {
+            try {
+                const response = await fetch('/crawler/update/duozhuayu-prices', {method: 'POST'});
+                const data = await response.json();
+                log(data.message);
+            } catch (error) {
+                log('更新价格失败: ' + error.message, true);
+            }
+        }
+        
+        async function getTaskStatus(status) {
+            try {
+                const url = status ? `/crawler/tasks/status?status=${status}` : '/crawler/tasks/status';
+                const response = await fetch(url);
+                const data = await response.json();
+                displayTasks(data.data);
+            } catch (error) {
+                log('获取任务状态失败: ' + error.message, true);
+            }
+        }
+        
+        async function runPendingTasks() {
+            try {
+                const response = await fetch('/crawler/tasks/run-pending', {method: 'POST'});
+                const data = await response.json();
+                log(data.message);
+            } catch (error) {
+                log('执行任务失败: ' + error.message, true);
+            }
+        }
+
+        async function deleteSelectedTasks() {
+            const selectedIds = Array.from(document.querySelectorAll('input[name="task_id"]:checked')).map(cb => cb.value);
+            if (selectedIds.length === 0) {
+                log('请选择要删除的任务', true);
+                return;
+            }
+
+            if (!confirm(`确定要删除选中的 ${selectedIds.length} 个任务吗？`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/crawler/tasks/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_ids: selectedIds })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    log(data.message);
+                    getTaskStatus(); // Refresh the list
+                } else {
+                    log('删除任务失败: ' + data.detail, true);
+                }
+            } catch (error) {
+                log('删除任务失败: ' + error.message, true);
+            }
+        }
+        
+        function displayTasks(tasks) {
+            const taskList = document.getElementById('taskList');
+            if (tasks.length === 0) {
+                taskList.innerHTML = '<p>没有任务</p>';
+                return;
+            }
+            
+            let html = '<table border="1" style="width: 100%; border-collapse: collapse;">';
+            html += '<tr><th><input type="checkbox" onchange="toggleSelectAll(this)"></th><th>ID</th><th>任务名称</th><th>类型</th><th>状态</th><th>进度</th><th>创建时间</th></tr>';
+            
+            tasks.forEach(task => {
+                html += `<tr>
+                    <td><input type="checkbox" name="task_id" value="${task.id}"></td>
+                    <td>${task.id}</td>
+                    <td>${task.task_name}</td>
+                    <td>${task.task_type}</td>
+                    <td>${task.status}</td>
+                    <td>${task.progress_percentage}%</td>
+                    <td>${new Date(task.created_at).toLocaleString()}</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            taskList.innerHTML = html;
+        }
+
+        function toggleSelectAll(source) {
+            const checkboxes = document.querySelectorAll('input[name="task_id"]');
+            for (const checkbox of checkboxes) {
+                checkbox.checked = source.checked;
+            }
+        }
+        
+        // 页面加载时获取任务状态
+        window.onload = () => {
+            getTaskStatus();
+        };
+    </script>
+</body>
+</html>

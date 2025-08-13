@@ -79,7 +79,7 @@ class KongfuziCrawler:
             await self.playwright.stop()
             self.connected = False
     
-    async def crawl_shop_books(self, shop_id: str, max_pages: int = 10) -> int:
+    async def crawl_shop_books(self, shop_id: str, max_pages: int = 50) -> int:
         """爬取店铺的书籍列表"""
         if not await self.connect_browser():
             raise Exception("无法连接到浏览器")
@@ -89,77 +89,218 @@ class KongfuziCrawler:
             task_name=f"爬取店铺 {shop_id} 的书籍",
             task_type="shop_books",
             target_platform="kongfuzi",
-            target_url=f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_5_0_0_0/",
+            target_url=f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/",
             status="running"
         )
         task_id = self.task_repo.create(task)
         
         try:
             books_crawled = 0
+            current_page = 1
             
-            for page_num in range(1, max_pages + 1):
-                url = f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_5_0_0_0/w{page_num}/"
-                await self.page.goto(url, wait_until='networkidle')
-                await asyncio.sleep(2)  # 等待页面加载
-                
-                # 提取书籍信息
-                books_data = await self.page.evaluate("""
+            # 访问店铺首页
+            url = f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/"
+            await self.page.goto(url, wait_until='networkidle')
+            await asyncio.sleep(2)  # 等待页面加载
+            
+            while current_page <= max_pages:
+                try:
+                    # 提取书籍信息
+                    books_data = await self.page.evaluate("""
                     () => {
                         const items = [];
-                        document.querySelectorAll('.item').forEach(item => {
-                            const titleEl = item.querySelector('.title a');
-                            const priceEl = item.querySelector('.price');
-                            const qualityEl = item.querySelector('.quality');
-                            const itemIdEl = item.querySelector('[data-item-id]');
+                        // 查找item-row元素，它包含了itemid和isbn属性
+                        document.querySelectorAll('.item-row').forEach(item => {
+                            const titleEl = item.querySelector('.row-name');
+                            const authorEl = item.querySelector('.row-author');
+                            const pressEl = item.querySelector('.row-press');
+                            const priceEl = item.querySelector('.row-price');
+                            const qualityEl = item.querySelector('.row-quality');
+                            
+                            // 获取item的属性
+                            const itemId = item.getAttribute('itemid');
+                            const isbn = item.getAttribute('isbn');
+                            const shopId = item.getAttribute('shopid');
                             
                             if (titleEl) {
+                                // 处理价格，移除所有货币符号
+                                let price = '';
+                                if (priceEl) {
+                                    const boldPrice = priceEl.querySelector('.bold');
+                                    if (boldPrice) {
+                                        price = boldPrice.textContent.trim();
+                                    } else {
+                                        price = priceEl.textContent
+                                            .replace(/[¥￥]/g, '')  // 移除半角和全角￥
+                                            .replace(/[^\d.]/g, '')  // 只保留数字和小数点
+                                            .trim();
+                                    }
+                                }
+                                
                                 items.push({
                                     title: titleEl.textContent.trim(),
                                     url: titleEl.href,
-                                    price: priceEl ? priceEl.textContent.replace('¥', '').trim() : '',
+                                    author: authorEl ? authorEl.textContent.trim() : '',
+                                    publisher: pressEl ? pressEl.textContent.trim() : '',
+                                    price: price,
                                     quality: qualityEl ? qualityEl.textContent.trim() : '',
-                                    itemId: itemIdEl ? itemIdEl.dataset.itemId : ''
+                                    itemId: itemId || '',
+                                    isbn: isbn || '',
+                                    shopId: shopId || ''
                                 });
                             }
                         });
+                        
+                        // 如果item-row选择器没有找到元素，尝试使用.item选择器（兼容旧版页面）
+                        if (items.length === 0) {
+                            document.querySelectorAll('.item').forEach(item => {
+                                const titleEl = item.querySelector('.title a');
+                                const priceEl = item.querySelector('.price');
+                                const qualityEl = item.querySelector('.quality');
+                                
+                                if (titleEl) {
+                                    let price = '';
+                                    if (priceEl) {
+                                        price = priceEl.textContent
+                                            .replace(/[¥￥]/g, '')
+                                            .replace(/[^\d.]/g, '')
+                                            .trim();
+                                    }
+                                    
+                                    // 从URL提取ID作为备用
+                                    let bookId = '';
+                                    if (titleEl.href) {
+                                        const matches = titleEl.href.match(/\/(\d+)\/(\d+)\//);
+                                        if (matches && matches[2]) {
+                                            bookId = matches[2];
+                                        }
+                                    }
+                                    
+                                    items.push({
+                                        title: titleEl.textContent.trim(),
+                                        url: titleEl.href,
+                                        author: '',
+                                        publisher: '',
+                                        price: price,
+                                        quality: qualityEl ? qualityEl.textContent.trim() : '',
+                                        itemId: bookId,
+                                        isbn: '',
+                                        shopId: ''
+                                    });
+                                }
+                            });
+                        }
+                        
                         return items;
                     }
                 """)
-                
-                if not books_data:
-                    break
-                
-                # 保存书籍数据
-                for book_data in books_data:
-                    # 创建或更新书籍
-                    book = Book(
-                        title=book_data['title'],
-                        isbn=None  # 需要进入详情页获取
-                    )
-                    book_id = self.book_repo.create_or_update(book)
                     
-                    # 获取店铺信息
-                    shop_info = self.shop_repo.get_by_id(shop_id)
-                    if not shop_info:
-                        continue
+                    if not books_data:
+                        logger.info(f"第 {current_page} 页没有书籍数据")
+                        break
                     
-                    # 创建库存记录
-                    inventory = BookInventory(
-                        book_id=book_id,
-                        shop_id=shop_info['id'],
-                        kongfuzi_price=float(book_data['price']) if book_data['price'] else None,
-                        kongfuzi_condition=book_data['quality'],
-                        kongfuzi_book_url=book_data['url'],
-                        kongfuzi_item_id=book_data['itemId']
-                    )
-                    self.inventory_repo.upsert(inventory)
-                    books_crawled += 1
-                
-                # 更新任务进度
-                progress = (page_num / max_pages) * 100
-                self.task_repo.update_status(task_id, 'running', progress)
-                
-                await asyncio.sleep(3)  # 避免请求过快
+                    # 保存书籍数据
+                    for book_data in books_data:
+                        # 优先使用真实的ISBN，如果没有则使用itemId作为唯一标识
+                        isbn = book_data.get('isbn') or book_data.get('itemId')
+                        if not isbn:
+                            logger.warning(f"无法获取书籍唯一标识: {book_data['title']}")
+                            continue
+                        
+                        # 创建或更新书籍
+                        book = Book(
+                            isbn=isbn,  # 使用真实ISBN或itemId作为唯一标识
+                            title=book_data['title'],
+                            author=book_data.get('author'),
+                            publisher=book_data.get('publisher')
+                        )
+                        book_isbn = self.book_repo.create_or_update(book)
+                        
+                        if not book_isbn:
+                            logger.error(f"无法保存书籍: {book_data['title']}")
+                            continue
+                        
+                        # 获取店铺信息
+                        shop_info = self.shop_repo.get_by_id(shop_id)
+                        if not shop_info:
+                            continue
+                        
+                        # 安全解析价格
+                        price = None
+                        if book_data['price']:
+                            try:
+                                price = float(book_data['price'])
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"无法解析价格 '{book_data['price']}': {e}")
+                                price = None
+                        
+                        # 创建库存记录
+                        inventory = BookInventory(
+                            isbn=book_isbn,
+                            shop_id=shop_info['id'],
+                            kongfuzi_price=price,
+                            kongfuzi_condition=book_data.get('quality'),
+                            kongfuzi_book_url=book_data.get('url'),
+                            kongfuzi_item_id=book_data.get('itemId')  # 保存原始的itemId
+                        )
+                        self.inventory_repo.upsert(inventory)
+                        books_crawled += 1
+                    
+                    logger.info(f"第 {current_page} 页爬取了 {len(books_data)} 本书籍")
+                    
+                    # 更新任务进度
+                    progress = (current_page / max_pages) * 100
+                    self.task_repo.update_status(task_id, 'running', progress)
+                    
+                    # 检查是否有下一页
+                    has_next_page = await self.page.evaluate("""
+                        () => {
+                            // 查找下一页按钮，可能有多种selector
+                            const nextBtn = document.querySelector('.next-btn') || 
+                                           document.querySelector('.pagination .next') ||
+                                           document.querySelector('a[title="下一页"]') ||
+                                           document.querySelector('.page-next:not(.disabled)');
+                            return nextBtn && !nextBtn.classList.contains('disabled') && 
+                                   !nextBtn.classList.contains('inactive');
+                        }
+                    """)
+                    
+                    if not has_next_page or current_page >= max_pages:
+                        logger.info(f"没有下一页或已达到最大页数限制 {max_pages}")
+                        break
+                    
+                    # 点击下一页
+                    await self.page.evaluate("""
+                        () => {
+                            const nextBtn = document.querySelector('.next-btn') || 
+                                           document.querySelector('.pagination .next') ||
+                                           document.querySelector('a[title="下一页"]') ||
+                                           document.querySelector('.page-next:not(.disabled)');
+                            if (nextBtn) nextBtn.click();
+                        }
+                    """)
+                    
+                    # 等待新页面加载
+                    await asyncio.sleep(3)
+                    
+                    # 等待页面稳定
+                    try:
+                        await self.page.wait_for_load_state('networkidle', timeout=5000)
+                    except:
+                        # 如果等待超时，继续执行
+                        pass
+                    
+                    current_page += 1
+                    
+                except Exception as e:
+                    logger.warning(f"第 {current_page} 页处理出错: {e}")
+                    # 如果出错，尝试继续下一页
+                    current_page += 1
+                    if current_page > max_pages:
+                        break
+                    # 等待一下再继续
+                    await asyncio.sleep(3)
+                    continue
             
             # 更新任务为完成
             self.task_repo.update_status(task_id, 'completed', 100)
@@ -220,7 +361,7 @@ class KongfuziCrawler:
                         continue
                     
                     record = SalesRecord(
-                        book_id=book['id'],
+                        isbn=isbn,  # 使用ISBN作为外键
                         shop_id=1,  # 默认店铺ID，实际应该从页面获取
                         sale_price=float(sale['price']),
                         sale_date=sale_date,
@@ -271,22 +412,22 @@ class DuozhuayuCrawler:
         
         return {}
     
-    async def update_book_price(self, book_id: int, shop_id: int) -> bool:
+    async def update_book_price(self, isbn: str, shop_id: int) -> bool:
         """更新书籍的多抓鱼价格"""
         # 获取书籍信息
         from ..models.repositories import BookRepository
         book_repo = BookRepository()
-        book = book_repo.get_by_id(book_id)
+        book = book_repo.get_by_isbn(isbn)
         
-        if not book or not book.get('isbn'):
+        if not book:
             return False
         
         # 查询多抓鱼价格
-        price_info = await self.search_book_price(book['isbn'])
+        price_info = await self.search_book_price(isbn)
         
         if price_info:
             # 获取现有库存信息
-            inventory = self.inventory_repo.get_by_book_shop(book_id, shop_id)
+            inventory = self.inventory_repo.get_by_book_shop(isbn, shop_id)
             
             if inventory:
                 # 更新多抓鱼价格信息
@@ -335,10 +476,10 @@ class CrawlerManager:
                 elif task['task_type'] == 'duozhuayu_price':
                     # 更新多抓鱼价格
                     params = json.loads(task['task_params']) if task['task_params'] else {}
-                    book_id = params.get('book_id')
+                    isbn = params.get('isbn')
                     shop_id = params.get('shop_id')
-                    if book_id and shop_id:
-                        await self.duozhuayu.update_book_price(book_id, shop_id)
+                    if isbn and shop_id:
+                        await self.duozhuayu.update_book_price(isbn, shop_id)
             except Exception as e:
                 logger.error(f"执行任务 {task['id']} 失败: {e}")
                 self.task_repo.update_status(task['id'], 'failed', error_message=str(e))

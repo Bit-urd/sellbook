@@ -60,27 +60,36 @@ class ShopRepository:
 class BookRepository:
     """书籍数据仓库"""
     
-    def create_or_update(self, book: Book) -> int:
-        """创建或更新书籍"""
+    def create_or_update(self, book: Book) -> Optional[str]:
+        """创建或更新书籍，返回ISBN"""
         # 先尝试根据ISBN查找
         if book.isbn:
             existing = self.get_by_isbn(book.isbn)
             if existing:
-                return existing['id']
+                logger.warning(f"书籍ISBN {book.isbn} 已存在，跳过插入: {book.title}")
+                return book.isbn
         
-        query = """
-            INSERT INTO books (isbn, title, author, publisher, publish_date, 
-                             category, subcategory, description, cover_image_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (book.isbn, book.title, book.author, book.publisher, 
-                 book.publish_date, book.category, book.subcategory,
-                 book.description, book.cover_image_url)
-        
-        with db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            return cursor.lastrowid
+        try:
+            query = """
+                INSERT OR IGNORE INTO books (isbn, title, author, publisher, publish_date, 
+                                 category, subcategory, description, cover_image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            params = (book.isbn, book.title, book.author, book.publisher, 
+                     book.publish_date, book.category, book.subcategory,
+                     book.description, book.cover_image_url)
+            
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                if cursor.rowcount == 0:
+                    logger.warning(f"书籍ISBN {book.isbn} 插入被忽略（可能重复）")
+                else:
+                    logger.info(f"成功插入书籍: ISBN={book.isbn}, 标题={book.title}")
+                return book.isbn
+        except Exception as e:
+            logger.error(f"插入书籍失败: {e}")
+            return None
     
     def get_by_isbn(self, isbn: str) -> Optional[Dict]:
         """根据ISBN获取书籍"""
@@ -111,7 +120,7 @@ class BookInventoryRepository:
         
         query = """
             INSERT OR REPLACE INTO book_inventory 
-            (book_id, shop_id, kongfuzi_price, kongfuzi_original_price, kongfuzi_stock,
+            (isbn, shop_id, kongfuzi_price, kongfuzi_original_price, kongfuzi_stock,
              kongfuzi_condition, kongfuzi_condition_desc, kongfuzi_book_url, kongfuzi_item_id,
              duozhuayu_new_price, duozhuayu_second_hand_price, duozhuayu_in_stock, duozhuayu_book_url,
              price_diff_new, price_diff_second_hand, profit_margin_new, profit_margin_second_hand,
@@ -120,7 +129,7 @@ class BookInventoryRepository:
         """
         
         params = (
-            inventory.book_id, inventory.shop_id,
+            inventory.isbn, inventory.shop_id,
             inventory.kongfuzi_price, inventory.kongfuzi_original_price, inventory.kongfuzi_stock,
             inventory.kongfuzi_condition, inventory.kongfuzi_condition_desc,
             inventory.kongfuzi_book_url, inventory.kongfuzi_item_id,
@@ -136,18 +145,18 @@ class BookInventoryRepository:
             cursor.execute(query, params)
             return cursor.lastrowid
     
-    def get_by_book_shop(self, book_id: int, shop_id: int) -> Optional[Dict]:
-        """根据书籍和店铺ID获取库存"""
-        query = "SELECT * FROM book_inventory WHERE book_id = ? AND shop_id = ?"
-        results = db.execute_query(query, (book_id, shop_id))
+    def get_by_book_shop(self, isbn: str, shop_id: int) -> Optional[Dict]:
+        """根据书籍ISBN和店铺ID获取库存"""
+        query = "SELECT * FROM book_inventory WHERE isbn = ? AND shop_id = ?"
+        results = db.execute_query(query, (isbn, shop_id))
         return results[0] if results else None
     
     def get_profitable_items(self, min_margin: float = 20.0) -> List[Dict]:
         """获取有利润的商品"""
         query = """
-            SELECT bi.*, b.title, b.isbn, b.author, s.shop_name
+            SELECT bi.*, b.title, b.author, s.shop_name
             FROM book_inventory bi
-            JOIN books b ON bi.book_id = b.id
+            JOIN books b ON bi.isbn = b.isbn
             JOIN shops s ON bi.shop_id = s.id
             WHERE bi.is_profitable = 1 
               AND bi.profit_margin_second_hand >= ?
@@ -162,10 +171,10 @@ class SalesRepository:
         """创建销售记录"""
         query = """
             INSERT INTO sales_records 
-            (book_id, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
+            (isbn, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """
-        params = (sale.book_id, sale.shop_id, sale.sale_price, sale.original_price,
+        params = (sale.isbn, sale.shop_id, sale.sale_price, sale.original_price,
                  sale.sale_date, sale.sale_platform, sale.book_condition)
         
         with db.get_connection() as conn:
@@ -177,11 +186,11 @@ class SalesRepository:
         """批量创建销售记录"""
         query = """
             INSERT INTO sales_records 
-            (book_id, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
+            (isbn, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """
         params_list = [
-            (s.book_id, s.shop_id, s.sale_price, s.original_price,
+            (s.isbn, s.shop_id, s.sale_price, s.original_price,
              s.sale_date, s.sale_platform, s.book_condition)
             for s in sales
         ]
@@ -190,9 +199,9 @@ class SalesRepository:
     def get_sales_by_period(self, days: int) -> List[Dict]:
         """获取指定天数内的销售记录"""
         query = """
-            SELECT sr.*, b.title, b.isbn, b.author, s.shop_name
+            SELECT sr.*, b.title, b.author, s.shop_name
             FROM sales_records sr
-            JOIN books b ON sr.book_id = b.id
+            JOIN books b ON sr.isbn = b.isbn
             JOIN shops s ON sr.shop_id = s.id
             WHERE sr.sale_date >= datetime('now', '-{} days')
             ORDER BY sr.sale_date DESC
@@ -208,15 +217,15 @@ class SalesRepository:
                    MIN(sr.sale_price) as min_price,
                    MAX(sr.sale_price) as max_price
             FROM sales_records sr
-            JOIN books b ON sr.book_id = b.id
+            JOIN books b ON sr.isbn = b.isbn
             WHERE sr.sale_date >= datetime('now', '-{} days')
-            GROUP BY sr.book_id
+            GROUP BY sr.isbn
             ORDER BY sale_count DESC
             LIMIT ?
         """.format(days)
         return db.execute_query(query, (limit,))
     
-    def get_price_statistics(self, book_id: int, days: int = 30) -> Dict:
+    def get_price_statistics(self, isbn: str, days: int = 30) -> Dict:
         """获取价格统计信息"""
         query = """
             SELECT 
@@ -225,11 +234,11 @@ class SalesRepository:
                 MAX(sale_price) as max_price,
                 COUNT(*) as sale_count
             FROM sales_records
-            WHERE book_id = ? 
+            WHERE isbn = ? 
               AND sale_date >= datetime('now', '-{} days')
         """.format(days)
         
-        results = db.execute_query(query, (book_id,))
+        results = db.execute_query(query, (isbn,))
         if results:
             return results[0]
         return {'avg_price': 0, 'min_price': 0, 'max_price': 0, 'sale_count': 0}
@@ -301,6 +310,16 @@ class CrawlTaskRepository:
             LIMIT ?
         """
         return db.execute_query(query, (limit,))
+
+    def batch_delete(self, task_ids: List[int]) -> int:
+        """批量删除任务"""
+        if not task_ids:
+            return 0
+        
+        placeholders = ','.join('?' for _ in task_ids)
+        query = f"DELETE FROM crawl_tasks WHERE id IN ({placeholders})"
+        
+        return db.execute_update(query, tuple(task_ids))
 
 class StatisticsRepository:
     """统计数据仓库"""

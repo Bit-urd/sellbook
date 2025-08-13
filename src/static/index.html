@@ -240,39 +240,21 @@
             <button class="time-filter" onclick="loadData(30)">30天</button>
         </div>
         
-        <div class="dashboard">
-            <div class="card">
-                <h2>📊 销售概览</h2>
-                <div id="salesOverview">
-                    <div class="loading">加载中...</div>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h2>💰 价格统计</h2>
-                <div id="priceStats">
-                    <div class="loading">加载中...</div>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h2>📈 利润分析</h2>
-                <div id="profitAnalysis">
-                    <div class="loading">加载中...</div>
-                </div>
-            </div>
-        </div>
         
         <div class="card" style="margin-bottom: 20px;">
-            <h2>🔥 热销排行榜</h2>
+            <h2>💎 有价值标的</h2>
             <div class="tab-buttons">
                 <button class="tab-button active" onclick="switchTab('hotSales')">销量排行</button>
-                <button class="tab-button" onclick="switchTab('profitableItems')">利润排行</button>
+                <button class="tab-button" onclick="switchTab('profitableItems')">差价排行</button>
+                <button class="tab-button" onclick="switchTab('expectedProfit')">预期利润排行</button>
             </div>
             <div id="hotSales" class="tab-content active">
                 <div class="loading">加载中...</div>
             </div>
             <div id="profitableItems" class="tab-content">
+                <div class="loading">加载中...</div>
+            </div>
+            <div id="expectedProfit" class="tab-content">
                 <div class="loading">加载中...</div>
             </div>
         </div>
@@ -286,7 +268,7 @@
             </div>
             
             <div class="card">
-                <h2>🏪 店铺业绩</h2>
+                <h2>🏪 店铺统计</h2>
                 <div id="shopPerformance">
                     <div class="loading">加载中...</div>
                 </div>
@@ -308,63 +290,15 @@
             
             // 加载各项数据
             await Promise.all([
-                loadSalesStatistics(days),
                 loadHotSales(days),
                 loadProfitableItems(),
+                loadExpectedProfit(),
                 loadCategoryStats(),
                 loadShopPerformance()
             ]);
         }
         
-        async function loadSalesStatistics(days) {
-            try {
-                const response = await fetch(`/api/sales/statistics?days=${days}`);
-                const result = await response.json();
-                
-                if (result.success) {
-                    const data = result.data;
-                    document.getElementById('salesOverview').innerHTML = `
-                        <div class="stat-value">${data.total_sales}</div>
-                        <div class="stat-label">总销量</div>
-                        <div class="stat-grid">
-                            <div class="stat-item">
-                                <div class="price">¥${data.total_revenue.toFixed(2)}</div>
-                                <div class="stat-label">总营收</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="price">¥${data.avg_price.toFixed(2)}</div>
-                                <div class="stat-label">平均价格</div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    document.getElementById('priceStats').innerHTML = `
-                        <div class="stat-grid">
-                            <div class="stat-item">
-                                <div class="price">¥${data.median_price.toFixed(2)}</div>
-                                <div class="stat-label">中位数</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="price">¥${data.mode_price.toFixed(2)}</div>
-                                <div class="stat-label">众数</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="price">¥${data.min_price.toFixed(2)}</div>
-                                <div class="stat-label">最低价</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="price">¥${data.max_price.toFixed(2)}</div>
-                                <div class="stat-label">最高价</div>
-                            </div>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('加载销售统计失败:', error);
-            }
-        }
-        
-        async function loadHotSales(days) {
+async function loadHotSales(days) {
             try {
                 const response = await fetch(`/api/sales/hot?days=${days}&limit=10`);
                 const result = await response.json();
@@ -399,46 +333,90 @@
                 const result = await response.json();
                 
                 if (result.success && result.data.length > 0) {
-                    let html = '<table><thead><tr><th>书名</th><th>进价</th><th>售价</th><th>利润率</th></tr></thead><tbody>';
+                    let html = '<table><thead><tr><th>书名</th><th>进价</th><th>售价</th><th>差价</th></tr></thead><tbody>';
                     
                     result.data.slice(0, 10).forEach(item => {
+                        const priceDiff = item.duozhuayu_second_hand_price - item.kongfuzi_price;
                         html += `
                             <tr>
                                 <td>${item.title || '未知'}</td>
                                 <td class="price">¥${item.kongfuzi_price.toFixed(2)}</td>
                                 <td class="price">¥${item.duozhuayu_second_hand_price.toFixed(2)}</td>
-                                <td class="profit">${item.profit_margin_second_hand.toFixed(1)}%</td>
+                                <td class="profit">¥${priceDiff.toFixed(2)}</td>
                             </tr>
                         `;
                     });
                     
                     html += '</tbody></table>';
                     document.getElementById('profitableItems').innerHTML = html;
-                    
-                    // 更新利润分析卡片
-                    const profitCount = result.data.length;
-                    const avgMargin = result.data.reduce((sum, item) => sum + item.profit_margin_second_hand, 0) / profitCount;
-                    
-                    document.getElementById('profitAnalysis').innerHTML = `
-                        <div class="stat-value">${profitCount}</div>
-                        <div class="stat-label">可套利商品数</div>
-                        <div class="stat-grid">
-                            <div class="stat-item">
-                                <div class="profit">${avgMargin.toFixed(1)}%</div>
-                                <div class="stat-label">平均利润率</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="profit">${result.data[0].profit_margin_second_hand.toFixed(1)}%</div>
-                                <div class="stat-label">最高利润率</div>
-                            </div>
-                        </div>
-                    `;
                 } else {
                     document.getElementById('profitableItems').innerHTML = '<p>暂无数据</p>';
-                    document.getElementById('profitAnalysis').innerHTML = '<p>暂无利润数据</p>';
                 }
             } catch (error) {
                 console.error('加载利润商品失败:', error);
+            }
+        }
+        
+        async function loadExpectedProfit() {
+            try {
+                // 同时获取销量和差价数据
+                const [salesResponse, profitResponse] = await Promise.all([
+                    fetch(`/api/sales/hot?days=30&limit=100`),
+                    fetch('/api/profitable/items?min_margin=0')
+                ]);
+                
+                const salesResult = await salesResponse.json();
+                const profitResult = await profitResponse.json();
+                
+                if (salesResult.success && profitResult.success) {
+                    // 创建ISBN到销量的映射
+                    const salesMap = {};
+                    salesResult.data.forEach(item => {
+                        if (item.isbn) {
+                            salesMap[item.isbn] = item.sale_count || 0;
+                        }
+                    });
+                    
+                    // 计算预期利润并排序
+                    const profitItems = profitResult.data.map(item => {
+                        const saleCount = salesMap[item.isbn] || 0;
+                        const priceDiff = (item.duozhuayu_second_hand_price || 0) - (item.kongfuzi_price || 0);
+                        const expectedProfit = saleCount * priceDiff;
+                        
+                        return {
+                            ...item,
+                            sale_count: saleCount,
+                            price_diff: priceDiff,
+                            expected_profit: expectedProfit
+                        };
+                    }).filter(item => item.expected_profit > 0)
+                      .sort((a, b) => b.expected_profit - a.expected_profit);
+                    
+                    if (profitItems.length > 0) {
+                        let html = '<table><thead><tr><th>书名</th><th>销量</th><th>差价</th><th>预期利润</th></tr></thead><tbody>';
+                        
+                        profitItems.slice(0, 10).forEach(item => {
+                            html += `
+                                <tr>
+                                    <td>${item.title || '未知'}</td>
+                                    <td>${item.sale_count}</td>
+                                    <td class="price">¥${item.price_diff.toFixed(2)}</td>
+                                    <td class="profit">¥${item.expected_profit.toFixed(2)}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        html += '</tbody></table>';
+                        document.getElementById('expectedProfit').innerHTML = html;
+                    } else {
+                        document.getElementById('expectedProfit').innerHTML = '<p>暂无数据（需要销量和差价数据）</p>';
+                    }
+                } else {
+                    document.getElementById('expectedProfit').innerHTML = '<p>暂无数据</p>';
+                }
+            } catch (error) {
+                console.error('加载预期利润失败:', error);
+                document.getElementById('expectedProfit').innerHTML = '<p>加载失败</p>';
             }
         }
         
@@ -476,14 +454,13 @@
                 const result = await response.json();
                 
                 if (result.success && result.data.length > 0) {
-                    let html = '<table><thead><tr><th>店铺</th><th>书籍数</th><th>总营收</th></tr></thead><tbody>';
+                    let html = '<table><thead><tr><th>店铺</th><th>书籍数</th></tr></thead><tbody>';
                     
                     result.data.slice(0, 5).forEach(item => {
                         html += `
                             <tr>
                                 <td>${item.shop_name}</td>
                                 <td>${item.book_count}</td>
-                                <td class="price">¥${item.total_revenue.toFixed(2)}</td>
                             </tr>
                         `;
                     });

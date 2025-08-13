@@ -22,8 +22,8 @@ class Shop:
 @dataclass
 class Book:
     """书籍模型"""
+    isbn: str  # 唯一业务标识
     title: str
-    isbn: Optional[str] = None
     author: Optional[str] = None
     publisher: Optional[str] = None
     publish_date: Optional[str] = None
@@ -31,14 +31,14 @@ class Book:
     subcategory: Optional[str] = None
     description: Optional[str] = None
     cover_image_url: Optional[str] = None
-    id: Optional[int] = None
+    id: Optional[int] = None  # 数据库自增主键
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
 @dataclass
 class BookInventory:
     """书籍库存价格模型"""
-    book_id: int
+    isbn: str   # 书籍ISBN (业务外键)
     shop_id: int
     
     # 孔夫子数据
@@ -71,7 +71,7 @@ class BookInventory:
 @dataclass
 class SalesRecord:
     """销售记录模型"""
-    book_id: int
+    isbn: str   # 书籍ISBN (业务外键)
     shop_id: int
     sale_price: float
     sale_date: datetime
@@ -110,7 +110,7 @@ class DataStatistics:
     stat_date: str
     
     # 统计维度
-    book_id: Optional[int] = None
+    isbn: Optional[str] = None  # 书籍ISBN (业务外键)
     shop_id: Optional[int] = None
     category: Optional[str] = None
     

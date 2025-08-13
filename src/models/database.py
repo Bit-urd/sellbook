@@ -76,7 +76,7 @@ class Database:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS book_inventory (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book_id INTEGER REFERENCES books(id),
+                    isbn TEXT REFERENCES books(isbn),
                     shop_id INTEGER REFERENCES shops(id),
                     
                     -- 孔夫子数据
@@ -105,7 +105,7 @@ class Database:
                     crawled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     
-                    UNIQUE(book_id, shop_id)
+                    UNIQUE(isbn, shop_id)
                 )
             """)
             
@@ -113,7 +113,7 @@ class Database:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sales_records (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book_id INTEGER REFERENCES books(id),
+                    isbn TEXT REFERENCES books(isbn),
                     shop_id INTEGER REFERENCES shops(id),
                     
                     sale_price REAL NOT NULL,
@@ -168,7 +168,7 @@ class Database:
                     stat_date DATE NOT NULL,
                     
                     -- 统计维度
-                    book_id INTEGER REFERENCES books(id),
+                    isbn TEXT REFERENCES books(isbn),
                     shop_id INTEGER REFERENCES shops(id),
                     category TEXT,
                     
@@ -196,8 +196,8 @@ class Database:
             indexes = [
                 "CREATE INDEX IF NOT EXISTS idx_books_isbn ON books(isbn)",
                 "CREATE INDEX IF NOT EXISTS idx_books_title ON books(title)",
-                "CREATE INDEX IF NOT EXISTS idx_inventory_book_shop ON book_inventory(book_id, shop_id)",
-                "CREATE INDEX IF NOT EXISTS idx_sales_book_id ON sales_records(book_id)",
+                "CREATE INDEX IF NOT EXISTS idx_inventory_isbn_shop ON book_inventory(isbn, shop_id)",
+                "CREATE INDEX IF NOT EXISTS idx_sales_isbn ON sales_records(isbn)",
                 "CREATE INDEX IF NOT EXISTS idx_sales_date ON sales_records(sale_date)",
                 "CREATE INDEX IF NOT EXISTS idx_crawl_status ON crawl_tasks(status)",
                 "CREATE INDEX IF NOT EXISTS idx_stats_type_period ON data_statistics(stat_type, stat_period)"
