@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卖书网站价差数据分析系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .time-filters {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .time-filter {
+            padding: 10px 20px;
+            background: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .time-filter:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        
+        .time-filter.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .price {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .profit {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .rank {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .search-box {
+            background: white;
+            border-radius: 25px;
+            padding: 15px 25px;
+            margin-bottom: 30px;
+            display: flex;
+            gap: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .search-box input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 16px;
+        }
+        
+        .search-box button {
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            padding: 8px 16px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tab-button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 卖书网站价差数据分析系统</h1>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索书籍标题或ISBN...">
+            <button onclick="searchBooks()">搜索</button>
+        </div>
+        
+        <div class="time-filters">
+            <button class="time-filter" onclick="loadData(1)">今天</button>
+            <button class="time-filter" onclick="loadData(3)">3天</button>
+            <button class="time-filter active" onclick="loadData(7)">7天</button>
+            <button class="time-filter" onclick="loadData(30)">30天</button>
+        </div>
+        
+        <div class="dashboard">
+            <div class="card">
+                <h2>📊 销售概览</h2>
+                <div id="salesOverview">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>💰 价格统计</h2>
+                <div id="priceStats">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>📈 利润分析</h2>
+                <div id="profitAnalysis">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card" style="margin-bottom: 20px;">
+            <h2>🔥 热销排行榜</h2>
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="switchTab('hotSales')">销量排行</button>
+                <button class="tab-button" onclick="switchTab('profitableItems')">利润排行</button>
+            </div>
+            <div id="hotSales" class="tab-content active">
+                <div class="loading">加载中...</div>
+            </div>
+            <div id="profitableItems" class="tab-content">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <div class="dashboard">
+            <div class="card">
+                <h2>📂 分类统计</h2>
+                <div id="categoryStats">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>🏪 店铺业绩</h2>
+                <div id="shopPerformance">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentDays = 7;
+        
+        async function loadData(days) {
+            currentDays = days;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.time-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 加载各项数据
+            await Promise.all([
+                loadSalesStatistics(days),
+                loadHotSales(days),
+                loadProfitableItems(),
+                loadCategoryStats(),
+                loadShopPerformance()
+            ]);
+        }
+        
+        async function loadSalesStatistics(days) {
+            try {
+                const response = await fetch(`/api/sales/statistics?days=${days}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    document.getElementById('salesOverview').innerHTML = `
+                        <div class="stat-value">${data.total_sales}</div>
+                        <div class="stat-label">总销量</div>
+                        <div class="stat-grid">
+                            <div class="stat-item">
+                                <div class="price">¥${data.total_revenue.toFixed(2)}</div>
+                                <div class="stat-label">总营收</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="price">¥${data.avg_price.toFixed(2)}</div>
+                                <div class="stat-label">平均价格</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.getElementById('priceStats').innerHTML = `
+                        <div class="stat-grid">
+                            <div class="stat-item">
+                                <div class="price">¥${data.median_price.toFixed(2)}</div>
+                                <div class="stat-label">中位数</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="price">¥${data.mode_price.toFixed(2)}</div>
+                                <div class="stat-label">众数</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="price">¥${data.min_price.toFixed(2)}</div>
+                                <div class="stat-label">最低价</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="price">¥${data.max_price.toFixed(2)}</div>
+                                <div class="stat-label">最高价</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('加载销售统计失败:', error);
+            }
+        }
+        
+        async function loadHotSales(days) {
+            try {
+                const response = await fetch(`/api/sales/hot?days=${days}&limit=10`);
+                const result = await response.json();
+                
+                if (result.success && result.data.length > 0) {
+                    let html = '<table><thead><tr><th>排名</th><th>书名</th><th>销量</th><th>均价</th></tr></thead><tbody>';
+                    
+                    result.data.forEach(item => {
+                        html += `
+                            <tr>
+                                <td><span class="rank">${item.rank}</span></td>
+                                <td>${item.title || '未知'}</td>
+                                <td>${item.sale_count}</td>
+                                <td class="price">¥${item.avg_price.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    document.getElementById('hotSales').innerHTML = html;
+                } else {
+                    document.getElementById('hotSales').innerHTML = '<p>暂无数据</p>';
+                }
+            } catch (error) {
+                console.error('加载热销排行失败:', error);
+            }
+        }
+        
+        async function loadProfitableItems() {
+            try {
+                const response = await fetch('/api/profitable/items?min_margin=20');
+                const result = await response.json();
+                
+                if (result.success && result.data.length > 0) {
+                    let html = '<table><thead><tr><th>书名</th><th>进价</th><th>售价</th><th>利润率</th></tr></thead><tbody>';
+                    
+                    result.data.slice(0, 10).forEach(item => {
+                        html += `
+                            <tr>
+                                <td>${item.title || '未知'}</td>
+                                <td class="price">¥${item.kongfuzi_price.toFixed(2)}</td>
+                                <td class="price">¥${item.duozhuayu_second_hand_price.toFixed(2)}</td>
+                                <td class="profit">${item.profit_margin_second_hand.toFixed(1)}%</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    document.getElementById('profitableItems').innerHTML = html;
+                    
+                    // 更新利润分析卡片
+                    const profitCount = result.data.length;
+                    const avgMargin = result.data.reduce((sum, item) => sum + item.profit_margin_second_hand, 0) / profitCount;
+                    
+                    document.getElementById('profitAnalysis').innerHTML = `
+                        <div class="stat-value">${profitCount}</div>
+                        <div class="stat-label">可套利商品数</div>
+                        <div class="stat-grid">
+                            <div class="stat-item">
+                                <div class="profit">${avgMargin.toFixed(1)}%</div>
+                                <div class="stat-label">平均利润率</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="profit">${result.data[0].profit_margin_second_hand.toFixed(1)}%</div>
+                                <div class="stat-label">最高利润率</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('profitableItems').innerHTML = '<p>暂无数据</p>';
+                    document.getElementById('profitAnalysis').innerHTML = '<p>暂无利润数据</p>';
+                }
+            } catch (error) {
+                console.error('加载利润商品失败:', error);
+            }
+        }
+        
+        async function loadCategoryStats() {
+            try {
+                const response = await fetch('/api/category/statistics');
+                const result = await response.json();
+                
+                if (result.success && result.data.length > 0) {
+                    let html = '<table><thead><tr><th>分类</th><th>销量</th><th>营收</th></tr></thead><tbody>';
+                    
+                    result.data.slice(0, 5).forEach(item => {
+                        html += `
+                            <tr>
+                                <td>${item.category || '未分类'}</td>
+                                <td>${item.sales_count}</td>
+                                <td class="price">¥${item.total_revenue.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    document.getElementById('categoryStats').innerHTML = html;
+                } else {
+                    document.getElementById('categoryStats').innerHTML = '<p>暂无数据</p>';
+                }
+            } catch (error) {
+                console.error('加载分类统计失败:', error);
+            }
+        }
+        
+        async function loadShopPerformance() {
+            try {
+                const response = await fetch('/api/shop/performance');
+                const result = await response.json();
+                
+                if (result.success && result.data.length > 0) {
+                    let html = '<table><thead><tr><th>店铺</th><th>书籍数</th><th>总营收</th></tr></thead><tbody>';
+                    
+                    result.data.slice(0, 5).forEach(item => {
+                        html += `
+                            <tr>
+                                <td>${item.shop_name}</td>
+                                <td>${item.book_count}</td>
+                                <td class="price">¥${item.total_revenue.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    document.getElementById('shopPerformance').innerHTML = html;
+                } else {
+                    document.getElementById('shopPerformance').innerHTML = '<p>暂无数据</p>';
+                }
+            } catch (error) {
+                console.error('加载店铺业绩失败:', error);
+            }
+        }
+        
+        async function searchBooks() {
+            const query = document.getElementById('searchInput').value;
+            if (!query) return;
+            
+            try {
+                const response = await fetch(`/api/book/search?q=${encodeURIComponent(query)}`);
+                const result = await response.json();
+                
+                if (result.success && result.data.length > 0) {
+                    alert(`找到 ${result.data.length} 本相关书籍`);
+                } else {
+                    alert('未找到相关书籍');
+                }
+            } catch (error) {
+                console.error('搜索失败:', error);
+            }
+        }
+        
+        function switchTab(tabName) {
+            // 更新按钮状态
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 切换内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+        }
+        
+        // 页面加载时初始化数据
+        window.onload = () => {
+            loadData(7);
+        };
+        
+        // 每30秒自动刷新数据
+        setInterval(() => {
+            loadData(currentDays);
+        }, 30000);
+    </script>
+</body>
+</html>

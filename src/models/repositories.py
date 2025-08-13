@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""
+数据仓库层 - 负责数据的CRUD操作
+"""
+from typing import List, Dict, Optional, Any
+from datetime import datetime, timedelta
+import json
+import logging
+
+from .database import db
+from .models import Shop, Book, BookInventory, SalesRecord, CrawlTask, DataStatistics
+
+logger = logging.getLogger(__name__)
+
+class ShopRepository:
+    """店铺数据仓库"""
+    
+    def create(self, shop: Shop) -> int:
+        """创建店铺"""
+        query = """
+            INSERT INTO shops (shop_id, shop_name, platform, shop_url, shop_type, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+        params = (shop.shop_id, shop.shop_name, shop.platform, 
+                 shop.shop_url, shop.shop_type, shop.status)
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.lastrowid
+    
+    def get_by_id(self, shop_id: str) -> Optional[Dict]:
+        """根据shop_id获取店铺"""
+        query = "SELECT * FROM shops WHERE shop_id = ?"
+        results = db.execute_query(query, (shop_id,))
+        return results[0] if results else None
+    
+    def get_all_active(self) -> List[Dict]:
+        """获取所有活跃店铺"""
+        query = "SELECT * FROM shops WHERE status = 'active'"
+        return db.execute_query(query)
+    
+    def update_status(self, shop_id: str, status: str) -> bool:
+        """更新店铺状态"""
+        query = "UPDATE shops SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE shop_id = ?"
+        return db.execute_update(query, (status, shop_id)) > 0
+    
+    def batch_create(self, shops: List[Shop]) -> int:
+        """批量创建店铺"""
+        query = """
+            INSERT OR IGNORE INTO shops (shop_id, shop_name, platform, shop_url, shop_type, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+        params_list = [
+            (s.shop_id, s.shop_name, s.platform, s.shop_url, s.shop_type, s.status)
+            for s in shops
+        ]
+        return db.execute_many(query, params_list)
+
+class BookRepository:
+    """书籍数据仓库"""
+    
+    def create_or_update(self, book: Book) -> int:
+        """创建或更新书籍"""
+        # 先尝试根据ISBN查找
+        if book.isbn:
+            existing = self.get_by_isbn(book.isbn)
+            if existing:
+                return existing['id']
+        
+        query = """
+            INSERT INTO books (isbn, title, author, publisher, publish_date, 
+                             category, subcategory, description, cover_image_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (book.isbn, book.title, book.author, book.publisher, 
+                 book.publish_date, book.category, book.subcategory,
+                 book.description, book.cover_image_url)
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.lastrowid
+    
+    def get_by_isbn(self, isbn: str) -> Optional[Dict]:
+        """根据ISBN获取书籍"""
+        query = "SELECT * FROM books WHERE isbn = ?"
+        results = db.execute_query(query, (isbn,))
+        return results[0] if results else None
+    
+    def search_by_title(self, title: str) -> List[Dict]:
+        """根据标题搜索书籍"""
+        query = "SELECT * FROM books WHERE title LIKE ?"
+        return db.execute_query(query, (f"%{title}%",))
+    
+    def get_by_category(self, category: str) -> List[Dict]:
+        """根据分类获取书籍"""
+        query = "SELECT * FROM books WHERE category = ?"
+        return db.execute_query(query, (category,))
+
+class BookInventoryRepository:
+    """书籍库存价格数据仓库"""
+    
+    def upsert(self, inventory: BookInventory) -> int:
+        """插入或更新库存信息"""
+        # 计算价差和利润率
+        if inventory.kongfuzi_price and inventory.duozhuayu_second_hand_price:
+            inventory.price_diff_second_hand = inventory.duozhuayu_second_hand_price - inventory.kongfuzi_price
+            inventory.profit_margin_second_hand = (inventory.price_diff_second_hand / inventory.kongfuzi_price) * 100
+            inventory.is_profitable = inventory.price_diff_second_hand > 0
+        
+        query = """
+            INSERT OR REPLACE INTO book_inventory 
+            (book_id, shop_id, kongfuzi_price, kongfuzi_original_price, kongfuzi_stock,
+             kongfuzi_condition, kongfuzi_condition_desc, kongfuzi_book_url, kongfuzi_item_id,
+             duozhuayu_new_price, duozhuayu_second_hand_price, duozhuayu_in_stock, duozhuayu_book_url,
+             price_diff_new, price_diff_second_hand, profit_margin_new, profit_margin_second_hand,
+             is_profitable, status, crawled_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """
+        
+        params = (
+            inventory.book_id, inventory.shop_id,
+            inventory.kongfuzi_price, inventory.kongfuzi_original_price, inventory.kongfuzi_stock,
+            inventory.kongfuzi_condition, inventory.kongfuzi_condition_desc,
+            inventory.kongfuzi_book_url, inventory.kongfuzi_item_id,
+            inventory.duozhuayu_new_price, inventory.duozhuayu_second_hand_price,
+            1 if inventory.duozhuayu_in_stock else 0, inventory.duozhuayu_book_url,
+            inventory.price_diff_new, inventory.price_diff_second_hand,
+            inventory.profit_margin_new, inventory.profit_margin_second_hand,
+            1 if inventory.is_profitable else 0, inventory.status
+        )
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.lastrowid
+    
+    def get_by_book_shop(self, book_id: int, shop_id: int) -> Optional[Dict]:
+        """根据书籍和店铺ID获取库存"""
+        query = "SELECT * FROM book_inventory WHERE book_id = ? AND shop_id = ?"
+        results = db.execute_query(query, (book_id, shop_id))
+        return results[0] if results else None
+    
+    def get_profitable_items(self, min_margin: float = 20.0) -> List[Dict]:
+        """获取有利润的商品"""
+        query = """
+            SELECT bi.*, b.title, b.isbn, b.author, s.shop_name
+            FROM book_inventory bi
+            JOIN books b ON bi.book_id = b.id
+            JOIN shops s ON bi.shop_id = s.id
+            WHERE bi.is_profitable = 1 
+              AND bi.profit_margin_second_hand >= ?
+            ORDER BY bi.profit_margin_second_hand DESC
+        """
+        return db.execute_query(query, (min_margin,))
+
+class SalesRepository:
+    """销售记录数据仓库"""
+    
+    def create(self, sale: SalesRecord) -> int:
+        """创建销售记录"""
+        query = """
+            INSERT INTO sales_records 
+            (book_id, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (sale.book_id, sale.shop_id, sale.sale_price, sale.original_price,
+                 sale.sale_date, sale.sale_platform, sale.book_condition)
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.lastrowid
+    
+    def batch_create(self, sales: List[SalesRecord]) -> int:
+        """批量创建销售记录"""
+        query = """
+            INSERT INTO sales_records 
+            (book_id, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params_list = [
+            (s.book_id, s.shop_id, s.sale_price, s.original_price,
+             s.sale_date, s.sale_platform, s.book_condition)
+            for s in sales
+        ]
+        return db.execute_many(query, params_list)
+    
+    def get_sales_by_period(self, days: int) -> List[Dict]:
+        """获取指定天数内的销售记录"""
+        query = """
+            SELECT sr.*, b.title, b.isbn, b.author, s.shop_name
+            FROM sales_records sr
+            JOIN books b ON sr.book_id = b.id
+            JOIN shops s ON sr.shop_id = s.id
+            WHERE sr.sale_date >= datetime('now', '-{} days')
+            ORDER BY sr.sale_date DESC
+        """.format(days)
+        return db.execute_query(query)
+    
+    def get_hot_sales(self, days: int = 7, limit: int = 20) -> List[Dict]:
+        """获取热销书籍"""
+        query = """
+            SELECT b.title, b.isbn, b.author, 
+                   COUNT(*) as sale_count,
+                   AVG(sr.sale_price) as avg_price,
+                   MIN(sr.sale_price) as min_price,
+                   MAX(sr.sale_price) as max_price
+            FROM sales_records sr
+            JOIN books b ON sr.book_id = b.id
+            WHERE sr.sale_date >= datetime('now', '-{} days')
+            GROUP BY sr.book_id
+            ORDER BY sale_count DESC
+            LIMIT ?
+        """.format(days)
+        return db.execute_query(query, (limit,))
+    
+    def get_price_statistics(self, book_id: int, days: int = 30) -> Dict:
+        """获取价格统计信息"""
+        query = """
+            SELECT 
+                AVG(sale_price) as avg_price,
+                MIN(sale_price) as min_price,
+                MAX(sale_price) as max_price,
+                COUNT(*) as sale_count
+            FROM sales_records
+            WHERE book_id = ? 
+              AND sale_date >= datetime('now', '-{} days')
+        """.format(days)
+        
+        results = db.execute_query(query, (book_id,))
+        if results:
+            return results[0]
+        return {'avg_price': 0, 'min_price': 0, 'max_price': 0, 'sale_count': 0}
+
+class CrawlTaskRepository:
+    """爬虫任务数据仓库"""
+    
+    def create(self, task: CrawlTask) -> int:
+        """创建爬虫任务"""
+        query = """
+            INSERT INTO crawl_tasks 
+            (task_name, task_type, target_platform, target_url, shop_id, 
+             task_params, priority, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (task.task_name, task.task_type, task.target_platform,
+                 task.target_url, task.shop_id,
+                 json.dumps(task.task_params) if task.task_params else None,
+                 task.priority, task.status)
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.lastrowid
+    
+    def update_status(self, task_id: int, status: str, 
+                     progress: float = None, error_message: str = None) -> bool:
+        """更新任务状态"""
+        updates = ["status = ?"]
+        params = [status]
+        
+        if progress is not None:
+            updates.append("progress_percentage = ?")
+            params.append(progress)
+        
+        if error_message:
+            updates.append("error_message = ?")
+            params.append(error_message)
+        
+        if status == 'running':
+            updates.append("start_time = CURRENT_TIMESTAMP")
+        elif status in ['completed', 'failed']:
+            updates.append("end_time = CURRENT_TIMESTAMP")
+        
+        query = f"UPDATE crawl_tasks SET {', '.join(updates)} WHERE id = ?"
+        params.append(task_id)
+        
+        return db.execute_update(query, tuple(params)) > 0
+    
+    def get_pending_tasks(self) -> List[Dict]:
+        """获取待执行的任务"""
+        query = """
+            SELECT * FROM crawl_tasks 
+            WHERE status = 'pending'
+            ORDER BY priority DESC, created_at ASC
+        """
+        return db.execute_query(query)
+    
+    def get_running_tasks(self) -> List[Dict]:
+        """获取正在运行的任务"""
+        query = "SELECT * FROM crawl_tasks WHERE status = 'running'"
+        return db.execute_query(query)
+    
+    def get_recent_tasks(self, limit: int = 20) -> List[Dict]:
+        """获取最近的任务"""
+        query = """
+            SELECT * FROM crawl_tasks 
+            ORDER BY created_at DESC 
+            LIMIT ?
+        """
+        return db.execute_query(query, (limit,))
+
+class StatisticsRepository:
+    """统计数据仓库"""
+    
+    def calculate_and_save_statistics(self, stat_type: str, stat_period: str) -> None:
+        """计算并保存统计数据"""
+        # 根据统计周期确定时间范围
+        days_map = {
+            'daily': 1,
+            'weekly': 7,
+            'monthly': 30
+        }
+        days = days_map.get(stat_period, 1)
+        
+        # 计算销售统计
+        query = """
+            INSERT OR REPLACE INTO data_statistics 
+            (stat_type, stat_period, stat_date, total_sales, total_revenue, 
+             avg_price, min_price, max_price, calculated_at)
+            SELECT 
+                ?, ?, date('now'),
+                COUNT(*) as total_sales,
+                SUM(sale_price) as total_revenue,
+                AVG(sale_price) as avg_price,
+                MIN(sale_price) as min_price,
+                MAX(sale_price) as max_price,
+                CURRENT_TIMESTAMP
+            FROM sales_records
+            WHERE sale_date >= datetime('now', '-{} days')
+        """.format(days)
+        
+        db.execute_update(query, (stat_type, stat_period))
+    
+    def get_statistics(self, stat_type: str, stat_period: str) -> Optional[Dict]:
+        """获取统计数据"""
+        query = """
+            SELECT * FROM data_statistics 
+            WHERE stat_type = ? AND stat_period = ? AND stat_date = date('now')
+        """
+        results = db.execute_query(query, (stat_type, stat_period))
+        return results[0] if results else None
