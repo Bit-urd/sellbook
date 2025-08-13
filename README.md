@@ -1,179 +1,312 @@
-# 📚 SellBook - 孔夫子旧书网增量爬虫
+# 孔夫子旧书网销售数据分析系统
 
-一个支持增量爬取、自动去重的孔夫子旧书网多店铺书籍信息爬虫工具，使用真实Chrome浏览器避免反爬检测。
+一个模块化的书籍销售数据爬取和分析平台，专门用于分析孔夫子旧书网的书籍销售情况。
 
-## ✨ 核心特性
+## 核心模块架构
 
-- 🔒 **零检测风险** - 使用真实Chrome浏览器，完全避开反爬机制
-- 📊 **增量爬取** - 支持断点续爬，已爬取的数据自动跳过
-- 🔄 **智能去重** - 基于ItemID自动去重，避免重复数据
-- 🏪 **多店铺支持** - 批量爬取多个店铺，从配置文件读取店铺列表
-- 💾 **实时保存** - 每页数据立即保存到CSV，不怕中断丢失
-- 📈 **进度统计** - 实时显示爬取进度和统计信息
+### 模块1：FastAPI分析服务 (`book_analysis_api.py`)
+**功能**：提供Web API和前端界面，实时分析书籍销售数据
+- **核心特性**：
+  - RESTful API接口设计
+  - 实时ISBN销售数据分析
+  - Playwright浏览器自动化
+  - 多维度销售统计（1天/7天/30天）
+  - 价格分析（最高/最低/平均价格）
+  - 可视化图表展示
 
-## 📋 系统要求
+- **技术实现**：
+  - FastAPI框架 + Pydantic数据模型
+  - 异步浏览器连接管理
+  - Chrome调试协议集成
+  - 数据持久化到CSV
 
-- Python 3.11+
-- Google Chrome 浏览器
-- uv (Python包管理器)
+### 模块2：店铺书籍爬取器 (`incremental_scraper.py`)
+**功能**：批量爬取指定店铺的书籍基础信息
+- **核心特性**：
+  - 多店铺并发爬取
+  - 增量式断点续爬
+  - 自动去重机制
+  - 实时数据保存
+  - 爬取进度统计
 
-## 🚀 快速开始
+- **技术实现**：
+  - 基于店铺ID列表批量处理
+  - Playwright页面自动化
+  - CSV增量写入策略
+  - itemid去重算法
 
-### 1. 环境安装
+### 模块3：销售记录分析器 (`sales_analyzer.py`)
+**功能**：基于书籍数据，深度分析每本书的销售记录
+- **核心特性**：
+  - ISBN维度销售分析
+  - 时间范围过滤（30天内）
+  - 销售趋势统计
+  - 价格波动分析
+  - 详细销售记录导出
+
+- **技术实现**：
+  - 从books_data.csv读取书籍列表
+  - 搜索页面销售记录提取
+  - 时间戳解析和过滤
+  - 销售数据聚合统计
+
+### 模块4：辅助工具
+- **`findbook.py`**：单本书籍搜索和数据提取工具
+- **`real_browser_scraper.py`**：真实浏览器环境爬取工具
+- **`shop_list.txt`**：目标店铺ID配置文件
+
+## 技术栈
+
+- **后端框架**：FastAPI + Python 3.9+
+- **浏览器自动化**：Playwright (Chrome CDP)
+- **前端**：原生HTML/CSS/JavaScript + Chart.js
+- **数据存储**：CSV文件 (计划迁移至SQLite)
+- **异步处理**：asyncio + aiohttp
+
+## 快速开始
+
+### 1. 环境准备
 
 ```bash
-# 已配置好uv环境和依赖
-uv sync
+# 使用uv包管理器（推荐）
+uv install
+
+# 或使用pip
+pip install fastapi uvicorn playwright aiohttp pydantic
+
+# 安装浏览器
+playwright install chromium
 ```
 
 ### 2. 启动Chrome调试模式
 
-**macOS:**
 ```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir=/tmp/chrome-debug-session
+# macOS
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
+
+# Windows
+chrome.exe --remote-debugging-port=9222 --user-data-dir=c:\temp\chrome-debug
+
+# Linux
+google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug
 ```
 
-**验证Chrome启动：** 访问 http://localhost:9222/json/version
-
-### 3. 配置店铺列表
-
-编辑 `shop_list.txt` 文件，添加要爬取的店铺ID：
-
-```txt
-# 孔夫子旧书网店铺ID列表
-534779
-726495
-269228
-# 可以继续添加更多店铺ID...
-```
-
-### 4. 运行增量爬虫
+### 3. 数据收集流程
 
 ```bash
-# 🌟 推荐：增量式多店铺爬虫
-uv run python incremental_scraper.py
+# 步骤1：配置店铺列表
+echo "534779" >> shop_list.txt
+
+# 步骤2：爬取店铺书籍数据
+python incremental_scraper.py
+
+# 步骤3：分析销售记录（可选）
+python sales_analyzer.py
+
+# 步骤4：启动API服务
+python book_analysis_api.py
 ```
 
-## 📁 文件说明
+### 4. 访问服务
 
-### 核心文件
-- `incremental_scraper.py` - **⭐ 主程序** 增量式多店铺爬虫
-- `shop_list.txt` - 店铺ID配置文件
-- `books_data.csv` - **主要数据文件** (自动生成)
+- **主页面**：http://localhost:8000
+- **API文档**：http://localhost:8000/docs  
+- **健康检查**：http://localhost:8000/health
 
-### 辅助工具
-- `real_browser_scraper.py` - 单店铺真实Chrome爬虫
-- `list_scraper.py` - 列表页面爬虫
-- `test_incremental.py` - 去重功能测试工具
+## API接口说明
 
-### 配置文件
-- `manual_chrome_guide.md` - Chrome调试模式详细指南
-- `pyproject.toml` - Python项目配置
+### 核心分析接口
 
-## 📊 数据格式
+```http
+POST /analyze
+Content-Type: application/json
 
-CSV文件包含以下字段：
+{
+    "book_isbn": "9787521724493"
+}
+```
 
-| 字段名 | 说明 | 示例 |
-|--------|------|------|
-| `itemid` | 书籍唯一ID ⭐ | 8643501869 |
-| `shopid` | 店铺ID | 534779 |
-| `isbn` | 国际标准书号 | 9787521724493 |
-| `title` | 书名 | 会员经济：发现超级用户... |
-| `author` | 作者 | 罗比·凯尔曼·巴克斯特 |
-| `publisher` | 出版社 | 中信出版社 |
-| `publish_year` | 出版年份 | 2021-02 |
-| `quality` | 品相 | 九五品 |
-| `price` | 价格 | 99.00 |
-| `book_url` | 详情链接 | https://book.kongfz.com/... |
-| `scraped_time` | 爬取时间 | 2025-08-14T01:31:34... |
-| `scraped_shop_id` | 爬取时的店铺ID | 534779 |
-| `scraped_page` | 爬取时的页码 | 1 |
+**响应数据结构：**
 
-## 🔄 增量爬取工作原理
+```json
+{
+    "isbn": "9787521724493",
+    "stats": {
+        "sales_1_day": 0,
+        "sales_7_days": 2, 
+        "sales_30_days": 15,
+        "total_records": 15,
+        "latest_sale_date": "2025-08-13",
+        "average_price": 45.67,
+        "price_range": {
+            "min": 30.0,
+            "max": 69.0
+        }
+    },
+    "message": "成功分析ISBN 9787521724493，找到 15 条销售记录",
+    "success": true
+}
+```
 
-1. **启动检查** - 加载已有 `books_data.csv` 文件
-2. **去重准备** - 构建ItemID集合，用于快速去重判断
-3. **逐店铺爬取** - 按店铺列表顺序处理每个店铺
-4. **逐页处理** - 每页数据提取后立即检查重复并保存
-5. **实时统计** - 显示新增、跳过、总计等统计信息
+### 健康检查接口
 
-### 断点续爬
+```http
+GET /health
+```
 
-- 程序可随时中断，已保存的数据不会丢失
-- 重新运行时自动跳过已爬取的书籍
-- 支持添加新店铺ID，只爬取新的数据
+## 数据流架构
 
-## 📈 使用示例
+```
+shop_list.txt → incremental_scraper.py → books_data.csv
+                                               ↓
+sales_analyzer.py → sales_detail_*.csv + book_sales.csv
+                                               ↓
+book_analysis_api.py → Chrome Debug → 孔夫子网站 → api_sales_data.csv
+                    ↓
+                Web Frontend
+```
 
+## 项目结构
+
+```
+sellbook/
+├── book_analysis_api.py    # 模块1：FastAPI分析服务
+├── incremental_scraper.py  # 模块2：店铺书籍爬取器  
+├── sales_analyzer.py       # 模块3：销售记录分析器
+├── findbook.py            # 辅助：单书搜索工具
+├── real_browser_scraper.py # 辅助：浏览器爬取工具
+├── static/
+│   └── index.html         # 前端用户界面
+├── shop_list.txt          # 配置：店铺ID列表
+├── books_data.csv         # 数据：书籍基础信息
+├── api_sales_data.csv     # 数据：API销售记录
+├── book_sales.csv         # 数据：销售统计汇总
+├── pyproject.toml         # Python项目配置
+└── uv.lock               # 依赖版本锁定
+```
+
+## 版本说明
+
+### 📊 数据库版本 (v2.0) - 推荐
+**已完成的数据库迁移功能**：
+- ✅ SQLite轻量级数据库集成
+- ✅ 统一的数据模型设计
+- ✅ 完整的数据库操作API
+- ✅ CSV到SQLite自动迁移工具
+- ✅ 数据库版本的三大核心模块
+
+**新增文件**：
+- `database.py` - 数据库管理核心
+- `book_analysis_api_v2.py` - 数据库版API服务
+- `incremental_scraper_v2.py` - 数据库版爬虫
+- `sales_analyzer_v2.py` - 数据库版销售分析器
+- `migrate_to_database.py` - 数据迁移工具
+- `run.py` - 统一启动脚本
+
+### 📁 CSV版本 (v1.0) - 兼容保留
+保持原有CSV文件格式的完整功能，确保向后兼容。
+
+## 快速启动 🚀
+
+### 方法1：使用统一启动脚本 (推荐)
 ```bash
-# 第一次运行
-$ uv run python incremental_scraper.py
-📂 检查已有数据文件...
-📝 数据文件不存在，将创建新文件: books_data.csv
-📋 加载了 3 个店铺ID
-🏪 开始爬取店铺 534779
-📚 第 1 页: 50 本书，新增 50 本
-💾 新增 50 条记录到 books_data.csv
-
-# 第二次运行 (断点续爬)
-$ uv run python incremental_scraper.py  
-📂 检查已有数据文件...
-📊 加载已有数据: 2016 条记录
-🔍 去重集合大小: 2016 个ItemID
-🏪 开始爬取店铺 534779
-📚 第 1 页: 50 本书，新增 0 本
-🔄 跳过 50 条重复记录
+python run.py
 ```
+然后根据菜单选择对应功能模块。
 
-## ⚠️ 重要提醒
-
-### 法律合规
-- 仅用于个人学习和研究目的
-- 遵守网站robots.txt和使用条款
-- 控制爬取频率，避免对服务器造成压力
-
-### 使用建议
-- 建议爬取间隔 3-5 秒
-- 店铺间等待 5 秒
-- 使用真实Chrome浏览器完全避免检测
-- 定期备份 `books_data.csv` 文件
-
-## 🔧 故障排除
-
-### Chrome连接失败？
+### 方法2：直接运行数据库版本
 ```bash
-# 检查Chrome调试端口
-curl http://localhost:9222/json/version
+# 1. 数据迁移 (首次使用)
+python migrate_to_database.py
+
+# 2. 启动API服务
+python book_analysis_api_v2.py
+
+# 3. 运行爬虫
+python incremental_scraper_v2.py
+
+# 4. 分析销售记录
+python sales_analyzer_v2.py
 ```
 
-### 数据重复？
-- 检查 `itemid` 字段是否完整
-- 运行测试工具：`uv run python test_incremental.py`
+## 数据库架构
 
-### 爬取中断？
-- 数据已自动保存到CSV文件
-- 重新运行会自动续爬
+### SQLite表结构
+```sql
+-- 书籍基础信息表
+CREATE TABLE books (
+    itemid TEXT PRIMARY KEY,
+    shopid TEXT NOT NULL,
+    isbn TEXT,
+    title TEXT,
+    author TEXT,
+    publisher TEXT,
+    -- 更多字段...
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-## 📊 已验证结果
+-- 销售记录详情表  
+CREATE TABLE sales_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_isbn TEXT NOT NULL,
+    sale_date TEXT,
+    price REAL,
+    quality TEXT,
+    -- 更多字段...
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-实际测试结果：
-- ✅ 成功爬取 **2016条** 书籍记录
-- ✅ 覆盖 **3个店铺** 的完整数据
-- ✅ 去重功能工作正常
-- ✅ CSV文件大小：**518KB**
-- ✅ 断点续爬功能验证通过
+-- API销售数据表
+CREATE TABLE api_sales_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_isbn TEXT NOT NULL,
+    sale_date TEXT,
+    -- 更多字段...
+);
+```
 
-## 🤝 贡献
+### 数据操作API
+```python
+from database import BookRepository, SalesRepository
 
-欢迎提交Issue和Pull Request来改进项目！
+# 书籍数据操作
+book_repo = BookRepository()
+await book_repo.save_books(books_data)
+existing_ids = await book_repo.get_existing_itemids()
 
-## 📄 许可证
+# 销售数据操作
+sales_repo = SalesRepository()
+await sales_repo.save_sales_data(sales_data)
+sales = await sales_repo.get_sales_by_isbn(isbn)
+```
 
-本项目仅供学习研究使用，请遵守相关法律法规。
+## 开发计划
 
----
+### 第一阶段：数据库迁移 ✅ 已完成
+- ✅ 选择SQLite轻量级数据库
+- ✅ 设计统一的数据模型  
+- ✅ 重构CSV读写逻辑为数据库操作
+- ✅ CSV自动迁移脚本
 
-⭐ 如果这个项目对你有帮助，请给个Star支持一下！
+### 第二阶段：性能优化
+- [ ] 并发爬取优化
+- [ ] 缓存机制实现
+- [ ] API响应优化
+- [ ] 错误重试机制
+
+### 第三阶段：功能扩展
+- [ ] 用户管理系统
+- [ ] 批量分析功能
+- [ ] 数据导出功能
+- [ ] 监控告警机制
+
+## 注意事项
+
+- **Chrome调试**：需要手动启动Chrome调试模式连接
+- **爬取规范**：请遵守网站robots.txt和使用条款
+- **频率控制**：建议添加适当请求间隔避免被限制
+- **数据合规**：仅用于合法的数据分析用途
+
+## 许可证
+
+MIT License
