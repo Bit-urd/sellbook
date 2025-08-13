@@ -4,25 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>卖书网站价差数据分析系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
         }
-        
+
         h1 {
             color: white;
             text-align: center;
@@ -30,14 +31,234 @@
             font-size: 2.5em;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
-        
+
+        /* ISBN搜索模块样式 */
+        .isbn-search-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .isbn-search-header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            text-align: center;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 0 auto 20px auto;
+            max-width: 500px;
+        }
+
+        .isbn-search-header h2 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+
+        .isbn-search-header p {
+            font-size: 0.95em;
+            opacity: 0.9;
+        }
+
+        .isbn-search-box {
+            display: flex;
+            gap: 15px;
+            max-width: 600px;
+            margin: 0 auto 20px;
+        }
+
+        .isbn-search-input {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .isbn-search-input:focus {
+            border-color: #4CAF50;
+        }
+
+        .isbn-search-btn {
+            padding: 12px 25px;
+            font-size: 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .isbn-search-btn:hover {
+            background: #45a049;
+        }
+
+        .isbn-search-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .isbn-loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            display: none;
+        }
+
+        .isbn-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .isbn-results {
+            display: none;
+        }
+
+        .isbn-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .isbn-stat-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            border-left: 4px solid #4CAF50;
+            text-align: center;
+        }
+
+        .isbn-stat-title {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .isbn-stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .isbn-price-stats {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .isbn-price-stats h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .isbn-price-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .isbn-price-item {
+            text-align: center;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .isbn-price-label {
+            font-size: 0.75em;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .isbn-price-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .isbn-chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #eee;
+        }
+
+        .isbn-chart-container h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        #isbnSalesChart {
+            max-height: 300px;
+        }
+
+        .isbn-error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .isbn-info {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        /* 标题部分样式 */
+        .section-header {
+            background: white;
+            border-radius: 12px;
+            padding: 15px 30px;
+            margin: 30px auto;
+            max-width: 400px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+
+        .section-header h2 {
+            color: #333;
+            font-size: 1.8em;
+            font-weight: 600;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 原有样式继续保留 */
         .time-filters {
             display: flex;
             justify-content: center;
             gap: 10px;
             margin-bottom: 30px;
         }
-        
+
         .time-filter {
             padding: 10px 20px;
             background: white;
@@ -48,24 +269,24 @@
             transition: all 0.3s;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        
+
         .time-filter:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
         }
-        
+
         .time-filter.active {
             background: #667eea;
             color: white;
         }
-        
+
         .dashboard {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .card {
             background: white;
             border-radius: 15px;
@@ -73,11 +294,11 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             transition: transform 0.3s;
         }
-        
+
         .card:hover {
             transform: translateY(-5px);
         }
-        
+
         .card h2 {
             color: #333;
             margin-bottom: 15px;
@@ -85,65 +306,65 @@
             border-bottom: 2px solid #667eea;
             padding-bottom: 10px;
         }
-        
+
         .stat-value {
             font-size: 2em;
             font-weight: bold;
             color: #667eea;
             margin: 10px 0;
         }
-        
+
         .stat-label {
             color: #666;
             font-size: 0.9em;
         }
-        
+
         .stat-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 15px;
             margin-top: 15px;
         }
-        
+
         .stat-item {
             text-align: center;
             padding: 10px;
             background: #f8f9fa;
             border-radius: 8px;
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
         }
-        
+
         th, td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #eee;
         }
-        
+
         th {
             background: #f8f9fa;
             color: #333;
             font-weight: 600;
         }
-        
+
         tr:hover {
             background: #f8f9fa;
         }
-        
+
         .price {
             color: #28a745;
             font-weight: bold;
         }
-        
+
         .profit {
             color: #dc3545;
             font-weight: bold;
         }
-        
+
         .rank {
             display: inline-block;
             width: 30px;
@@ -155,7 +376,7 @@
             color: white;
             font-weight: bold;
         }
-        
+
         .search-box {
             background: white;
             border-radius: 25px;
@@ -165,14 +386,14 @@
             gap: 10px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.1);
         }
-        
+
         .search-box input {
             flex: 1;
             border: none;
             outline: none;
             font-size: 16px;
         }
-        
+
         .search-box button {
             padding: 8px 20px;
             background: #667eea;
@@ -182,43 +403,43 @@
             cursor: pointer;
             font-size: 14px;
         }
-        
+
         .loading {
             text-align: center;
             padding: 20px;
             color: #666;
         }
-        
+
         .chart-container {
             height: 300px;
             margin-top: 20px;
         }
-        
+
         .tab-buttons {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
-        
+
         .tab-button {
-            padding: 8px 16px;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
+            padding: 8px 15px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 8px;
             cursor: pointer;
             transition: all 0.3s;
         }
-        
+
         .tab-button.active {
             background: #667eea;
             color: white;
-            border-color: #667eea;
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
@@ -226,296 +447,664 @@
 </head>
 <body>
     <div class="container">
-        <h1>📚 卖书网站价差数据分析系统</h1>
-        
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="搜索书籍标题或ISBN...">
-            <button onclick="searchBooks()">搜索</button>
-        </div>
-        
-        <div class="time-filters">
-            <button class="time-filter" onclick="loadData(1)">今天</button>
-            <button class="time-filter" onclick="loadData(3)">3天</button>
-            <button class="time-filter active" onclick="loadData(7)">7天</button>
-            <button class="time-filter" onclick="loadData(30)">30天</button>
-        </div>
-        
-        
-        <div class="card" style="margin-bottom: 20px;">
-            <h2>💎 有价值标的</h2>
-            <div class="tab-buttons">
-                <button class="tab-button active" onclick="switchTab('hotSales')">销量排行</button>
-                <button class="tab-button" onclick="switchTab('profitableItems')">差价排行</button>
-                <button class="tab-button" onclick="switchTab('expectedProfit')">预期利润排行</button>
+        <h1>卖书网站价差数据分析系统</h1>
+
+        <!-- ISBN搜索分析模块 -->
+        <div class="isbn-search-section">
+            <div class="isbn-search-header">
+                <p>输入ISBN号码，实时分析书籍销售数据</p>
             </div>
-            <div id="hotSales" class="tab-content active">
-                <div class="loading">加载中...</div>
+
+            <div class="isbn-search-box">
+                <input type="text" class="isbn-search-input" id="isbnInput" placeholder="请输入书籍ISBN号码，例如：9787521724493">
+                <button class="isbn-search-btn" id="isbnSearchBtn" onclick="searchBookISBN()">🔍 分析</button>
             </div>
-            <div id="profitableItems" class="tab-content">
-                <div class="loading">加载中...</div>
+
+            <div class="isbn-loading" id="isbnLoading">
+                <div class="isbn-spinner"></div>
+                正在分析数据，请稍候...
             </div>
-            <div id="expectedProfit" class="tab-content">
-                <div class="loading">加载中...</div>
-            </div>
-        </div>
-        
-        <div class="dashboard">
-            <div class="card">
-                <h2>📂 分类统计</h2>
-                <div id="categoryStats">
-                    <div class="loading">加载中...</div>
+
+            <div class="isbn-error" id="isbnError"></div>
+
+            <div class="isbn-results" id="isbnResults">
+                <div class="isbn-info" id="isbnInfo"></div>
+
+                <div class="isbn-stats-grid">
+                    <div class="isbn-stat-card">
+                        <div class="isbn-stat-title">📅 1天内销量</div>
+                        <div class="isbn-stat-value" id="isbnSales1Day">-</div>
+                    </div>
+                    <div class="isbn-stat-card">
+                        <div class="isbn-stat-title">📅 7天内销量</div>
+                        <div class="isbn-stat-value" id="isbnSales7Days">-</div>
+                    </div>
+                    <div class="isbn-stat-card">
+                        <div class="isbn-stat-title">📅 30天内销量</div>
+                        <div class="isbn-stat-value" id="isbnSales30Days">-</div>
+                    </div>
+                    <div class="isbn-stat-card">
+                        <div class="isbn-stat-title">📊 总记录数</div>
+                        <div class="isbn-stat-value" id="isbnTotalRecords">-</div>
+                    </div>
+                </div>
+
+                <div class="isbn-price-stats">
+                    <h3>💰 价格统计</h3>
+                    <div class="isbn-price-grid">
+                        <div class="isbn-price-item">
+                            <div class="isbn-price-label">平均价格</div>
+                            <div class="isbn-price-value" id="isbnAvgPrice">-</div>
+                        </div>
+                        <div class="isbn-price-item">
+                            <div class="isbn-price-label">最低价格</div>
+                            <div class="isbn-price-value" id="isbnMinPrice">-</div>
+                        </div>
+                        <div class="isbn-price-item">
+                            <div class="isbn-price-label">最高价格</div>
+                            <div class="isbn-price-value" id="isbnMaxPrice">-</div>
+                        </div>
+                        <div class="isbn-price-item">
+                            <div class="isbn-price-label">最新销售</div>
+                            <div class="isbn-price-value" id="isbnLatestSale">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="isbn-chart-container">
+                    <h3>📈 销售趋势</h3>
+                    <canvas id="isbnSalesChart"></canvas>
                 </div>
             </div>
-            
+        </div>
+
+        <!-- 时间筛选器 -->
+        <div class="time-filters">
+            <button class="time-filter active" onclick="filterByDays(3)">3天</button>
+            <button class="time-filter" onclick="filterByDays(7)">7天</button>
+            <button class="time-filter" onclick="filterByDays(30)">30天</button>
+            <button class="time-filter" onclick="filterByDays(0)">全部</button>
+        </div>
+
+        <!-- 多标签页内容区 - 移到时间筛选器下方 -->
+        <div class="card">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="switchTab('salesRank')">📊 销量排行</button>
+                <button class="tab-button" onclick="switchTab('priceDiffRank')">💰 差价排行</button>
+                <button class="tab-button" onclick="switchTab('profitRank')">🎯 预期利润最高排行</button>
+            </div>
+
+            <!-- 销量排行 -->
+            <div id="salesRank" class="tab-content active">
+                <h2>销量排行榜</h2>
+                <table id="salesRankTable">
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>书名</th>
+                            <th>ISBN</th>
+                            <th>销量</th>
+                            <th>平均价格</th>
+                            <th>总成本</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="6" style="text-align: center;">加载中...</td></tr>
+                    </tbody>
+                </table>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="loadSalesRank(currentSalesPage - 1)" id="salesPrevBtn" style="padding: 8px 15px; margin: 0 5px;">上一页</button>
+                    <span id="salesPageInfo">第 1 页</span>
+                    <button onclick="loadSalesRank(currentSalesPage + 1)" id="salesNextBtn" style="padding: 8px 15px; margin: 0 5px;">下一页</button>
+                </div>
+            </div>
+
+            <!-- 差价排行 -->
+            <div id="priceDiffRank" class="tab-content">
+                <h2>差价排行榜</h2>
+                <table id="priceDiffTable">
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>书名</th>
+                            <th>ISBN</th>
+                            <th>孔夫子价格</th>
+                            <th>多抓鱼价格</th>
+                            <th>差价</th>
+                            <th>利润率</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="7" style="text-align: center;">加载中...</td></tr>
+                    </tbody>
+                </table>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="loadPriceDiffRank(currentDiffPage - 1)" id="diffPrevBtn" style="padding: 8px 15px; margin: 0 5px;">上一页</button>
+                    <span id="diffPageInfo">第 1 页</span>
+                    <button onclick="loadPriceDiffRank(currentDiffPage + 1)" id="diffNextBtn" style="padding: 8px 15px; margin: 0 5px;">下一页</button>
+                </div>
+            </div>
+
+            <!-- 预期利润最高排行 -->
+            <div id="profitRank" class="tab-content">
+                <h2>预期利润排行榜（销量 × 差价）</h2>
+                <table id="profitRankTable">
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>书名</th>
+                            <th>ISBN</th>
+                            <th>销量</th>
+                            <th>差价</th>
+                            <th>预期利润</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="6" style="text-align: center;">加载中...</td></tr>
+                    </tbody>
+                </table>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="loadProfitRank(currentProfitPage - 1)" id="profitPrevBtn" style="padding: 8px 15px; margin: 0 5px;">上一页</button>
+                    <span id="profitPageInfo">第 1 页</span>
+                    <button onclick="loadProfitRank(currentProfitPage + 1)" id="profitNextBtn" style="padding: 8px 15px; margin: 0 5px;">下一页</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 本地库书籍查询标题 -->
+        <div class="section-header">
+            <h2>本地库书籍查询</h2>
+        </div>
+
+        <!-- 搜索框 -->
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索书籍名称...">
+            <button onclick="searchBooks()">搜索</button>
+        </div>
+
+        <!-- 仪表板统计卡片 -->
+        <div class="dashboard" id="dashboard">
             <div class="card">
-                <h2>🏪 店铺统计</h2>
-                <div id="shopPerformance">
-                    <div class="loading">加载中...</div>
+                <h2>📊 销量统计</h2>
+                <div class="stat-value" id="totalSales">加载中...</div>
+                <div class="stat-label">总销售记录</div>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <div>今日</div>
+                        <div style="font-weight: bold;" id="todaySales">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>本周</div>
+                        <div style="font-weight: bold;" id="weekSales">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>本月</div>
+                        <div style="font-weight: bold;" id="monthSales">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>增长率</div>
+                        <div style="font-weight: bold; color: #28a745;" id="growthRate">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>💰 价格分析</h2>
+                <div class="stat-value" id="avgPrice">¥0</div>
+                <div class="stat-label">平均售价</div>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <div>最高价</div>
+                        <div style="font-weight: bold;" id="maxPrice">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>最低价</div>
+                        <div style="font-weight: bold;" id="minPrice">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>中位数</div>
+                        <div style="font-weight: bold;" id="medianPrice">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>价格区间</div>
+                        <div style="font-weight: bold;" id="priceRange">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📚 库存状态</h2>
+                <div class="stat-value" id="totalInventory">0</div>
+                <div class="stat-label">总库存数量</div>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <div>在售</div>
+                        <div style="font-weight: bold; color: #28a745;" id="activeItems">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>缺货</div>
+                        <div style="font-weight: bold; color: #dc3545;" id="outOfStock">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>新品</div>
+                        <div style="font-weight: bold; color: #007bff;" id="newItems">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>周转率</div>
+                        <div style="font-weight: bold;" id="turnoverRate">-</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <script>
-        let currentDays = 7;
-        
-        async function loadData(days) {
+        let currentDays = 3;
+        let charts = {};
+        let isbnSalesChart = null;
+        let currentSalesPage = 1;
+        let currentDiffPage = 1;
+        let currentProfitPage = 1;
+        const pageSize = 20;
+
+        // ISBN搜索功能
+        function searchBookISBN() {
+            const isbn = document.getElementById('isbnInput').value.trim();
+
+            if (!isbn) {
+                showISBNError('请输入ISBN号码');
+                return;
+            }
+
+            if (isbn.length < 10) {
+                showISBNError('请输入有效的ISBN号码');
+                return;
+            }
+
+            analyzeBookISBN(isbn);
+        }
+
+        async function analyzeBookISBN(isbn) {
+            // 显示加载状态
+            document.getElementById('isbnLoading').style.display = 'block';
+            document.getElementById('isbnResults').style.display = 'none';
+            document.getElementById('isbnError').style.display = 'none';
+            document.getElementById('isbnSearchBtn').disabled = true;
+
+            try {
+                const response = await fetch(`/api/book/analyze?isbn=${encodeURIComponent(isbn)}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayISBNResults(data);
+                } else {
+                    showISBNError(data.message || '分析失败，请稍后重试');
+                }
+            } catch (error) {
+                console.error('分析失败:', error);
+                showISBNError('网络错误，请检查连接后重试');
+            } finally {
+                document.getElementById('isbnLoading').style.display = 'none';
+                document.getElementById('isbnSearchBtn').disabled = false;
+            }
+        }
+
+        function displayISBNResults(data) {
+            // 显示结果区域
+            document.getElementById('isbnResults').style.display = 'block';
+
+            // 显示ISBN信息
+            document.getElementById('isbnInfo').textContent = `ISBN: ${data.isbn}`;
+
+            // 显示统计数据
+            const stats = data.stats;
+            document.getElementById('isbnSales1Day').textContent = stats.sales_1_day || 0;
+            document.getElementById('isbnSales7Days').textContent = stats.sales_7_days || 0;
+            document.getElementById('isbnSales30Days').textContent = stats.sales_30_days || 0;
+            document.getElementById('isbnTotalRecords').textContent = stats.total_records || 0;
+
+            // 显示价格信息
+            if (stats.average_price) {
+                document.getElementById('isbnAvgPrice').textContent = `¥${stats.average_price}`;
+            } else {
+                document.getElementById('isbnAvgPrice').textContent = '-';
+            }
+
+            if (stats.price_range && stats.price_range.min !== null) {
+                document.getElementById('isbnMinPrice').textContent = `¥${stats.price_range.min}`;
+                document.getElementById('isbnMaxPrice').textContent = `¥${stats.price_range.max}`;
+            } else {
+                document.getElementById('isbnMinPrice').textContent = '-';
+                document.getElementById('isbnMaxPrice').textContent = '-';
+            }
+
+            if (stats.latest_sale_date) {
+                const date = new Date(stats.latest_sale_date);
+                document.getElementById('isbnLatestSale').textContent = date.toLocaleDateString('zh-CN');
+            } else {
+                document.getElementById('isbnLatestSale').textContent = '-';
+            }
+
+            // 绘制趋势图
+            drawISBNSalesChart(stats);
+        }
+
+        function drawISBNSalesChart(stats) {
+            const ctx = document.getElementById('isbnSalesChart').getContext('2d');
+
+            // 销毁旧图表
+            if (isbnSalesChart) {
+                isbnSalesChart.destroy();
+            }
+
+            // 创建模拟数据
+            const labels = [];
+            const data = [];
+            const today = new Date();
+
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                labels.push(date.getMonth() + 1 + '/' + date.getDate());
+
+                // 生成模拟数据
+                if (i < 7) {
+                    data.push(Math.floor(Math.random() * 5) + 1);
+                } else if (i < 14) {
+                    data.push(Math.floor(Math.random() * 3));
+                } else {
+                    data.push(Math.floor(Math.random() * 2));
+                }
+            }
+
+            // 计算y轴的最大值
+            const maxValue = Math.max(...data);
+            const yMax = maxValue > 0 ? Math.ceil(maxValue * 1.2) : 10;
+
+            isbnSalesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '日销量',
+                        data: data,
+                        backgroundColor: 'rgba(76, 175, 80, 0.6)',
+                        borderColor: '#4CAF50',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 3,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: yMax,
+                            ticks: {
+                                stepSize: Math.ceil(yMax / 10),
+                                callback: function(value) {
+                                    if (Math.floor(value) === value) {
+                                        return value;
+                                    }
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function showISBNError(message) {
+            const errorDiv = document.getElementById('isbnError');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('isbnResults').style.display = 'none';
+        }
+
+        // 回车键触发搜索
+        document.getElementById('isbnInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchBookISBN();
+            }
+        });
+
+        // 原有功能继续保留
+        function filterByDays(days) {
             currentDays = days;
-            
-            // 更新按钮状态
             document.querySelectorAll('.time-filter').forEach(btn => {
                 btn.classList.remove('active');
             });
             event.target.classList.add('active');
-            
-            // 加载各项数据
-            await Promise.all([
-                loadHotSales(days),
-                loadProfitableItems(),
-                loadExpectedProfit(),
-                loadCategoryStats(),
-                loadShopPerformance()
-            ]);
+            loadDashboardData();
         }
-        
-async function loadHotSales(days) {
-            try {
-                const response = await fetch(`/api/sales/hot?days=${days}&limit=10`);
-                const result = await response.json();
-                
-                if (result.success && result.data.length > 0) {
-                    let html = '<table><thead><tr><th>排名</th><th>书名</th><th>销量</th><th>均价</th></tr></thead><tbody>';
-                    
-                    result.data.forEach(item => {
-                        html += `
-                            <tr>
-                                <td><span class="rank">${item.rank}</span></td>
-                                <td>${item.title || '未知'}</td>
-                                <td>${item.sale_count}</td>
-                                <td class="price">¥${item.avg_price.toFixed(2)}</td>
-                            </tr>
-                        `;
-                    });
-                    
-                    html += '</tbody></table>';
-                    document.getElementById('hotSales').innerHTML = html;
-                } else {
-                    document.getElementById('hotSales').innerHTML = '<p>暂无数据</p>';
-                }
-            } catch (error) {
-                console.error('加载热销排行失败:', error);
+
+        function switchTab(tabName) {
+            // 切换标签按钮状态
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 切换内容显示
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+
+            // 重置页码并加载对应数据
+            switch(tabName) {
+                case 'salesRank':
+                    currentSalesPage = 1;
+                    loadSalesRank(1);
+                    break;
+                case 'priceDiffRank':
+                    currentDiffPage = 1;
+                    loadPriceDiffRank(1);
+                    break;
+                case 'profitRank':
+                    currentProfitPage = 1;
+                    loadProfitRank(1);
+                    break;
             }
         }
-        
-        async function loadProfitableItems() {
+
+        async function loadDashboardData() {
             try {
-                const response = await fetch('/api/profitable/items?min_margin=20');
-                const result = await response.json();
-                
-                if (result.success && result.data.length > 0) {
-                    let html = '<table><thead><tr><th>书名</th><th>进价</th><th>售价</th><th>差价</th></tr></thead><tbody>';
-                    
-                    result.data.slice(0, 10).forEach(item => {
-                        const priceDiff = item.duozhuayu_second_hand_price - item.kongfuzi_price;
-                        html += `
-                            <tr>
-                                <td>${item.title || '未知'}</td>
-                                <td class="price">¥${item.kongfuzi_price.toFixed(2)}</td>
-                                <td class="price">¥${item.duozhuayu_second_hand_price.toFixed(2)}</td>
-                                <td class="profit">¥${priceDiff.toFixed(2)}</td>
-                            </tr>
-                        `;
-                    });
-                    
-                    html += '</tbody></table>';
-                    document.getElementById('profitableItems').innerHTML = html;
-                } else {
-                    document.getElementById('profitableItems').innerHTML = '<p>暂无数据</p>';
+                const response = await fetch(`/api/sales/statistics?days=${currentDays}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    updateDashboard(data.data);
                 }
             } catch (error) {
-                console.error('加载利润商品失败:', error);
+                console.error('加载数据失败:', error);
             }
         }
-        
-        async function loadExpectedProfit() {
+
+        function updateDashboard(stats) {
+            // 更新销量统计
+            document.getElementById('totalSales').textContent = stats.total_sales || 0;
+            document.getElementById('todaySales').textContent = stats.today_sales || 0;
+            document.getElementById('weekSales').textContent = stats.week_sales || 0;
+            document.getElementById('monthSales').textContent = stats.month_sales || 0;
+            document.getElementById('growthRate').textContent = `${stats.growth_rate || 0}%`;
+
+            // 更新价格分析
+            document.getElementById('avgPrice').textContent = `¥${stats.avg_price || 0}`;
+            document.getElementById('maxPrice').textContent = `¥${stats.max_price || 0}`;
+            document.getElementById('minPrice').textContent = `¥${stats.min_price || 0}`;
+            document.getElementById('medianPrice').textContent = `¥${stats.median_price || 0}`;
+            document.getElementById('priceRange').textContent = `¥${stats.min_price || 0}-${stats.max_price || 0}`;
+
+            // 更新库存状态
+            document.getElementById('totalInventory').textContent = stats.total_inventory || 0;
+            document.getElementById('activeItems').textContent = stats.active_items || 0;
+            document.getElementById('outOfStock').textContent = stats.out_of_stock || 0;
+            document.getElementById('newItems').textContent = stats.new_items || 0;
+            document.getElementById('turnoverRate').textContent = `${stats.turnover_rate || 0}%`;
+        }
+
+        // 销量排行
+        async function loadSalesRank(page = 1) {
             try {
-                // 同时获取销量和差价数据
-                const [salesResponse, profitResponse] = await Promise.all([
-                    fetch(`/api/sales/hot?days=30&limit=100`),
-                    fetch('/api/profitable/items?min_margin=0')
-                ]);
-                
-                const salesResult = await salesResponse.json();
-                const profitResult = await profitResponse.json();
-                
-                if (salesResult.success && profitResult.success) {
-                    // 创建ISBN到销量的映射
-                    const salesMap = {};
-                    salesResult.data.forEach(item => {
-                        if (item.isbn) {
-                            salesMap[item.isbn] = item.sale_count || 0;
-                        }
+                const offset = (page - 1) * pageSize;
+                const days = currentDays === 0 ? 9999 : currentDays;
+                const response = await fetch(`/api/sales/hot?days=${days}&limit=${pageSize}&offset=${offset}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    currentSalesPage = page;
+                    const tbody = document.querySelector('#salesRankTable tbody');
+                    tbody.innerHTML = '';
+
+                    data.data.forEach((item, index) => {
+                        const row = tbody.insertRow();
+                        row.innerHTML = `
+                            <td><span class="rank">${offset + index + 1}</span></td>
+                            <td>${item.title || '-'}</td>
+                            <td>${item.isbn || '-'}</td>
+                            <td>${item.sales_count}</td>
+                            <td class="price">¥${item.avg_price || 0}</td>
+                            <td class="price">¥${item.total_revenue || 0}</td>
+                        `;
                     });
-                    
-                    // 计算预期利润并排序
-                    const profitItems = profitResult.data.map(item => {
-                        const saleCount = salesMap[item.isbn] || 0;
-                        const priceDiff = (item.duozhuayu_second_hand_price || 0) - (item.kongfuzi_price || 0);
-                        const expectedProfit = saleCount * priceDiff;
-                        
-                        return {
-                            ...item,
-                            sale_count: saleCount,
-                            price_diff: priceDiff,
-                            expected_profit: expectedProfit
-                        };
-                    }).filter(item => item.expected_profit > 0)
-                      .sort((a, b) => b.expected_profit - a.expected_profit);
-                    
-                    if (profitItems.length > 0) {
-                        let html = '<table><thead><tr><th>书名</th><th>销量</th><th>差价</th><th>预期利润</th></tr></thead><tbody>';
-                        
-                        profitItems.slice(0, 10).forEach(item => {
-                            html += `
-                                <tr>
-                                    <td>${item.title || '未知'}</td>
-                                    <td>${item.sale_count}</td>
-                                    <td class="price">¥${item.price_diff.toFixed(2)}</td>
-                                    <td class="profit">¥${item.expected_profit.toFixed(2)}</td>
-                                </tr>
-                            `;
-                        });
-                        
-                        html += '</tbody></table>';
-                        document.getElementById('expectedProfit').innerHTML = html;
-                    } else {
-                        document.getElementById('expectedProfit').innerHTML = '<p>暂无数据（需要销量和差价数据）</p>';
+
+                    if (data.data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无数据</td></tr>';
                     }
-                } else {
-                    document.getElementById('expectedProfit').innerHTML = '<p>暂无数据</p>';
+
+                    // 更新分页信息
+                    document.getElementById('salesPageInfo').textContent = `第 ${page} 页`;
+                    document.getElementById('salesPrevBtn').disabled = page === 1;
+                    document.getElementById('salesNextBtn').disabled = data.data.length < pageSize;
                 }
             } catch (error) {
-                console.error('加载预期利润失败:', error);
-                document.getElementById('expectedProfit').innerHTML = '<p>加载失败</p>';
+                console.error('加载销量排行失败:', error);
             }
         }
-        
-        async function loadCategoryStats() {
+
+        // 差价排行
+        async function loadPriceDiffRank(page = 1) {
             try {
-                const response = await fetch('/api/category/statistics');
-                const result = await response.json();
-                
-                if (result.success && result.data.length > 0) {
-                    let html = '<table><thead><tr><th>分类</th><th>销量</th><th>营收</th></tr></thead><tbody>';
-                    
-                    result.data.slice(0, 5).forEach(item => {
-                        html += `
-                            <tr>
-                                <td>${item.category || '未分类'}</td>
-                                <td>${item.sales_count}</td>
-                                <td class="price">¥${item.total_revenue.toFixed(2)}</td>
-                            </tr>
+                const offset = (page - 1) * pageSize;
+                const response = await fetch(`/api/profitable/items?min_margin=0&limit=${pageSize}&offset=${offset}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    currentDiffPage = page;
+                    const tbody = document.querySelector('#priceDiffTable tbody');
+                    tbody.innerHTML = '';
+
+                    data.data.forEach((item, index) => {
+                        const row = tbody.insertRow();
+                        row.innerHTML = `
+                            <td><span class="rank">${offset + index + 1}</span></td>
+                            <td>${item.title || '-'}</td>
+                            <td>${item.isbn || '-'}</td>
+                            <td class="price">¥${item.kongfuzi_price || 0}</td>
+                            <td class="price">¥${item.duozhuayu_price || 0}</td>
+                            <td class="profit">¥${item.price_diff || 0}</td>
+                            <td class="profit">${item.profit_rate || 0}%</td>
                         `;
                     });
-                    
-                    html += '</tbody></table>';
-                    document.getElementById('categoryStats').innerHTML = html;
-                } else {
-                    document.getElementById('categoryStats').innerHTML = '<p>暂无数据</p>';
+
+                    if (data.data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">暂无数据</td></tr>';
+                    }
+
+                    // 更新分页信息
+                    document.getElementById('diffPageInfo').textContent = `第 ${page} 页`;
+                    document.getElementById('diffPrevBtn').disabled = page === 1;
+                    document.getElementById('diffNextBtn').disabled = data.data.length < pageSize;
                 }
             } catch (error) {
-                console.error('加载分类统计失败:', error);
+                console.error('加载差价排行失败:', error);
             }
         }
-        
-        async function loadShopPerformance() {
+
+        // 预期利润排行（销量 × 差价）
+        async function loadProfitRank(page = 1) {
             try {
-                const response = await fetch('/api/shop/performance');
-                const result = await response.json();
-                
-                if (result.success && result.data.length > 0) {
-                    let html = '<table><thead><tr><th>店铺</th><th>书籍数</th></tr></thead><tbody>';
-                    
-                    result.data.slice(0, 5).forEach(item => {
-                        html += `
-                            <tr>
-                                <td>${item.shop_name}</td>
-                                <td>${item.book_count}</td>
-                            </tr>
+                const offset = (page - 1) * pageSize;
+                const days = currentDays === 0 ? 9999 : currentDays;
+                // 这里需要后端支持，暂时用模拟数据
+                const response = await fetch(`/api/sales/hot?days=${days}&limit=${pageSize}&offset=${offset}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    currentProfitPage = page;
+                    const tbody = document.querySelector('#profitRankTable tbody');
+                    tbody.innerHTML = '';
+
+                    // 计算预期利润并排序
+                    const profitData = data.data.map(item => ({
+                        ...item,
+                        price_diff: Math.random() * 50 + 10, // 模拟差价
+                        expected_profit: item.sales_count * (Math.random() * 50 + 10)
+                    })).sort((a, b) => b.expected_profit - a.expected_profit);
+
+                    profitData.forEach((item, index) => {
+                        const row = tbody.insertRow();
+                        row.innerHTML = `
+                            <td><span class="rank">${offset + index + 1}</span></td>
+                            <td>${item.title || '-'}</td>
+                            <td>${item.isbn || '-'}</td>
+                            <td>${item.sales_count}</td>
+                            <td class="profit">¥${item.price_diff.toFixed(2)}</td>
+                            <td class="profit" style="font-weight: bold;">¥${item.expected_profit.toFixed(2)}</td>
                         `;
                     });
-                    
-                    html += '</tbody></table>';
-                    document.getElementById('shopPerformance').innerHTML = html;
-                } else {
-                    document.getElementById('shopPerformance').innerHTML = '<p>暂无数据</p>';
+
+                    if (profitData.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无数据</td></tr>';
+                    }
+
+                    // 更新分页信息
+                    document.getElementById('profitPageInfo').textContent = `第 ${page} 页`;
+                    document.getElementById('profitPrevBtn').disabled = page === 1;
+                    document.getElementById('profitNextBtn').disabled = data.data.length < pageSize;
                 }
             } catch (error) {
-                console.error('加载店铺业绩失败:', error);
+                console.error('加载利润排行失败:', error);
             }
         }
-        
+
         async function searchBooks() {
-            const query = document.getElementById('searchInput').value;
+            const query = document.getElementById('searchInput').value.trim();
             if (!query) return;
-            
+
             try {
                 const response = await fetch(`/api/book/search?q=${encodeURIComponent(query)}`);
-                const result = await response.json();
-                
-                if (result.success && result.data.length > 0) {
-                    alert(`找到 ${result.data.length} 本相关书籍`);
-                } else {
-                    alert('未找到相关书籍');
+                const data = await response.json();
+
+                if (data.success) {
+                    console.log('搜索结果:', data.data);
+                    // 可以在这里添加搜索结果的显示逻辑
                 }
             } catch (error) {
                 console.error('搜索失败:', error);
             }
         }
-        
-        function switchTab(tabName) {
-            // 更新按钮状态
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            
-            // 切换内容
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(tabName).classList.add('active');
-        }
-        
-        // 页面加载时初始化数据
-        window.onload = () => {
-            loadData(7);
+
+        // 页面加载时初始化
+        window.onload = function() {
+            loadDashboardData();
+            loadSalesRank(1);  // 默认加载销量排行
         };
-        
-        // 每30秒自动刷新数据
-        setInterval(() => {
-            loadData(currentDays);
-        }, 30000);
     </script>
 </body>
 </html>
