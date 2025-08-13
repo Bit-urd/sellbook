@@ -78,6 +78,26 @@ async def root():
         </html>
         """)
 
+@app.get("/isbn-search", response_class=HTMLResponse)
+async def isbn_search():
+    """ISBN搜索分析界面"""
+    isbn_file = static_dir / "isbn_search.html"
+    if isbn_file.exists():
+        return FileResponse(isbn_file)
+    else:
+        return HTMLResponse("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>ISBN搜索分析</title>
+            <meta charset="utf-8">
+        </head>
+        <body>
+            <h1>页面加载中...</h1>
+        </body>
+        </html>
+        """)
+
 @app.get("/crawler-admin", response_class=HTMLResponse)
 async def crawler_admin():
     """爬虫控制页面 - 隐藏入口"""

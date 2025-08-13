@@ -17,6 +17,7 @@ if __name__ == "__main__":
     print("\n系统启动中...")
     print("\n访问地址:")
     print("  主页（数据展示）: http://127.0.0.1:8000/")
+    print("  ISBN搜索分析: http://127.0.0.1:8000/isbn-search")
     print("  爬虫控制页面: http://127.0.0.1:8000/crawler-admin")
     print("  API文档: http://127.0.0.1:8000/docs")
     print("\n按 Ctrl+C 停止服务器")

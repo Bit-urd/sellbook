@@ -79,6 +79,219 @@ class KongfuziCrawler:
             await self.playwright.stop()
             self.connected = False
     
+    async def analyze_book_sales(self, isbn: str, days_limit: int = 30) -> Dict:
+        """分析单本书的销售记录（用于实时ISBN搜索）"""
+        if not await self.connect_browser():
+            raise Exception("无法连接到Chrome浏览器")
+        
+        cutoff_date = datetime.now() - timedelta(days=days_limit)
+        all_sales = []
+        
+        # 构建搜索URL
+        search_url = f"https://search.kongfz.com/product/?keyword={isbn}&dataType=1&sortType=10&page=1&actionPath=sortType,quality&quality=90~&quaSelect=2"
+        
+        try:
+            await self.page.goto(search_url, wait_until='networkidle')
+            await asyncio.sleep(2)
+            
+            page_num = 1
+            max_pages = 20
+            
+            while page_num <= max_pages:
+                await asyncio.sleep(1)
+                
+                # 提取当前页面的销售记录
+                page_sales = await self.extract_sales_records()
+                
+                if not page_sales:
+                    break
+                
+                # 检查时间限制
+                has_old_records = False
+                valid_sales = []
+                
+                for sale in page_sales:
+                    sale_date = self.parse_sale_date(sale.get('sold_time', ''))
+                    if sale_date and sale_date >= cutoff_date:
+                        sale['book_isbn'] = isbn
+                        sale['sale_date'] = sale_date
+                        valid_sales.append(sale)
+                    else:
+                        has_old_records = True
+                
+                if valid_sales:
+                    all_sales.extend(valid_sales)
+                
+                # 如果发现超过时间限制的记录，停止翻页
+                if has_old_records:
+                    break
+                
+                # 尝试翻到下一页
+                if not await self.go_to_next_page():
+                    break
+                
+                page_num += 1
+                await asyncio.sleep(2)
+            
+            # 计算统计数据
+            stats = self.calculate_sales_stats(all_sales, isbn)
+            return stats
+            
+        except Exception as e:
+            logger.error(f"爬取ISBN {isbn} 销售数据失败: {e}")
+            raise
+    
+    async def extract_sales_records(self):
+        """提取当前页面的销售记录"""
+        try:
+            return await self.page.evaluate("""
+                () => {
+                    const sales = [];
+                    const productItems = document.querySelectorAll('.product-item-wrap');
+                    
+                    productItems.forEach(item => {
+                        try {
+                            const record = {};
+                            
+                            // 提取售出时间
+                            const soldTimeElement = item.querySelector('.sold-time');
+                            if (soldTimeElement) {
+                                record.sold_time = soldTimeElement.textContent.trim();
+                            }
+                            
+                            // 提取价格信息
+                            const priceElement = item.querySelector('.price-info');
+                            if (priceElement) {
+                                const priceInt = item.querySelector('.price-int');
+                                const priceFloat = item.querySelector('.price-float');
+                                if (priceInt && priceFloat) {
+                                    record.price = priceInt.textContent + '.' + priceFloat.textContent;
+                                }
+                            }
+                            
+                            // 提取品相
+                            const qualityElement = item.querySelector('.quality-info');
+                            if (qualityElement) {
+                                record.quality = qualityElement.textContent.trim();
+                            }
+                            
+                            // 只保留有售出时间的记录
+                            if (record.sold_time && record.sold_time.includes('已售')) {
+                                sales.push(record);
+                            }
+                            
+                        } catch (error) {
+                            console.log('提取销售记录时出错:', error);
+                        }
+                    });
+                    
+                    return sales;
+                }
+            """)
+        except:
+            return []
+    
+    async def go_to_next_page(self):
+        """翻到下一页"""
+        try:
+            # 查找下一页按钮
+            next_button = await self.page.query_selector('a.next-page:not(.disabled)')
+            if next_button:
+                await next_button.click()
+                await asyncio.sleep(2)
+                return True
+            return False
+        except:
+            return False
+    
+    def parse_sale_date(self, sold_time: str) -> Optional[datetime]:
+        """解析售出时间字符串"""
+        if not sold_time or '已售' not in sold_time:
+            return None
+        
+        try:
+            # 提取时间部分，例如 "已售 2天前"
+            time_str = sold_time.replace('已售', '').strip()
+            
+            now = datetime.now()
+            
+            # 解析不同的时间格式
+            if '分钟前' in time_str:
+                minutes = int(time_str.replace('分钟前', ''))
+                return now - timedelta(minutes=minutes)
+            elif '小时前' in time_str:
+                hours = int(time_str.replace('小时前', ''))
+                return now - timedelta(hours=hours)
+            elif '天前' in time_str:
+                days = int(time_str.replace('天前', ''))
+                return now - timedelta(days=days)
+            elif '月前' in time_str:
+                months = int(time_str.replace('月前', ''))
+                return now - timedelta(days=months*30)
+            elif '年前' in time_str:
+                years = int(time_str.replace('年前', ''))
+                return now - timedelta(days=years*365)
+            else:
+                # 尝试解析具体日期
+                return datetime.strptime(time_str, '%Y-%m-%d')
+        except:
+            return None
+    
+    def calculate_sales_stats(self, sales: List[Dict], isbn: str) -> Dict:
+        """计算销售统计数据"""
+        now = datetime.now()
+        
+        # 初始化统计
+        stats = {
+            'isbn': isbn,
+            'sales_1_day': 0,
+            'sales_7_days': 0,
+            'sales_30_days': 0,
+            'total_records': len(sales),
+            'latest_sale_date': None,
+            'average_price': None,
+            'price_range': {'min': None, 'max': None},
+            'sales_records': sales[:50]  # 返回前50条记录用于展示
+        }
+        
+        if not sales:
+            return stats
+        
+        prices = []
+        
+        for sale in sales:
+            sale_date = sale.get('sale_date')
+            
+            if sale_date:
+                # 更新最新销售日期
+                if not stats['latest_sale_date'] or sale_date > datetime.fromisoformat(stats['latest_sale_date']):
+                    stats['latest_sale_date'] = sale_date.isoformat()
+                
+                # 统计不同时间段的销量
+                days_diff = (now - sale_date).days
+                if days_diff <= 1:
+                    stats['sales_1_day'] += 1
+                if days_diff <= 7:
+                    stats['sales_7_days'] += 1
+                if days_diff <= 30:
+                    stats['sales_30_days'] += 1
+            
+            # 收集价格信息
+            try:
+                price = float(sale.get('price', '0').replace('¥', '').replace(',', ''))
+                if price > 0:
+                    prices.append(price)
+            except:
+                pass
+        
+        # 计算价格统计
+        if prices:
+            stats['average_price'] = round(sum(prices) / len(prices), 2)
+            stats['price_range']['min'] = min(prices)
+            stats['price_range']['max'] = max(prices)
+        
+        return stats
+    
     async def crawl_shop_books(self, shop_id: str, max_pages: int = 50) -> int:
         """爬取店铺的书籍列表"""
         if not await self.connect_browser():

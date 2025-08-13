@@ -126,6 +126,56 @@ async def get_price_comparison(isbn: str):
         logger.error(f"获取价格对比失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.post("/book/analyze")
+async def analyze_book_sales(isbn: str):
+    """实时分析单本书的销售数据（ISBN搜索）"""
+    try:
+        # 验证ISBN格式
+        isbn = isbn.strip()
+        if not isbn or len(isbn) < 10:
+            raise HTTPException(status_code=400, detail="请输入有效的ISBN号码")
+        
+        # 使用爬虫实时获取销售数据
+        crawler = KongfuziCrawler()
+        stats = await crawler.analyze_book_sales(isbn, days_limit=30)
+        
+        # 构建响应
+        response = {
+            "isbn": isbn,
+            "stats": {
+                "sales_1_day": stats.get("sales_1_day", 0),
+                "sales_7_days": stats.get("sales_7_days", 0),
+                "sales_30_days": stats.get("sales_30_days", 0),
+                "total_records": stats.get("total_records", 0),
+                "latest_sale_date": stats.get("latest_sale_date"),
+                "average_price": stats.get("average_price"),
+                "price_range": stats.get("price_range"),
+            },
+            "message": "分析完成",
+            "success": True
+        }
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"分析书籍销售数据失败: {e}")
+        return {
+            "isbn": isbn,
+            "stats": {
+                "sales_1_day": 0,
+                "sales_7_days": 0,
+                "sales_30_days": 0,
+                "total_records": 0,
+                "latest_sale_date": None,
+                "average_price": None,
+                "price_range": None
+            },
+            "message": f"分析失败: {str(e)}",
+            "success": False
+        }
+
 # 爬虫控制API（需要认证保护）
 crawler_router = APIRouter(prefix="/crawler", tags=["crawler"])
 
