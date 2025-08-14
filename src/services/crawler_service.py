@@ -292,6 +292,221 @@ class KongfuziCrawler:
         
         return stats
     
+    async def crawl_book_sales(self, isbn: str) -> Dict:
+        """爬取单本书籍的销售数据"""
+        if not await self.connect_browser():
+            raise Exception("无法连接到Chrome浏览器")
+        
+        try:
+            # 搜索书籍
+            search_url = f"https://search.kongfz.com/product/?keyword={isbn}&dataType=1&sortType=10&page=1"
+            await self.page.goto(search_url, wait_until='networkidle')
+            await asyncio.sleep(2)
+            
+            sales_records = []
+            page_num = 1
+            max_pages = 10  # 最多爬取10页
+            
+            while page_num <= max_pages:
+                # 提取当前页面的销售记录
+                page_sales = await self.extract_sales_records()
+                
+                if not page_sales:
+                    break
+                
+                for sale in page_sales:
+                    if sale.get('isbn') == isbn:
+                        sales_records.append(sale)
+                
+                # 尝试翻页
+                if not await self.goto_next_page():
+                    break
+                
+                page_num += 1
+                await asyncio.sleep(2)
+            
+            # 保存销售记录到数据库
+            for sale in sales_records:
+                try:
+                    # 需要找到或创建店铺
+                    shop_id_str = sale.get('shop_id', '')
+                    shop = self.shop_repo.get_by_shop_id(shop_id_str) if shop_id_str else None
+                    
+                    if shop:
+                        sale_record = SalesRecord(
+                            isbn=isbn,
+                            shop_id=shop['id'],
+                            sale_price=sale.get('price', 0),
+                            sale_date=sale.get('sale_date', datetime.now()),
+                            original_price=sale.get('original_price'),
+                            sale_platform='kongfuzi',
+                            book_condition=sale.get('condition')
+                        )
+                        self.sales_repo.create(sale_record)
+                except Exception as e:
+                    logger.error(f"保存销售记录失败: {e}")
+            
+            return {
+                'total_records': len(sales_records),
+                'success': True
+            }
+            
+        except Exception as e:
+            logger.error(f"爬取书籍 {isbn} 失败: {e}")
+            raise
+    
+    async def crawl_shop_sales(self, shop_id: str) -> int:
+        """爬取店铺的销售数据"""
+        if not await self.connect_browser():
+            raise Exception("无法连接到Chrome浏览器")
+        
+        try:
+            # 获取店铺信息
+            shop = self.shop_repo.get_by_shop_id(shop_id)
+            if not shop:
+                raise Exception(f"店铺 {shop_id} 不存在")
+            
+            # 构建店铺URL
+            shop_url = f"https://shop.kongfz.com/{shop_id}/sold/"
+            
+            await self.page.goto(shop_url, wait_until='networkidle')
+            await asyncio.sleep(2)
+            
+            total_sales = 0
+            page_num = 1
+            max_pages = 100  # 最多爬取100页
+            
+            while page_num <= max_pages:
+                logger.info(f"正在爬取店铺 {shop_id} 第 {page_num} 页销售记录")
+                
+                # 提取当前页面的销售记录
+                sales_data = await self.extract_shop_sales_records()
+                
+                if not sales_data:
+                    logger.info(f"店铺 {shop_id} 第 {page_num} 页没有销售记录，停止爬取")
+                    break
+                
+                # 保存销售记录
+                for sale in sales_data:
+                    try:
+                        # 创建销售记录
+                        sale_record = SalesRecord(
+                            isbn=sale.get('isbn', ''),
+                            shop_id=shop['id'],
+                            sale_price=sale.get('price', 0),
+                            sale_date=sale.get('sale_date', datetime.now()),
+                            original_price=sale.get('original_price'),
+                            sale_platform='kongfuzi',
+                            book_condition=sale.get('condition')
+                        )
+                        
+                        # 保存到数据库
+                        self.sales_repo.create(sale_record)
+                        total_sales += 1
+                        
+                        # 同时确保书籍信息存在
+                        if sale.get('isbn') and sale.get('title'):
+                            book = Book(
+                                isbn=sale.get('isbn'),
+                                title=sale.get('title'),
+                                author=sale.get('author'),
+                                publisher=sale.get('publisher')
+                            )
+                            self.book_repo.create_or_update(book)
+                    except Exception as e:
+                        logger.error(f"保存销售记录失败: {e}")
+                        continue
+                
+                # 尝试翻页
+                if not await self.goto_next_page():
+                    logger.info(f"店铺 {shop_id} 没有更多页面")
+                    break
+                
+                page_num += 1
+                await asyncio.sleep(2)
+            
+            logger.info(f"成功爬取店铺 {shop_id} 的 {total_sales} 条销售记录")
+            return total_sales
+            
+        except Exception as e:
+            logger.error(f"爬取店铺 {shop_id} 销售数据失败: {e}")
+            raise
+    
+    async def extract_shop_sales_records(self) -> List[Dict]:
+        """提取店铺销售记录页面的数据"""
+        try:
+            sales = await self.page.evaluate("""
+                () => {
+                    const items = [];
+                    const bookItems = document.querySelectorAll('.book-item, .item, .sold-item');
+                    
+                    bookItems.forEach(item => {
+                        try {
+                            // 提取书籍标题
+                            const titleElem = item.querySelector('.title a, .name a, h3 a');
+                            const title = titleElem ? titleElem.innerText.trim() : '';
+                            
+                            // 提取ISBN
+                            const detailText = item.innerText || '';
+                            const isbnMatch = detailText.match(/ISBN[：:]\s*([0-9X-]+)/i) || 
+                                             detailText.match(/([0-9]{10,13})/);
+                            const isbn = isbnMatch ? isbnMatch[1].replace(/-/g, '') : '';
+                            
+                            // 提取价格
+                            const priceElem = item.querySelector('.price, .sell-price, .money');
+                            const priceText = priceElem ? priceElem.innerText : '';
+                            const price = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 0;
+                            
+                            // 提取售出时间
+                            const soldTimeElem = item.querySelector('.sold-time, .time, .date');
+                            const soldTime = soldTimeElem ? soldTimeElem.innerText.trim() : '';
+                            
+                            // 提取品相
+                            const conditionElem = item.querySelector('.quality, .condition');
+                            const condition = conditionElem ? conditionElem.innerText.trim() : '';
+                            
+                            // 提取作者
+                            const authorElem = item.querySelector('.author');
+                            const author = authorElem ? authorElem.innerText.trim() : '';
+                            
+                            // 提取出版社
+                            const publisherElem = item.querySelector('.publisher');
+                            const publisher = publisherElem ? publisherElem.innerText.trim() : '';
+                            
+                            if (title && price > 0) {
+                                items.push({
+                                    title: title,
+                                    isbn: isbn,
+                                    price: price,
+                                    sold_time: soldTime,
+                                    condition: condition,
+                                    author: author,
+                                    publisher: publisher
+                                });
+                            }
+                        } catch (e) {
+                            console.error('提取单个商品失败:', e);
+                        }
+                    });
+                    
+                    return items;
+                }
+            """)
+            
+            # 解析售出时间并转换为日期
+            processed_sales = []
+            for sale in sales:
+                sale_date = self.parse_sale_date(sale.get('sold_time', ''))
+                if sale_date:
+                    sale['sale_date'] = sale_date
+                    processed_sales.append(sale)
+            
+            return processed_sales
+            
+        except Exception as e:
+            logger.error(f"提取销售记录失败: {e}")
+            return []
+    
     async def crawl_shop_books(self, shop_id: str, max_pages: int = 50) -> int:
         """爬取店铺的书籍列表"""
         if not await self.connect_browser():

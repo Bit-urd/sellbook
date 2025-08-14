@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>书籍管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .nav-tab {
+            padding: 12px 30px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .nav-tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .nav-tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        input[type="text"], input[type="url"], select, textarea {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        input[type="text"]:focus, input[type="url"]:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-crawled {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-uncrawled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #f8f9fa;
+        }
+
+        .pagination button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 80%;
+            max-width: 700px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .alert {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .book-details {
+            margin-top: 20px;
+        }
+
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-section h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .price-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .price-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .price-label {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .price-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 书籍管理</h1>
+
+        <!-- 导航标签 -->
+        <div class="nav-tabs">
+            <a href="/sales-admin" class="nav-tab">销售数据概览</a>
+            <a href="/shop-admin" class="nav-tab">店铺管理</a>
+            <a href="/book-admin" class="nav-tab active">书籍管理</a>
+        </div>
+
+        <!-- 统计概览 -->
+        <div class="section">
+            <h2>爬取统计</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalBooks">-</div>
+                    <div class="stat-label">书籍总数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="crawledBooks">-</div>
+                    <div class="stat-label">已爬取</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="uncrawledBooks">-</div>
+                    <div class="stat-label">未爬取</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="crawlRate">-</div>
+                    <div class="stat-label">爬取率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="updatedToday">-</div>
+                    <div class="stat-label">今日更新</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="updatedThisWeek">-</div>
+                    <div class="stat-label">本周更新</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 书籍列表 -->
+        <div class="section">
+            <h2>书籍列表</h2>
+            
+            <div class="controls">
+                <input type="text" id="searchInput" placeholder="搜索ISBN、书名、作者或出版社...">
+                <select id="crawlStatusFilter">
+                    <option value="">全部状态</option>
+                    <option value="crawled">已爬取</option>
+                    <option value="uncrawled">未爬取</option>
+                </select>
+                <button class="btn" onclick="searchBooks()">🔍 搜索</button>
+                <button class="btn btn-success" onclick="showAddBookModal()">➕ 添加书籍</button>
+                <button class="btn btn-warning" onclick="batchCrawlBooks()">🚀 批量爬取选中</button>
+                <button class="btn" onclick="refreshBookList()">🔄 刷新</button>
+            </div>
+
+            <div id="alertContainer"></div>
+
+            <div id="bookTableContainer">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                            <th>ISBN</th>
+                            <th>书名</th>
+                            <th>作者</th>
+                            <th>出版社</th>
+                            <th>销售数</th>
+                            <th>平均价格</th>
+                            <th>爬取状态</th>
+                            <th>最后更新</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookTableBody">
+                        <tr><td colspan="10" style="text-align: center;">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑书籍模态框 -->
+    <div id="bookModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('bookModal')">&times;</span>
+            <h2 id="modalTitle">添加书籍</h2>
+            <form id="bookForm" onsubmit="saveBook(event)">
+                <div class="form-group">
+                    <label for="isbn">ISBN *</label>
+                    <input type="text" id="isbn" required>
+                </div>
+                <div class="form-group">
+                    <label for="title">书名 *</label>
+                    <input type="text" id="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="author">作者</label>
+                    <input type="text" id="author">
+                </div>
+                <div class="form-group">
+                    <label for="publisher">出版社</label>
+                    <input type="text" id="publisher">
+                </div>
+                <div class="form-group">
+                    <label for="publishDate">出版日期</label>
+                    <input type="text" id="publishDate" placeholder="YYYY-MM-DD">
+                </div>
+                <div class="form-group">
+                    <label for="category">分类</label>
+                    <input type="text" id="category">
+                </div>
+                <div class="form-group">
+                    <label for="subcategory">子分类</label>
+                    <input type="text" id="subcategory">
+                </div>
+                <div class="form-group">
+                    <label for="description">描述</label>
+                    <textarea id="description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="coverImageUrl">封面图片URL</label>
+                    <input type="url" id="coverImageUrl">
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-success">保存</button>
+                    <button type="button" class="btn" onclick="closeModal('bookModal')">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 书籍详情模态框 -->
+    <div id="bookDetailModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('bookDetailModal')">&times;</span>
+            <h2 id="detailTitle">书籍详情</h2>
+            <div id="bookDetailContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let selectedBooks = new Set();
+        let editingIsbn = null;
+
+        // 页面加载时初始化
+        window.onload = () => {
+            loadStatistics();
+            loadBooks();
+        };
+
+        // 加载统计数据
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/books/stats/crawl-summary');
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.data;
+                    document.getElementById('totalBooks').textContent = stats.total_books || 0;
+                    document.getElementById('crawledBooks').textContent = stats.crawled_books || 0;
+                    document.getElementById('uncrawledBooks').textContent = stats.uncrawled_books || 0;
+                    document.getElementById('crawlRate').textContent = (stats.crawl_rate || 0) + '%';
+                    document.getElementById('updatedToday').textContent = stats.updated_today || 0;
+                    document.getElementById('updatedThisWeek').textContent = stats.updated_this_week || 0;
+                }
+            } catch (error) {
+                console.error('加载统计数据失败:', error);
+            }
+        }
+
+        // 加载书籍列表
+        async function loadBooks(page = 1) {
+            currentPage = page;
+            try {
+                const search = document.getElementById('searchInput').value;
+                const crawlStatus = document.getElementById('crawlStatusFilter').value;
+                
+                let url = `/api/books?page=${page}&page_size=20`;
+                if (search) {
+                    url += `&search=${encodeURIComponent(search)}`;
+                }
+                if (crawlStatus) {
+                    url += `&crawl_status=${crawlStatus}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayBooks(data.data.books);
+                    updatePagination(data.data.pagination);
+                }
+            } catch (error) {
+                showAlert('error', '加载书籍列表失败: ' + error.message);
+            }
+        }
+
+        // 显示书籍列表
+        function displayBooks(books) {
+            const tbody = document.getElementById('bookTableBody');
+            
+            if (!books || books.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">暂无数据</td></tr>';
+                return;
+            }
+
+            let html = '';
+            books.forEach(book => {
+                const crawlStatus = book.is_crawled ? '已爬取' : '未爬取';
+                const crawlStatusClass = book.is_crawled ? 'status-crawled' : 'status-uncrawled';
+                const lastUpdate = book.last_sales_update ? new Date(book.last_sales_update).toLocaleString('zh-CN') : '-';
+                const avgPrice = book.avg_price ? `¥${book.avg_price.toFixed(2)}` : '-';
+                
+                html += `
+                    <tr>
+                        <td><input type="checkbox" value="${book.isbn}" onchange="toggleBookSelection('${book.isbn}')"></td>
+                        <td>${book.isbn || '-'}</td>
+                        <td>${book.title}</td>
+                        <td>${book.author || '-'}</td>
+                        <td>${book.publisher || '-'}</td>
+                        <td>${book.sales_count || 0}</td>
+                        <td>${avgPrice}</td>
+                        <td><span class="status-badge ${crawlStatusClass}">${crawlStatus}</span></td>
+                        <td>${lastUpdate}</td>
+                        <td class="action-buttons">
+                            <button class="btn btn-sm btn-info" onclick="viewBookDetail('${book.isbn}')">详情</button>
+                            <button class="btn btn-sm btn-warning" onclick="crawlBook('${book.isbn}')">爬取</button>
+                            <button class="btn btn-sm" onclick="editBook('${book.isbn}')">编辑</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteBook('${book.isbn}')">删除</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+
+        // 更新分页
+        function updatePagination(pagination) {
+            const container = document.getElementById('pagination');
+            const { page, total_pages } = pagination;
+
+            let html = '';
+            html += `<button ${page <= 1 ? 'disabled' : ''} onclick="loadBooks(${page - 1})">上一页</button>`;
+            html += `<span>第 ${page} / ${total_pages} 页</span>`;
+            html += `<button ${page >= total_pages ? 'disabled' : ''} onclick="loadBooks(${page + 1})">下一页</button>`;
+
+            container.innerHTML = html;
+        }
+
+        // 搜索书籍
+        function searchBooks() {
+            loadBooks(1);
+        }
+
+        // 刷新列表
+        function refreshBookList() {
+            loadStatistics();
+            loadBooks(currentPage);
+        }
+
+        // 显示添加书籍模态框
+        function showAddBookModal() {
+            editingIsbn = null;
+            document.getElementById('modalTitle').textContent = '添加书籍';
+            document.getElementById('bookForm').reset();
+            document.getElementById('isbn').disabled = false;
+            document.getElementById('bookModal').style.display = 'block';
+        }
+
+        // 编辑书籍
+        async function editBook(isbn) {
+            try {
+                const response = await fetch(`/api/books/${isbn}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const book = data.data;
+                    editingIsbn = isbn;
+                    
+                    document.getElementById('modalTitle').textContent = '编辑书籍';
+                    document.getElementById('isbn').value = book.isbn;
+                    document.getElementById('isbn').disabled = true;
+                    document.getElementById('title').value = book.title;
+                    document.getElementById('author').value = book.author || '';
+                    document.getElementById('publisher').value = book.publisher || '';
+                    document.getElementById('publishDate').value = book.publish_date || '';
+                    document.getElementById('category').value = book.category || '';
+                    document.getElementById('subcategory').value = book.subcategory || '';
+                    document.getElementById('description').value = book.description || '';
+                    document.getElementById('coverImageUrl').value = book.cover_image_url || '';
+                    
+                    document.getElementById('bookModal').style.display = 'block';
+                }
+            } catch (error) {
+                showAlert('error', '获取书籍信息失败: ' + error.message);
+            }
+        }
+
+        // 保存书籍
+        async function saveBook(event) {
+            event.preventDefault();
+            
+            const bookData = {
+                isbn: document.getElementById('isbn').value,
+                title: document.getElementById('title').value,
+                author: document.getElementById('author').value || null,
+                publisher: document.getElementById('publisher').value || null,
+                publish_date: document.getElementById('publishDate').value || null,
+                category: document.getElementById('category').value || null,
+                subcategory: document.getElementById('subcategory').value || null,
+                description: document.getElementById('description').value || null,
+                cover_image_url: document.getElementById('coverImageUrl').value || null
+            };
+
+            try {
+                let response;
+                if (editingIsbn) {
+                    // 更新书籍
+                    response = await fetch(`/api/books/${editingIsbn}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(bookData)
+                    });
+                } else {
+                    // 创建书籍
+                    response = await fetch('/api/books', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(bookData)
+                    });
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    showAlert('success', data.message);
+                    closeModal('bookModal');
+                    refreshBookList();
+                } else {
+                    showAlert('error', data.detail || '保存失败');
+                }
+            } catch (error) {
+                showAlert('error', '保存失败: ' + error.message);
+            }
+        }
+
+        // 删除书籍
+        async function deleteBook(isbn) {
+            if (!confirm(`确定要删除书籍 ${isbn} 吗？这将同时删除相关的销售记录。`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/books/${isbn}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    refreshBookList();
+                } else {
+                    showAlert('error', data.detail || '删除失败');
+                }
+            } catch (error) {
+                showAlert('error', '删除失败: ' + error.message);
+            }
+        }
+
+        // 查看书籍详情
+        async function viewBookDetail(isbn) {
+            try {
+                const response = await fetch(`/api/books/${isbn}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const book = data.data;
+                    const stats = book.statistics || {};
+                    
+                    let html = `
+                        <div class="book-details">
+                            <div class="detail-section">
+                                <h3>基本信息</h3>
+                                <p><strong>ISBN:</strong> ${book.isbn}</p>
+                                <p><strong>书名:</strong> ${book.title}</p>
+                                <p><strong>作者:</strong> ${book.author || '-'}</p>
+                                <p><strong>出版社:</strong> ${book.publisher || '-'}</p>
+                                <p><strong>出版日期:</strong> ${book.publish_date || '-'}</p>
+                                <p><strong>分类:</strong> ${book.category || '-'} / ${book.subcategory || '-'}</p>
+                            </div>
+                            
+                            <div class="detail-section">
+                                <h3>销售统计</h3>
+                                <div class="price-info">
+                                    <div class="price-item">
+                                        <div class="price-label">总销售数</div>
+                                        <div class="price-value">${stats.total_sales || 0}</div>
+                                    </div>
+                                    <div class="price-item">
+                                        <div class="price-label">店铺数量</div>
+                                        <div class="price-value">${stats.shop_count || 0}</div>
+                                    </div>
+                                    <div class="price-item">
+                                        <div class="price-label">平均价格</div>
+                                        <div class="price-value">¥${(stats.avg_price || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div class="price-item">
+                                        <div class="price-label">最低价</div>
+                                        <div class="price-value">¥${(stats.min_price || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div class="price-item">
+                                        <div class="price-label">最高价</div>
+                                        <div class="price-value">¥${(stats.max_price || 0).toFixed(2)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="detail-section">
+                                <h3>在售店铺</h3>
+                                ${book.shops && book.shops.length > 0 ? 
+                                    '<ul>' + book.shops.map(shop => 
+                                        `<li>${shop.shop_name} (${shop.shop_id}) - 销量: ${shop.sale_count}, 均价: ¥${shop.avg_price.toFixed(2)}</li>`
+                                    ).join('') + '</ul>' : 
+                                    '<p>暂无数据</p>'
+                                }
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.getElementById('detailTitle').textContent = `书籍详情 - ${book.title}`;
+                    document.getElementById('bookDetailContent').innerHTML = html;
+                    document.getElementById('bookDetailModal').style.display = 'block';
+                }
+            } catch (error) {
+                showAlert('error', '获取书籍详情失败: ' + error.message);
+            }
+        }
+
+        // 爬取单本书籍
+        async function crawlBook(isbn) {
+            showAlert('info', `正在爬取书籍 ${isbn} 的销售数据，请稍候...`);
+
+            try {
+                const response = await fetch(`/api/books/${isbn}/crawl`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    refreshBookList();
+                } else {
+                    showAlert('error', data.detail || '爬取失败');
+                }
+            } catch (error) {
+                showAlert('error', '爬取失败: ' + error.message);
+            }
+        }
+
+        // 批量爬取选中的书籍
+        async function batchCrawlBooks() {
+            if (selectedBooks.size === 0) {
+                showAlert('error', '请先选择要爬取的书籍');
+                return;
+            }
+
+            if (!confirm(`确定要爬取选中的 ${selectedBooks.size} 本书籍吗？`)) {
+                return;
+            }
+
+            showAlert('info', `正在爬取 ${selectedBooks.size} 本书籍，请稍候...`);
+
+            try {
+                const response = await fetch('/api/books/batch-crawl', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(Array.from(selectedBooks))
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    selectedBooks.clear();
+                    refreshBookList();
+                } else {
+                    showAlert('error', data.detail || '批量爬取失败');
+                }
+            } catch (error) {
+                showAlert('error', '批量爬取失败: ' + error.message);
+            }
+        }
+
+        // 切换书籍选择
+        function toggleBookSelection(isbn) {
+            if (selectedBooks.has(isbn)) {
+                selectedBooks.delete(isbn);
+            } else {
+                selectedBooks.add(isbn);
+            }
+        }
+
+        // 全选/取消全选
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll').checked;
+            const checkboxes = document.querySelectorAll('#bookTableBody input[type="checkbox"]');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = selectAll;
+                if (selectAll) {
+                    selectedBooks.add(cb.value);
+                } else {
+                    selectedBooks.delete(cb.value);
+                }
+            });
+        }
+
+        // 关闭模态框
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            if (modalId === 'bookModal') {
+                editingIsbn = null;
+            }
+        }
+
+        // 显示提示信息
+        function showAlert(type, message) {
+            const container = document.getElementById('alertContainer');
+            const alertClass = type === 'success' ? 'alert-success' : 
+                              type === 'error' ? 'alert-error' : 'alert-info';
+            
+            container.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+            
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            if (event.target.className === 'modal') {
+                event.target.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -355,3 +355,222 @@ async def delete_tasks(request: DeleteTasksRequest):
     except Exception as e:
         logger.error(f"删除任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# 销售数据管理路由
+sales_data_router = APIRouter(prefix="/sales-data", tags=["sales-data"])
+
+@sales_data_router.get("/shops")
+async def get_shops_list(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
+):
+    """获取店铺列表（分页）"""
+    try:
+        offset = (page - 1) * page_size
+        shops = shop_repo.get_paginated(offset, page_size)
+        total = shop_repo.get_total_count()
+        
+        return {
+            "success": True,
+            "data": {
+                "shops": shops,
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total": total,
+                    "total_pages": (total + page_size - 1) // page_size
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取店铺列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.post("/shop/{shop_id}/crawl-sales")
+async def crawl_shop_sales(shop_id: str):
+    """爬取单个店铺的销售数据"""
+    try:
+        shop = shop_repo.get_by_shop_id(shop_id)
+        if not shop:
+            raise HTTPException(status_code=404, detail="店铺不存在")
+        
+        # 创建销售数据爬取任务
+        task = CrawlTask(
+            task_name=f"爬取店铺 {shop_id} 的销售数据",
+            task_type="shop_sales",
+            target_platform="kongfuzi",
+            target_url=shop_id,
+            shop_id=shop['id']
+        )
+        task_id = task_repo.create(task)
+        
+        # 异步执行爬虫
+        crawler = KongfuziCrawler()
+        sales_count = await crawler.crawl_shop_sales(shop_id)
+        
+        # 更新书籍的爬取状态
+        from ..models.database import db
+        db.execute_update("""
+            UPDATE books 
+            SET is_crawled = 1, 
+                last_sales_update = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE isbn IN (
+                SELECT DISTINCT isbn 
+                FROM sales_records 
+                WHERE shop_id = ?
+            )
+        """, (shop['id'],))
+        
+        return {
+            "success": True,
+            "message": f"成功爬取 {sales_count} 条销售记录",
+            "task_id": task_id,
+            "shop_id": shop_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"爬取店铺销售数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.post("/crawl-all-shops")
+async def crawl_all_shops_sales():
+    """一键爬取所有店铺的销售数据"""
+    try:
+        shops = shop_repo.get_all_active()
+        task_ids = []
+        
+        for shop in shops:
+            task = CrawlTask(
+                task_name=f"爬取店铺 {shop['shop_id']} 的销售数据",
+                task_type="shop_sales",
+                target_platform="kongfuzi",
+                target_url=shop['shop_id'],
+                shop_id=shop['id']
+            )
+            task_id = task_repo.create(task)
+            task_ids.append(task_id)
+        
+        # 启动爬虫任务
+        await crawler_manager.run_pending_tasks()
+        
+        return {
+            "success": True,
+            "message": f"已创建 {len(task_ids)} 个销售数据爬取任务",
+            "task_ids": task_ids,
+            "total_shops": len(shops)
+        }
+    except Exception as e:
+        logger.error(f"创建销售数据爬取任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.get("/shop/{shop_id}/sales-stats")
+async def get_shop_sales_stats(shop_id: str):
+    """获取店铺销售统计"""
+    try:
+        shop = shop_repo.get_by_shop_id(shop_id)
+        if not shop:
+            raise HTTPException(status_code=404, detail="店铺不存在")
+        
+        # 获取店铺销售统计
+        from ..models.database import db
+        stats = db.execute_query("""
+            SELECT 
+                COUNT(*) as total_sales,
+                COUNT(DISTINCT isbn) as unique_books,
+                AVG(sale_price) as avg_price,
+                MIN(sale_price) as min_price,
+                MAX(sale_price) as max_price,
+                SUM(sale_price) as total_revenue,
+                MAX(sale_date) as last_sale_date,
+                MIN(sale_date) as first_sale_date
+            FROM sales_records
+            WHERE shop_id = ?
+        """, (shop['id'],))
+        
+        # 获取最近爬取的书籍
+        recent_books = db.execute_query("""
+            SELECT b.isbn, b.title, b.last_sales_update, b.is_crawled
+            FROM books b
+            JOIN sales_records sr ON b.isbn = sr.isbn
+            WHERE sr.shop_id = ?
+            ORDER BY b.last_sales_update DESC
+            LIMIT 10
+        """, (shop['id'],))
+        
+        return {
+            "success": True,
+            "data": {
+                "shop_info": shop,
+                "statistics": stats[0] if stats else {},
+                "recent_books": recent_books
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取店铺销售统计失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.get("/books/crawl-status")
+async def get_books_crawl_status(
+    status: str = Query("all", regex="^(all|crawled|not_crawled)$"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
+):
+    """获取书籍爬取状态"""
+    try:
+        from ..models.database import db
+        
+        # 构建查询条件
+        where_clause = ""
+        if status == "crawled":
+            where_clause = "WHERE is_crawled = 1"
+        elif status == "not_crawled":
+            where_clause = "WHERE is_crawled = 0"
+        
+        # 获取总数
+        total_query = f"SELECT COUNT(*) as total FROM books {where_clause}"
+        total_result = db.execute_query(total_query)
+        total = total_result[0]['total'] if total_result else 0
+        
+        # 获取分页数据
+        offset = (page - 1) * page_size
+        books_query = f"""
+            SELECT 
+                isbn, title, author, publisher,
+                is_crawled, last_sales_update,
+                created_at, updated_at
+            FROM books
+            {where_clause}
+            ORDER BY last_sales_update DESC NULLS LAST
+            LIMIT ? OFFSET ?
+        """
+        books = db.execute_query(books_query, (page_size, offset))
+        
+        # 统计信息
+        stats = db.execute_query("""
+            SELECT 
+                COUNT(*) as total_books,
+                SUM(CASE WHEN is_crawled = 1 THEN 1 ELSE 0 END) as crawled_count,
+                SUM(CASE WHEN is_crawled = 0 THEN 1 ELSE 0 END) as not_crawled_count
+            FROM books
+        """)[0]
+        
+        return {
+            "success": True,
+            "data": {
+                "books": books,
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total": total,
+                    "total_pages": (total + page_size - 1) // page_size
+                },
+                "statistics": stats
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取书籍爬取状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

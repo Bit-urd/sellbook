@@ -10,7 +10,9 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from .routes.api_routes import api_router, crawler_router
+from .routes.api_routes import api_router, crawler_router, sales_data_router
+from .routes.shop_routes import shop_router
+from .routes.book_routes import book_router
 from .models.database import db
 
 # 配置日志
@@ -39,6 +41,9 @@ app.add_middleware(
 # 注册路由
 app.include_router(api_router)
 app.include_router(crawler_router)
+app.include_router(sales_data_router)
+app.include_router(shop_router)
+app.include_router(book_router)
 
 # 静态文件目录
 static_dir = Path(__file__).parent / "static"
@@ -90,6 +95,66 @@ async def isbn_search():
         <html>
         <head>
             <title>ISBN搜索分析</title>
+            <meta charset="utf-8">
+        </head>
+        <body>
+            <h1>页面加载中...</h1>
+        </body>
+        </html>
+        """)
+
+@app.get("/sales-admin", response_class=HTMLResponse)
+async def sales_admin():
+    """销售数据管理页面"""
+    sales_file = static_dir / "sales_data_admin.html"
+    if sales_file.exists():
+        return FileResponse(sales_file)
+    else:
+        return HTMLResponse("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>销售数据管理</title>
+            <meta charset="utf-8">
+        </head>
+        <body>
+            <h1>页面加载中...</h1>
+        </body>
+        </html>
+        """)
+
+@app.get("/shop-admin", response_class=HTMLResponse)
+async def shop_admin():
+    """店铺管理页面"""
+    shop_file = static_dir / "shop_admin.html"
+    if shop_file.exists():
+        return FileResponse(shop_file)
+    else:
+        return HTMLResponse("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>店铺管理</title>
+            <meta charset="utf-8">
+        </head>
+        <body>
+            <h1>页面加载中...</h1>
+        </body>
+        </html>
+        """)
+
+@app.get("/book-admin", response_class=HTMLResponse)
+async def book_admin():
+    """书籍管理页面"""
+    book_file = static_dir / "book_admin.html"
+    if book_file.exists():
+        return FileResponse(book_file)
+    else:
+        return HTMLResponse("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>书籍管理</title>
             <meta charset="utf-8">
         </head>
         <body>

@@ -56,6 +56,27 @@ class ShopRepository:
             for s in shops
         ]
         return db.execute_many(query, params_list)
+    
+    def get_paginated(self, offset: int, limit: int) -> List[Dict]:
+        """获取分页的店铺列表"""
+        query = """
+            SELECT * FROM shops 
+            ORDER BY created_at DESC 
+            LIMIT ? OFFSET ?
+        """
+        return db.execute_query(query, (limit, offset))
+    
+    def get_total_count(self) -> int:
+        """获取店铺总数"""
+        query = "SELECT COUNT(*) as total FROM shops"
+        result = db.execute_query(query)
+        return result[0]['total'] if result else 0
+    
+    def get_by_shop_id(self, shop_id: str) -> Optional[Dict]:
+        """根据shop_id获取店铺"""
+        query = "SELECT * FROM shops WHERE shop_id = ?"
+        results = db.execute_query(query, (shop_id,))
+        return results[0] if results else None
 
 class BookRepository:
     """书籍数据仓库"""

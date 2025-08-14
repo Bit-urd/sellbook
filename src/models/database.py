@@ -67,6 +67,8 @@ class Database:
                     subcategory TEXT,
                     description TEXT,
                     cover_image_url TEXT,
+                    is_crawled INTEGER DEFAULT 0,
+                    last_sales_update TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )

@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>店铺管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .nav-tab {
+            padding: 12px 30px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .nav-tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .nav-tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        input[type="text"], input[type="url"], select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        input[type="text"]:focus, input[type="url"]:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .crawl-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-partial {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-not-started {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .progress-bar {
+            width: 100px;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #f8f9fa;
+        }
+
+        .pagination button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 80%;
+            max-width: 600px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .alert {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏪 店铺管理</h1>
+
+        <!-- 导航标签 -->
+        <div class="nav-tabs">
+            <a href="/sales-admin" class="nav-tab">销售数据概览</a>
+            <a href="/shop-admin" class="nav-tab active">店铺管理</a>
+            <a href="/book-admin" class="nav-tab">书籍管理</a>
+        </div>
+
+        <!-- 店铺管理主界面 -->
+        <div class="section">
+            <h2>店铺列表</h2>
+            
+            <div class="controls">
+                <input type="text" id="searchInput" placeholder="搜索店铺ID或名称...">
+                <button class="btn" onclick="searchShops()">🔍 搜索</button>
+                <button class="btn btn-success" onclick="showAddShopModal()">➕ 添加店铺</button>
+                <button class="btn btn-info" onclick="batchCrawlShops(false)">🚀 批量全量爬取</button>
+                <button class="btn btn-warning" onclick="batchCrawlShops(true)">📈 批量增量爬取</button>
+                <button class="btn" onclick="refreshShopList()">🔄 刷新</button>
+            </div>
+
+            <div id="alertContainer"></div>
+
+            <div id="shopTableContainer">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                            <th>店铺ID</th>
+                            <th>店铺名称</th>
+                            <th>平台</th>
+                            <th>状态</th>
+                            <th>书籍总数</th>
+                            <th>未爬取数</th>
+                            <th>爬取进度</th>
+                            <th>最后更新</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shopTableBody">
+                        <tr><td colspan="10" style="text-align: center;">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑店铺模态框 -->
+    <div id="shopModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">添加店铺</h2>
+            <form id="shopForm" onsubmit="saveShop(event)">
+                <div class="form-group">
+                    <label for="shopId">店铺ID *</label>
+                    <input type="text" id="shopId" required>
+                </div>
+                <div class="form-group">
+                    <label for="shopName">店铺名称 *</label>
+                    <input type="text" id="shopName" required>
+                </div>
+                <div class="form-group">
+                    <label for="platform">平台</label>
+                    <select id="platform">
+                        <option value="kongfuzi">孔夫子</option>
+                        <option value="duozhuayu">多抓鱼</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="shopUrl">店铺URL</label>
+                    <input type="url" id="shopUrl">
+                </div>
+                <div class="form-group">
+                    <label for="shopType">店铺类型</label>
+                    <input type="text" id="shopType">
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-success">保存</button>
+                    <button type="button" class="btn" onclick="closeModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let selectedShops = new Set();
+        let editingShopId = null;
+
+        // 页面加载时初始化
+        window.onload = () => {
+            loadShops();
+        };
+
+        // 加载店铺列表
+        async function loadShops(page = 1) {
+            currentPage = page;
+            try {
+                const search = document.getElementById('searchInput').value;
+                let url = `/api/shops?page=${page}&page_size=20`;
+                if (search) {
+                    url += `&search=${encodeURIComponent(search)}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayShops(data.data.shops);
+                    updatePagination(data.data.pagination);
+                }
+            } catch (error) {
+                showAlert('error', '加载店铺列表失败: ' + error.message);
+            }
+        }
+
+        // 显示店铺列表
+        function displayShops(shops) {
+            const tbody = document.getElementById('shopTableBody');
+            
+            if (!shops || shops.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">暂无数据</td></tr>';
+                return;
+            }
+
+            let html = '';
+            shops.forEach(shop => {
+                const crawlStatus = getCrawlStatusText(shop.crawl_status);
+                const crawlStatusClass = `status-${shop.crawl_status || 'not-started'}`;
+                const lastUpdate = shop.last_update ? new Date(shop.last_update).toLocaleString('zh-CN') : '-';
+                
+                html += `
+                    <tr>
+                        <td><input type="checkbox" value="${shop.shop_id}" onchange="toggleShopSelection('${shop.shop_id}')"></td>
+                        <td>${shop.shop_id}</td>
+                        <td>${shop.shop_name}</td>
+                        <td>${shop.platform || 'kongfuzi'}</td>
+                        <td>${shop.status === 'active' ? '活跃' : '未激活'}</td>
+                        <td>${shop.total_books || 0}</td>
+                        <td>${shop.uncrawled_books || 0}</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${shop.crawl_progress || 0}%"></div>
+                            </div>
+                            ${shop.crawl_progress || 0}%
+                        </td>
+                        <td>${lastUpdate}</td>
+                        <td class="action-buttons">
+                            <button class="btn btn-sm btn-success" onclick="crawlShop('${shop.shop_id}', false)">全量爬取</button>
+                            <button class="btn btn-sm btn-warning" onclick="crawlShop('${shop.shop_id}', true)">增量爬取</button>
+                            <button class="btn btn-sm btn-info" onclick="editShop('${shop.shop_id}')">编辑</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteShop('${shop.shop_id}')">删除</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+
+        // 获取爬取状态文本
+        function getCrawlStatusText(status) {
+            switch(status) {
+                case 'completed': return '已完成';
+                case 'partial': return '部分爬取';
+                case 'not_started': return '未开始';
+                default: return '未知';
+            }
+        }
+
+        // 更新分页
+        function updatePagination(pagination) {
+            const container = document.getElementById('pagination');
+            const { page, total_pages } = pagination;
+
+            let html = '';
+            html += `<button ${page <= 1 ? 'disabled' : ''} onclick="loadShops(${page - 1})">上一页</button>`;
+            html += `<span>第 ${page} / ${total_pages} 页</span>`;
+            html += `<button ${page >= total_pages ? 'disabled' : ''} onclick="loadShops(${page + 1})">下一页</button>`;
+
+            container.innerHTML = html;
+        }
+
+        // 搜索店铺
+        function searchShops() {
+            loadShops(1);
+        }
+
+        // 刷新列表
+        function refreshShopList() {
+            loadShops(currentPage);
+        }
+
+        // 显示添加店铺模态框
+        function showAddShopModal() {
+            editingShopId = null;
+            document.getElementById('modalTitle').textContent = '添加店铺';
+            document.getElementById('shopForm').reset();
+            document.getElementById('shopId').disabled = false;
+            document.getElementById('shopModal').style.display = 'block';
+        }
+
+        // 编辑店铺
+        async function editShop(shopId) {
+            try {
+                const response = await fetch(`/api/shops/${shopId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const shop = data.data;
+                    editingShopId = shopId;
+                    
+                    document.getElementById('modalTitle').textContent = '编辑店铺';
+                    document.getElementById('shopId').value = shop.shop_id;
+                    document.getElementById('shopId').disabled = true;
+                    document.getElementById('shopName').value = shop.shop_name;
+                    document.getElementById('platform').value = shop.platform || 'kongfuzi';
+                    document.getElementById('shopUrl').value = shop.shop_url || '';
+                    document.getElementById('shopType').value = shop.shop_type || '';
+                    
+                    document.getElementById('shopModal').style.display = 'block';
+                }
+            } catch (error) {
+                showAlert('error', '获取店铺信息失败: ' + error.message);
+            }
+        }
+
+        // 保存店铺
+        async function saveShop(event) {
+            event.preventDefault();
+            
+            const shopData = {
+                shop_id: document.getElementById('shopId').value,
+                shop_name: document.getElementById('shopName').value,
+                platform: document.getElementById('platform').value,
+                shop_url: document.getElementById('shopUrl').value || null,
+                shop_type: document.getElementById('shopType').value || null
+            };
+
+            try {
+                let response;
+                if (editingShopId) {
+                    // 更新店铺
+                    response = await fetch(`/api/shops/${editingShopId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(shopData)
+                    });
+                } else {
+                    // 创建店铺
+                    response = await fetch('/api/shops', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(shopData)
+                    });
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    showAlert('success', data.message);
+                    closeModal();
+                    refreshShopList();
+                } else {
+                    showAlert('error', data.detail || '保存失败');
+                }
+            } catch (error) {
+                showAlert('error', '保存失败: ' + error.message);
+            }
+        }
+
+        // 删除店铺
+        async function deleteShop(shopId) {
+            if (!confirm(`确定要删除店铺 ${shopId} 吗？这将同时删除相关的销售记录。`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/shops/${shopId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    refreshShopList();
+                } else {
+                    showAlert('error', data.detail || '删除失败');
+                }
+            } catch (error) {
+                showAlert('error', '删除失败: ' + error.message);
+            }
+        }
+
+        // 爬取单个店铺
+        async function crawlShop(shopId, incremental) {
+            const mode = incremental ? '增量' : '全量';
+            showAlert('info', `正在${mode}爬取店铺 ${shopId}，请稍候...`);
+
+            try {
+                const response = await fetch(`/api/shops/${shopId}/crawl?incremental=${incremental}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    refreshShopList();
+                } else {
+                    showAlert('error', data.detail || '爬取失败');
+                }
+            } catch (error) {
+                showAlert('error', '爬取失败: ' + error.message);
+            }
+        }
+
+        // 批量爬取选中的店铺
+        async function batchCrawlShops(incremental) {
+            if (selectedShops.size === 0) {
+                showAlert('error', '请先选择要爬取的店铺');
+                return;
+            }
+
+            const mode = incremental ? '增量' : '全量';
+            if (!confirm(`确定要${mode}爬取选中的 ${selectedShops.size} 个店铺吗？`)) {
+                return;
+            }
+
+            showAlert('info', `正在${mode}爬取 ${selectedShops.size} 个店铺，请稍候...`);
+
+            try {
+                const response = await fetch(`/api/shops/batch-crawl?incremental=${incremental}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(Array.from(selectedShops))
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    selectedShops.clear();
+                    refreshShopList();
+                } else {
+                    showAlert('error', data.detail || '批量爬取失败');
+                }
+            } catch (error) {
+                showAlert('error', '批量爬取失败: ' + error.message);
+            }
+        }
+
+        // 切换店铺选择
+        function toggleShopSelection(shopId) {
+            if (selectedShops.has(shopId)) {
+                selectedShops.delete(shopId);
+            } else {
+                selectedShops.add(shopId);
+            }
+        }
+
+        // 全选/取消全选
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll').checked;
+            const checkboxes = document.querySelectorAll('#shopTableBody input[type="checkbox"]');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = selectAll;
+                if (selectAll) {
+                    selectedShops.add(cb.value);
+                } else {
+                    selectedShops.delete(cb.value);
+                }
+            });
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('shopModal').style.display = 'none';
+            editingShopId = null;
+        }
+
+        // 显示提示信息
+        function showAlert(type, message) {
+            const container = document.getElementById('alertContainer');
+            const alertClass = type === 'success' ? 'alert-success' : 
+                              type === 'error' ? 'alert-error' : 'alert-info';
+            
+            container.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+            
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('shopModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
