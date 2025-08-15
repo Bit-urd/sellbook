@@ -333,7 +333,7 @@ class KongfuziCrawler:
         
         try:
             await self._safe_page_goto(page, search_url, wait_until='networkidle')
-            await asyncio.sleep(2)
+            await asyncio.sleep(5)
             
             # 检查页面是否出现频率限制
             await self._check_page_for_rate_limit(page)
@@ -388,7 +388,7 @@ class KongfuziCrawler:
                     break
                 
                 page_num += 1
-                await asyncio.sleep(2)
+                await asyncio.sleep(5)
             
             logger.info(f"成功保存 {total_saved} 条销售记录")
             
@@ -547,7 +547,7 @@ class KongfuziCrawler:
             next_button = await page.query_selector('a.next-page:not(.disabled)')
             if next_button:
                 await next_button.click()
-                await asyncio.sleep(2)
+                await asyncio.sleep(5)
                 return True
             return False
         except:
@@ -712,7 +712,7 @@ class KongfuziCrawler:
             # 搜索书籍
             search_url = f"https://search.kongfz.com/product/?keyword={isbn}&dataType=1&sortType=10&page=1"
             await self._safe_page_goto(page, search_url, wait_until='networkidle')
-            await asyncio.sleep(2)
+            await asyncio.sleep(5)
             
             sales_records = []
             page_num = 1
@@ -734,7 +734,7 @@ class KongfuziCrawler:
                     break
                 
                 page_num += 1
-                await asyncio.sleep(2)
+                await asyncio.sleep(5)
             
             # 保存销售记录到数据库
             for sale in sales_records:
@@ -825,7 +825,7 @@ class KongfuziCrawler:
                         logger.info(f"ISBN {isbn} 爬取完成，暂无销售记录，已更新爬取时间")
                     
                     # 间隔避免过于频繁的请求
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(5)
                     
                 except Exception as e:
                     error_count += 1
@@ -1215,7 +1215,7 @@ class KongfuziCrawler:
             # 访问店铺首页
             url = f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/"
             await self._safe_page_goto(page, url, wait_until='networkidle')
-            await asyncio.sleep(2)  # 等待页面加载
+            await asyncio.sleep(5)  # 等待页面加载
             
             while current_page <= max_pages:
                 try:
@@ -1395,7 +1395,7 @@ class KongfuziCrawler:
                     """)
                     
                     # 等待新页面加载
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(5)
                     
                     # 等待页面稳定
                     try:
@@ -1413,7 +1413,7 @@ class KongfuziCrawler:
                     if current_page > max_pages:
                         break
                     # 等待一下再继续
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(5)
                     continue
             
             # 更新任务为完成
@@ -1441,7 +1441,7 @@ class KongfuziCrawler:
         
         try:
             await self._safe_page_goto(page, url, wait_until='networkidle')
-            await asyncio.sleep(2)
+            await asyncio.sleep(5)
             
             # 提取已售记录
             sales_data = await page.evaluate("""
