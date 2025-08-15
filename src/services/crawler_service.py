@@ -319,8 +319,7 @@ class KongfuziCrawler:
             from ..models.database import db
             update_query = """
                 UPDATE books 
-                SET is_crawled = 1,
-                    last_sales_update = CURRENT_TIMESTAMP,
+                SET last_sales_update = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE isbn = ?
             """

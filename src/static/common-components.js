@@ -66,8 +66,8 @@ class RateLimitStatusComponent {
             }
         } catch (error) {
             console.warn('获取封控状态失败:', error);
-            // 网络错误时隐藏状态组件
-            this.hideStatus();
+            // 网络错误时显示离线状态而不是隐藏组件
+            this.showOfflineStatus();
         }
     }
 
@@ -105,10 +105,7 @@ class RateLimitStatusComponent {
                             🚫 系统封控中
                         </div>
                         <div style="font-size: 12px; opacity: 0.9;">
-                            当前等待: ${currentTimeText}
-                        </div>
-                        <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">
-                            下次等待: ${nextTimeText}
+                            剩余等待时间: ${currentTimeText}
                         </div>
                     </div>
                 </div>
@@ -122,15 +119,19 @@ class RateLimitStatusComponent {
 
             this.isVisible = true;
         } else {
-            // 显示正常状态（短暂显示后隐藏）
-            if (this.isVisible) {
-                this.container.style.cssText += `
-                    background: linear-gradient(135deg, #00b894, #00a085);
-                    color: white;
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                    display: block;
-                `;
+            // 检查是否有等待时间
+            const nextWaitMinutes = next_wait_time?.minutes || status.next_wait_time_minutes || 0;
+            
+            // 显示正常状态
+            this.container.style.cssText += `
+                background: linear-gradient(135deg, #00b894, #00a085);
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                display: block;
+            `;
 
+            if (nextWaitMinutes > 0) {
+                // 有策略等待时间的正常状态
                 this.container.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div style="
@@ -138,24 +139,83 @@ class RateLimitStatusComponent {
                             height: 10px; 
                             background: white; 
                             border-radius: 50%;
+                            animation: pulse 2s infinite;
                         "></div>
                         <div>
                             <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">
-                                ✅ 系统正常
+                                ✅ 爬虫正常运行
                             </div>
                             <div style="font-size: 12px; opacity: 0.9;">
-                                爬虫服务运行正常
+                                策略等待: ${nextTimeText}
                             </div>
                         </div>
                     </div>
                 `;
+                this.isVisible = true;
+            } else {
+                // 完全正常状态（短暂显示后隐藏）
+                if (this.isVisible) {
+                    this.container.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="
+                                width: 10px; 
+                                height: 10px; 
+                                background: white; 
+                                border-radius: 50%;
+                            "></div>
+                            <div>
+                                <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">
+                                    ✅ 系统正常
+                                </div>
+                                <div style="font-size: 12px; opacity: 0.9;">
+                                    爬虫服务运行正常
+                                </div>
+                            </div>
+                        </div>
+                    `;
 
-                // 3秒后隐藏正常状态
-                setTimeout(() => {
-                    this.hideStatus();
-                }, 3000);
+                    // 3秒后隐藏正常状态
+                    setTimeout(() => {
+                        this.hideStatus();
+                    }, 3000);
+                }
             }
         }
+    }
+
+    /**
+     * 显示离线状态
+     */
+    showOfflineStatus() {
+        if (!this.container) return;
+        
+        this.container.style.cssText += `
+            background: #6c757d;
+            color: white;
+            display: block;
+        `;
+        
+        this.container.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="
+                    width: 10px; 
+                    height: 10px; 
+                    background: white; 
+                    border-radius: 50%;
+                    opacity: 0.7;
+                "></div>
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 4px;">
+                        🔌 连接中断
+                    </div>
+                    <div style="font-size: 12px; opacity: 0.9;">
+                        无法获取封控状态
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        this.isVisible = true;
     }
 
     /**

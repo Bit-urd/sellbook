@@ -650,7 +650,7 @@ async def get_shop_sales_stats(shop_id: str):
         
         # 获取最近爬取的书籍
         recent_books = db.execute_query("""
-            SELECT b.isbn, b.title, b.last_sales_update, b.is_crawled
+            SELECT b.isbn, b.title, b.last_sales_update
             FROM books b
             JOIN sales_records sr ON b.isbn = sr.isbn
             WHERE sr.shop_id = ?
@@ -698,9 +698,9 @@ async def get_books_crawl_status(
         # 构建查询条件
         where_clause = ""
         if status == "crawled":
-            where_clause = "WHERE is_crawled = 1"
+            where_clause = "WHERE last_sales_update IS NOT NULL"
         elif status == "not_crawled":
-            where_clause = "WHERE is_crawled = 0"
+            where_clause = "WHERE last_sales_update IS NULL"
         
         # 获取总数
         total_query = f"SELECT COUNT(*) as total FROM books {where_clause}"
@@ -712,7 +712,7 @@ async def get_books_crawl_status(
         books_query = f"""
             SELECT 
                 isbn, title, author, publisher,
-                is_crawled, last_sales_update,
+                last_sales_update,
                 created_at, updated_at
             FROM books
             {where_clause}
@@ -725,8 +725,8 @@ async def get_books_crawl_status(
         stats = db.execute_query("""
             SELECT 
                 COUNT(*) as total_books,
-                SUM(CASE WHEN is_crawled = 1 THEN 1 ELSE 0 END) as crawled_count,
-                SUM(CASE WHEN is_crawled = 0 THEN 1 ELSE 0 END) as not_crawled_count
+                SUM(CASE WHEN last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as crawled_count,
+                SUM(CASE WHEN last_sales_update IS NULL THEN 1 ELSE 0 END) as not_crawled_count
             FROM books
         """)[0]
         

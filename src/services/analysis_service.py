@@ -300,7 +300,7 @@ class AnalysisService:
         book_stats = db.execute_query("""
             SELECT 
                 COUNT(*) as total_books,
-                SUM(CASE WHEN is_crawled = 1 THEN 1 ELSE 0 END) as crawled_books
+                SUM(CASE WHEN last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as crawled_books
             FROM books
         """)
         

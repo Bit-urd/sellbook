@@ -79,15 +79,15 @@ class ShopRepository:
                 SELECT 
                     s2.id as shop_db_id,
                     COUNT(DISTINCT bi.isbn) as total_books,
-                    COUNT(DISTINCT CASE WHEN b.is_crawled = 1 THEN b.isbn END) as crawled_books,
-                    COUNT(DISTINCT CASE WHEN b.is_crawled = 0 OR b.is_crawled IS NULL THEN b.isbn END) as uncrawled_books,
+                    COUNT(DISTINCT CASE WHEN b.last_sales_update IS NOT NULL THEN b.isbn END) as crawled_books,
+                    COUNT(DISTINCT CASE WHEN b.last_sales_update IS NULL THEN b.isbn END) as uncrawled_books,
                     CASE 
                         WHEN COUNT(DISTINCT bi.isbn) = 0 THEN 0
-                        ELSE ROUND((COUNT(DISTINCT CASE WHEN b.is_crawled = 1 THEN b.isbn END) * 100.0 / 
+                        ELSE ROUND((COUNT(DISTINCT CASE WHEN b.last_sales_update IS NOT NULL THEN b.isbn END) * 100.0 / 
                                   COUNT(DISTINCT bi.isbn)), 2)
                     END as crawl_progress,
                     COUNT(DISTINCT sr.item_id) as total_sales,
-                    MAX(sr.created_at) as last_update
+                    MAX(COALESCE(b.last_sales_update, sr.created_at)) as last_update
                 FROM shops s2
                 LEFT JOIN book_inventory bi ON s2.id = bi.shop_id
                 LEFT JOIN books b ON bi.isbn = b.isbn
@@ -150,11 +150,11 @@ class ShopRepository:
                    COUNT(DISTINCT bi.isbn) as total_books_inventory,
                    COUNT(DISTINCT sr.item_id) as total_sales_records,
                    COUNT(DISTINCT b_all.isbn) as total_books_in_shop,
-                   COUNT(DISTINCT CASE WHEN b_all.is_crawled = 1 THEN b_all.isbn END) as crawled_books,
-                   COUNT(DISTINCT CASE WHEN b_all.is_crawled = 0 OR b_all.is_crawled IS NULL THEN b_all.isbn END) as uncrawled_books,
+                   COUNT(DISTINCT CASE WHEN b_all.last_sales_update IS NOT NULL THEN b_all.isbn END) as crawled_books,
+                   COUNT(DISTINCT CASE WHEN b_all.last_sales_update IS NULL THEN b_all.isbn END) as uncrawled_books,
                    CASE 
                        WHEN COUNT(DISTINCT b_all.isbn) = 0 THEN 0
-                       ELSE ROUND((COUNT(DISTINCT CASE WHEN b_all.is_crawled = 1 THEN b_all.isbn END) * 100.0 / 
+                       ELSE ROUND((COUNT(DISTINCT CASE WHEN b_all.last_sales_update IS NOT NULL THEN b_all.isbn END) * 100.0 / 
                                  COUNT(DISTINCT b_all.isbn)), 2)
                    END as crawl_progress,
                    MAX(sr.created_at) as last_sales_update
@@ -162,7 +162,7 @@ class ShopRepository:
             LEFT JOIN book_inventory bi ON s.id = bi.shop_id
             LEFT JOIN sales_records sr ON s.id = sr.shop_id
             LEFT JOIN (
-                SELECT DISTINCT bi2.isbn, b.is_crawled
+                SELECT DISTINCT bi2.isbn, b.last_sales_update
                 FROM book_inventory bi2
                 LEFT JOIN books b ON bi2.isbn = b.isbn
                 WHERE bi2.shop_id = (SELECT id FROM shops WHERE shop_id = ?)
