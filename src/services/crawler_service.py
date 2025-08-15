@@ -73,30 +73,25 @@ class KongfuziCrawler:
         Args:
             success: True表示请求成功，False表示遇到封控
         """
+        from .window_pool import chrome_pool
+        
         if success:
             # 成功时重置等待时间为0
             cls._rate_limit_wait_time = 0
             logger.info("请求成功，重置封控等待时间为0")
         else:
-            # 失败时使用指数退避：2分钟 -> 4分钟 -> 8分钟 -> 16分钟
-            if cls._rate_limit_wait_time == 0:
-                cls._rate_limit_wait_time = 2 * 60  # 首次封控：2分钟
-            else:
-                cls._rate_limit_wait_time = min(cls._rate_limit_wait_time * 2, cls._max_wait_time)
+            # 检查窗口池的封控状态
+            rate_limit_status = chrome_pool.get_rate_limit_status()
             
-            # 根据等待时间选择合适的显示单位
-            wait_time_minutes = cls._rate_limit_wait_time // 60
-            if wait_time_minutes >= 60:
-                wait_time_hours = wait_time_minutes // 60
-                remaining_minutes = wait_time_minutes % 60
-                if remaining_minutes > 0:
-                    time_str = f"{wait_time_hours}小时{remaining_minutes}分钟"
-                else:
-                    time_str = f"{wait_time_hours}小时"
+            if rate_limit_status['all_limited']:
+                # 所有窗口都被封控，设置等待时间为2分钟
+                cls._rate_limit_wait_time = 2 * 60  # 固定2分钟
+                logger.error(f"所有 {rate_limit_status['total_windows']} 个窗口都被封控，设置等待时间为2分钟")
             else:
-                time_str = f"{wait_time_minutes}分钟"
-            
-            logger.warning(f"遇到封控，更新等待时间为 {time_str}")
+                # 还有窗口可用，不需要等待
+                cls._rate_limit_wait_time = 0
+                available = rate_limit_status['total_windows'] - rate_limit_status['rate_limited_count']
+                logger.info(f"仍有 {available}/{rate_limit_status['total_windows']} 个窗口可用，继续尝试其他窗口")
     
     @classmethod
     def _get_current_wait_time(cls) -> int:

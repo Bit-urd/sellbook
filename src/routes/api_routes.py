@@ -1235,21 +1235,21 @@ async def execute_batch_tasks(request: dict):
             cursor = conn.cursor()
             placeholders = ",".join(["?"] * len(task_ids))
             cursor.execute(f"""
-                SELECT id, task_type, task_params, target_isbn, shop_id, target_url, book_title
+                SELECT id, task_type, task_params, target_isbn, shop_id, target_url, book_title, status
                 FROM crawl_tasks 
-                WHERE id IN ({placeholders}) AND status = 'pending'
+                WHERE id IN ({placeholders}) AND status IN ('pending', 'failed')
             """, task_ids)
             tasks = cursor.fetchall()
         
         if not tasks:
-            raise HTTPException(status_code=400, detail="没有可执行的待处理任务")
+            raise HTTPException(status_code=400, detail="没有可执行的任务（任务需要是pending或failed状态）")
         
         # 执行任务
         success_count = 0
         error_count = 0
         
         for row in tasks:
-            task_id, task_type, params_json, target_isbn, shop_id, target_url, book_title = row
+            task_id, task_type, params_json, target_isbn, shop_id, target_url, book_title, status = row
             try:
                 # 首先尝试从task_params JSON中获取参数
                 params = json.loads(params_json) if params_json else {}

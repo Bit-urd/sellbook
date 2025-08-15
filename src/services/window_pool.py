@@ -27,6 +27,10 @@ class ChromeWindowPool:
         self.busy_windows = {}  # 忙碌窗口字典 {window_id: page}
         self.window_info = {}  # 窗口信息 {window_id: {'created_at': time, 'used_count': int}}
         
+        # 封控状态追踪
+        self.rate_limited_windows = set()  # 被封控的窗口ID集合
+        self.last_success_time = {}  # 每个窗口最后成功时间 {window_id: timestamp}
+        
         # 连接相关
         self.playwright = None
         self.browser = None
@@ -256,9 +260,15 @@ class ChromeWindowPool:
                     # 检查窗口是否仍然有效
                     try:
                         await page.evaluate("() => true")  # 简单的检查
+                        # 检查URL，如果是about:blank或错误页面，导航到主页
+                        current_url = page.url
+                        if "about:blank" in current_url:
+                            logger.info(f"窗口 {window_id} 处于空白页，导航到孔夫子网主页")
+                            await page.goto("https://www.kongfz.com/", wait_until="domcontentloaded", timeout=10000)
+                        
                         self.busy_windows[window_id] = page
                         self.window_info[window_id]['used_count'] += 1
-                        logger.debug(f"从池中获取窗口: {window_id}")
+                        logger.debug(f"从池中获取窗口: {window_id}, URL: {current_url}")
                         return page
                     except:
                         # 窗口已失效，移除并创建新的
@@ -306,13 +316,16 @@ class ChromeWindowPool:
                     # 检查窗口是否仍然有效
                     try:
                         await page.evaluate("() => true")
-                        # 导航到空白页，释放内存
-                        try:
-                            await page.goto("about:blank", wait_until="domcontentloaded", timeout=5000)
-                        except:
-                            pass
+                        # 不要导航到空白页，保持当前页面和登录状态
+                        # 只是检查一下URL，如果是错误页面就导航回主页
+                        current_url = page.url
+                        if "about:blank" in current_url or "error" in current_url.lower():
+                            try:
+                                await page.goto("https://www.kongfz.com/", wait_until="domcontentloaded", timeout=5000)
+                            except:
+                                pass
                         self.available_windows.append(page)
-                        logger.debug(f"窗口归还到池(保持存活): {window_id}")
+                        logger.debug(f"窗口归还到池(保持存活): {window_id}, URL: {current_url}")
                     except:
                         # 窗口已失效，直接移除
                         await self._remove_window_unsafe(page)
@@ -392,17 +405,71 @@ class ChromeWindowPool:
         self.connected = False
         logger.info("已断开所有浏览器连接")
     
+    def mark_window_rate_limited(self, page: Page):
+        """标记窗口为被封控状态"""
+        window_id = id(page)
+        self.rate_limited_windows.add(window_id)
+        logger.warning(f"窗口 {window_id} 被标记为封控状态")
+    
+    def mark_window_success(self, page: Page):
+        """标记窗口成功访问，清除封控状态"""
+        window_id = id(page)
+        self.rate_limited_windows.discard(window_id)
+        self.last_success_time[window_id] = time.time()
+        logger.debug(f"窗口 {window_id} 成功访问，清除封控状态")
+    
+    def is_all_windows_rate_limited(self) -> bool:
+        """检查是否所有窗口都被封控"""
+        total_windows = len(self.available_windows) + len(self.busy_windows)
+        if total_windows == 0:
+            return False
+        
+        # 检查所有窗口是否都在封控列表中
+        all_window_ids = set()
+        for page in self.available_windows:
+            all_window_ids.add(id(page))
+        for window_id in self.busy_windows.keys():
+            all_window_ids.add(window_id)
+        
+        # 如果所有窗口都被封控，返回True
+        is_all_limited = all_window_ids.issubset(self.rate_limited_windows)
+        
+        if is_all_limited:
+            logger.error(f"警告：所有 {total_windows} 个窗口都被封控！")
+        
+        return is_all_limited
+    
+    def get_rate_limit_status(self) -> Dict[str, Any]:
+        """获取封控状态详情"""
+        total_windows = len(self.available_windows) + len(self.busy_windows)
+        rate_limited_count = len(self.rate_limited_windows)
+        
+        return {
+            "total_windows": total_windows,
+            "rate_limited_count": rate_limited_count,
+            "all_limited": self.is_all_windows_rate_limited(),
+            "rate_limited_window_ids": list(self.rate_limited_windows),
+            "percentage_limited": (rate_limited_count / total_windows * 100) if total_windows > 0 else 0
+        }
+    
     def get_pool_status(self) -> Dict[str, Any]:
         """获取窗口池状态"""
         window_details = []
         for window_id, info in self.window_info.items():
             status = "busy" if window_id in self.busy_windows else "available"
+            is_rate_limited = window_id in self.rate_limited_windows
+            
             window_details.append({
                 "window_id": window_id,
                 "status": status,
+                "is_rate_limited": is_rate_limited,
                 "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(info['created_at'])),
-                "used_count": info['used_count']
+                "used_count": info['used_count'],
+                "last_success": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.last_success_time.get(window_id, 0))) if window_id in self.last_success_time else "从未成功"
             })
+        
+        # 获取封控状态
+        rate_limit_status = self.get_rate_limit_status()
         
         return {
             "connected": self.connected,
@@ -411,6 +478,7 @@ class ChromeWindowPool:
             "available_count": len(self.available_windows),
             "busy_count": len(self.busy_windows),
             "total_windows": len(self.available_windows) + len(self.busy_windows),
+            "rate_limit_status": rate_limit_status,
             "window_details": window_details
         }
 
@@ -443,7 +511,26 @@ class WindowPoolManager:
                 # 将page注入到函数参数中
                 kwargs['page'] = page
                 result = await func(*args, **kwargs)
+                
+                # 成功完成，标记窗口为成功状态
+                self.pool.mark_window_success(page)
                 return result
+                
+            except Exception as e:
+                error_msg = str(e)
+                # 检查是否是封控错误
+                if "RATE_LIMITED:" in error_msg or "LOGIN_REQUIRED:" in error_msg:
+                    # 标记窗口为封控状态
+                    self.pool.mark_window_rate_limited(page)
+                    
+                    # 检查是否所有窗口都被封控
+                    if self.pool.is_all_windows_rate_limited():
+                        logger.error("所有窗口都被封控，需要等待或手动登录")
+                        # 这里可以触发全局等待逻辑
+                        raise Exception("ALL_WINDOWS_RATE_LIMITED:所有窗口都被封控，请等待2分钟或手动登录后重试")
+                
+                raise  # 重新抛出异常
+                
             finally:
                 # 归还窗口，默认保持存活状态
                 await self.pool.return_window(page, keep_alive=self.keep_window_alive)

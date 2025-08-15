@@ -380,6 +380,10 @@
                     <h3>总窗口数</h3>
                     <div class="value" id="totalWindows">0</div>
                 </div>
+                <div class="status-card" id="rateLimitCard">
+                    <h3>封控状态</h3>
+                    <div class="value" id="rateLimitStatus">正常</div>
+                </div>
             </div>
             
             <!-- 控制面板 -->
@@ -418,8 +422,10 @@
                         <tr>
                             <th>窗口ID</th>
                             <th>状态</th>
+                            <th>封控状态</th>
                             <th>创建时间</th>
                             <th>使用次数</th>
+                            <th>最后成功</th>
                         </tr>
                     </thead>
                     <tbody id="windowTableBody">
@@ -534,6 +540,25 @@
             document.getElementById('busyCount').textContent = data.busy_count;
             document.getElementById('totalWindows').textContent = data.total_windows;
             
+            // 更新封控状态
+            const rateLimitCard = document.getElementById('rateLimitCard');
+            const rateLimitStatus = document.getElementById('rateLimitStatus');
+            
+            if (data.rate_limit_status) {
+                if (data.rate_limit_status.all_limited) {
+                    rateLimitStatus.textContent = '全部封控！';
+                    rateLimitCard.className = 'status-card disconnected';
+                    addLog('警告：所有窗口都被封控，需要等待2分钟或手动登录', 'error');
+                } else if (data.rate_limit_status.rate_limited_count > 0) {
+                    const percentage = data.rate_limit_status.percentage_limited.toFixed(0);
+                    rateLimitStatus.textContent = `${data.rate_limit_status.rate_limited_count}个封控(${percentage}%)`;
+                    rateLimitCard.style.borderLeftColor = '#f39c12';
+                } else {
+                    rateLimitStatus.textContent = '正常';
+                    rateLimitCard.className = 'status-card connected';
+                }
+            }
+            
             // 更新窗口表格
             updateWindowTable(data.window_details);
         }
@@ -543,18 +568,24 @@
             const tbody = document.getElementById('windowTableBody');
             
             if (!windows || windows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">暂无窗口数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无窗口数据</td></tr>';
                 return;
             }
             
             tbody.innerHTML = '';
             windows.forEach(window => {
                 const row = tbody.insertRow();
+                const rateLimitBadge = window.is_rate_limited 
+                    ? '<span style="color: red; font-weight: bold;">已封控</span>' 
+                    : '<span style="color: green;">正常</span>';
+                
                 row.innerHTML = `
                     <td>${window.window_id}</td>
                     <td><span class="status-badge ${window.status}">${window.status === 'available' ? '可用' : '使用中'}</span></td>
+                    <td>${rateLimitBadge}</td>
                     <td>${window.created_at}</td>
                     <td>${window.used_count}</td>
+                    <td>${window.last_success || '从未成功'}</td>
                 `;
             });
         }
