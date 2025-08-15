@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Price Analysis - 数据分析</title>
+    <link rel="stylesheet" href="theme_1.css">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* 页面特定样式 */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .chart-container {
+            background: var(--card);
+            padding: var(--spacing-lg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .chart-title {
+            font-size: var(--text-lg);
+            font-weight: var(--font-semibold);
+        }
+
+        .tab-nav {
+            display: flex;
+            gap: var(--spacing-xs);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .tab-btn {
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--muted-foreground);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .tab-btn:hover {
+            color: var(--foreground);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .isbn-search-container {
+            background: var(--card);
+            padding: var(--spacing-lg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .isbn-search-box {
+            display: flex;
+            gap: var(--spacing-sm);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .isbn-input {
+            flex: 1;
+            padding: var(--spacing-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-base);
+        }
+
+        /* 加载动画 */
+        @keyframes skeleton {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, 
+                var(--muted) 25%, 
+                var(--secondary) 50%, 
+                var(--muted) 75%);
+            background-size: 200% 100%;
+            animation: skeleton 1.5s ease infinite;
+        }
+
+        /* 移动端菜单按钮 */
+        .mobile-menu-btn {
+            display: none;
+            position: fixed;
+            top: var(--spacing-md);
+            left: var(--spacing-md);
+            z-index: 101;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: var(--spacing-sm);
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-menu-btn {
+                display: flex;
+            }
+
+            .content-header {
+                padding-left: calc(48px + var(--spacing-lg));
+            }
+        }
+
+        /* 暗色模式切换 */
+        .theme-toggle {
+            padding: var(--spacing-sm);
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: all var(--transition-fast);
+        }
+
+        .theme-toggle:hover {
+            background: var(--secondary);
+        }
+    </style>
+</head>
+<body>
+    <!-- 移动端菜单按钮 -->
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i data-lucide="menu" width="20" height="20"></i>
+    </button>
+
+    <!-- 主容器 -->
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                📦 Book Price Analysis
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#" class="sidebar-nav-item active">
+                    <i data-lucide="bar-chart-3" width="20" height="20"></i>
+                    <span>数据分析</span>
+                </a>
+                <a href="#" class="sidebar-nav-item">
+                    <i data-lucide="store" width="20" height="20"></i>
+                    <span>店铺管理</span>
+                </a>
+                <a href="#" class="sidebar-nav-item">
+                    <i data-lucide="book-open" width="20" height="20"></i>
+                    <span>书籍管理</span>
+                </a>
+                <a href="#" class="sidebar-nav-item">
+                    <i data-lucide="dollar-sign" width="20" height="20"></i>
+                    <span>销售管理</span>
+                </a>
+                <a href="#" class="sidebar-nav-item">
+                    <i data-lucide="bot" width="20" height="20"></i>
+                    <span>爬虫管理</span>
+                </a>
+                
+                <div class="sidebar-nav-divider"></div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <a href="#" class="sidebar-nav-item">
+                    <i data-lucide="settings" width="20" height="20"></i>
+                    <span>设置</span>
+                </a>
+                <a href="#" class="sidebar-nav-item">
+                    <i data-lucide="download" width="20" height="20"></i>
+                    <span>数据导出</span>
+                </a>
+                <a href="#" class="sidebar-nav-item">
+                    <i data-lucide="help-circle" width="20" height="20"></i>
+                    <span>帮助</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 内容头部 -->
+            <header class="content-header">
+                <h1 class="content-title">数据分析仪表板</h1>
+                <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                    <button class="theme-toggle" onclick="toggleTheme()">
+                        <i data-lucide="sun" width="20" height="20"></i>
+                    </button>
+                    <button class="btn btn-ghost">
+                        <i data-lucide="refresh-cw" width="16" height="16"></i>
+                        刷新
+                    </button>
+                </div>
+            </header>
+
+            <!-- 内容主体 -->
+            <div class="content-body">
+                <!-- ISBN搜索模块 -->
+                <div class="isbn-search-container">
+                    <h3 style="text-align: center; margin-bottom: var(--spacing-md); color: var(--muted-foreground);">
+                        ISBN实时搜索分析
+                    </h3>
+                    <div class="isbn-search-box">
+                        <input type="text" class="isbn-input" placeholder="请输入ISBN号码，例如：9787521724493">
+                        <button class="btn btn-primary">
+                            <i data-lucide="search" width="16" height="16"></i>
+                            分析
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">
+                            <i data-lucide="trending-up" width="16" height="16" style="display: inline; vertical-align: middle;"></i>
+                            总销售记录
+                        </div>
+                        <div class="stat-value">12,486</div>
+                        <div class="stat-change positive">↑ 12.3% 较上月</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">
+                            <i data-lucide="book" width="16" height="16" style="display: inline; vertical-align: middle;"></i>
+                            监控书籍数
+                        </div>
+                        <div class="stat-value">3,842</div>
+                        <div class="stat-change positive">↑ 5.7% 较上月</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">
+                            <i data-lucide="activity" width="16" height="16" style="display: inline; vertical-align: middle;"></i>
+                            盈利机会
+                        </div>
+                        <div class="stat-value">486</div>
+                        <div class="stat-change positive">↑ 23.5% 较上月</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">
+                            <i data-lucide="percent" width="16" height="16" style="display: inline; vertical-align: middle;"></i>
+                            平均收益率
+                        </div>
+                        <div class="stat-value">18.5%</div>
+                        <div class="stat-change negative">↓ 2.1% 较上月</div>
+                    </div>
+                </div>
+
+                <!-- 标签页导航 -->
+                <div class="tab-nav">
+                    <button class="tab-btn active" onclick="switchTab(this, 'sales')">销量排行</button>
+                    <button class="tab-btn" onclick="switchTab(this, 'price')">差价排行</button>
+                    <button class="tab-btn" onclick="switchTab(this, 'profit')">预期利润</button>
+                </div>
+
+                <!-- 数据表格 -->
+                <div class="data-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>排名</th>
+                                <th>书名</th>
+                                <th>ISBN</th>
+                                <th>销量</th>
+                                <th>平均价格</th>
+                                <th>总收入</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span style="display: inline-block; width: 24px; height: 24px; background: var(--primary); color: white; border-radius: 50%; text-align: center; line-height: 24px;">1</span></td>
+                                <td>活着</td>
+                                <td>9787530221532</td>
+                                <td>245</td>
+                                <td style="color: var(--success);">¥32.50</td>
+                                <td style="color: var(--primary); font-weight: var(--font-semibold);">¥7,962.50</td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">
+                                        <i data-lucide="eye" width="14" height="14"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span style="display: inline-block; width: 24px; height: 24px; background: var(--primary); color: white; border-radius: 50%; text-align: center; line-height: 24px;">2</span></td>
+                                <td>三体</td>
+                                <td>9787536692930</td>
+                                <td>198</td>
+                                <td style="color: var(--success);">¥46.00</td>
+                                <td style="color: var(--primary); font-weight: var(--font-semibold);">¥9,108.00</td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">
+                                        <i data-lucide="eye" width="14" height="14"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span style="display: inline-block; width: 24px; height: 24px; background: var(--primary); color: white; border-radius: 50%; text-align: center; line-height: 24px;">3</span></td>
+                                <td>百年孤独</td>
+                                <td>9787544291163</td>
+                                <td>176</td>
+                                <td style="color: var(--success);">¥55.00</td>
+                                <td style="color: var(--primary); font-weight: var(--font-semibold);">¥9,680.00</td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">
+                                        <i data-lucide="eye" width="14" height="14"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span style="display: inline-block; width: 24px; height: 24px; background: var(--primary); color: white; border-radius: 50%; text-align: center; line-height: 24px;">4</span></td>
+                                <td>围城</td>
+                                <td>9787020024759</td>
+                                <td>165</td>
+                                <td style="color: var(--success);">¥39.00</td>
+                                <td style="color: var(--primary); font-weight: var(--font-semibold);">¥6,435.00</td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">
+                                        <i data-lucide="eye" width="14" height="14"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span style="display: inline-block; width: 24px; height: 24px; background: var(--primary); color: white; border-radius: 50%; text-align: center; line-height: 24px;">5</span></td>
+                                <td>平凡的世界</td>
+                                <td>9787020049295</td>
+                                <td>152</td>
+                                <td style="color: var(--success);">¥68.00</td>
+                                <td style="color: var(--primary); font-weight: var(--font-semibold);">¥10,336.00</td>
+                                <td>
+                                    <button class="btn btn-ghost btn-sm">
+                                        <i data-lucide="eye" width="14" height="14"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 分页 -->
+                <div style="display: flex; justify-content: center; align-items: center; gap: var(--spacing-sm); margin-top: var(--spacing-lg);">
+                    <button class="btn btn-ghost" disabled>
+                        <i data-lucide="chevron-left" width="16" height="16"></i>
+                    </button>
+                    <span style="color: var(--muted-foreground);">第 1 / 10 页</span>
+                    <button class="btn btn-ghost">
+                        <i data-lucide="chevron-right" width="16" height="16"></i>
+                    </button>
+                </div>
+
+                <!-- 图表区域 -->
+                <div class="dashboard-grid" style="margin-top: var(--spacing-xl);">
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">销售趋势</h3>
+                            <select class="input" style="width: auto; padding: var(--spacing-xs) var(--spacing-sm);">
+                                <option>最近7天</option>
+                                <option>最近30天</option>
+                                <option>最近90天</option>
+                            </select>
+                        </div>
+                        <canvas id="salesChart" height="200"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">价格分布</h3>
+                            <button class="btn btn-ghost btn-sm">
+                                <i data-lucide="more-horizontal" width="16" height="16"></i>
+                            </button>
+                        </div>
+                        <canvas id="priceChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 初始化图标
+        lucide.createIcons();
+
+        // 侧边栏切换
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+
+        // 主题切换
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            
+            // 更新图标
+            const icon = document.querySelector('.theme-toggle i');
+            icon.setAttribute('data-lucide', newTheme === 'dark' ? 'moon' : 'sun');
+            lucide.createIcons();
+        }
+
+        // 标签切换
+        function switchTab(btn, tab) {
+            // 移除所有active类
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // 这里可以切换对应的内容
+            console.log('切换到标签:', tab);
+        }
+
+        // 初始化图表
+        const ctx1 = document.getElementById('salesChart').getContext('2d');
+        new Chart(ctx1, {
+            type: 'line',
+            data: {
+                labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+                datasets: [{
+                    label: '销量',
+                    data: [65, 78, 90, 81, 56, 95, 88],
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        const ctx2 = document.getElementById('priceChart').getContext('2d');
+        new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: ['0-20', '20-40', '40-60', '60-80', '80-100', '100+'],
+                datasets: [{
+                    label: '书籍数量',
+                    data: [120, 280, 180, 90, 40, 20],
+                    backgroundColor: '#667eea'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

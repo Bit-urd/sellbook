@@ -3,318 +3,601 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>销售数据管理</title>
+    <title>Book Price Analysis - 销售管理</title>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+/* 极简扁平风格主题 */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --primary: #667eea;
+  --primary-foreground: #ffffff;
+  --primary-hover: #5a67d8;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #171717;
+  --muted: #f9fafb;
+  --muted-foreground: #6b7280;
+  --border: #e5e7eb;
+  --success: #10b981;
+  --destructive: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --sidebar-bg: #fafafa;
+  --sidebar-foreground: #171717;
+  --sidebar-border: #e5e7eb;
+  --sidebar-hover-bg: #f3f4f6;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --radius: 8px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --sidebar-width: 240px;
+  --header-height: 64px;
+  --nav-item-height: 48px;
+  --transition-fast: 150ms ease;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --font-medium: 500;
+  --font-semibold: 600;
+}
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #171717;
+  --card-foreground: #fafafa;
+  --secondary: #262626;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --border: #262626;
+  --sidebar-bg: #0f0f0f;
+  --sidebar-foreground: #fafafa;
+  --sidebar-border: #262626;
+  --sidebar-hover-bg: #262626;
+}
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-        h1 {
-            color: white;
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-        }
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--foreground);
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-        .section {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
+/* 新的布局系统 */
+.app-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
 
-        .section h2 {
-            color: #333;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #667eea;
-        }
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-fast);
+}
 
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
+.sidebar-logo {
+  height: var(--header-height);
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--sidebar-border);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--primary);
+}
 
-        .btn {
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
+.sidebar-nav {
+  flex: 1;
+  padding: var(--spacing-md) 0;
+  overflow-y: auto;
+}
 
-        .btn:hover {
-            background: #5a67d8;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
+.sidebar-nav-item {
+  height: var(--nav-item-height);
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--sidebar-foreground);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
 
-        .btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
-        }
+.sidebar-nav-item:hover {
+  background: var(--sidebar-hover-bg);
+}
 
-        .btn-danger {
-            background: #dc3545;
-        }
+.sidebar-nav-item.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-left-color: var(--primary-hover);
+}
 
-        .btn-danger:hover {
-            background: #c82333;
-        }
+.sidebar-nav-divider {
+  height: 1px;
+  background: var(--sidebar-border);
+  margin: var(--spacing-md) 0;
+}
 
-        .btn-success {
-            background: #28a745;
-        }
+.sidebar-footer {
+  padding: var(--spacing-md) 0;
+  border-top: 1px solid var(--sidebar-border);
+}
 
-        .btn-success:hover {
-            background: #218838;
-        }
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-        .input-group {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
+.content-header {
+  height: var(--header-height);
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
 
-        input[type="text"], select {
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            min-width: 200px;
-        }
+.content-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  color: var(--foreground);
+}
 
-        input[type="text"]:focus, select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
-        }
+.content-body {
+  flex: 1;
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+  background: var(--muted);
+}
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
+.section {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  border: 1px solid var(--border);
+}
 
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
+.section h2 {
+  color: var(--foreground);
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--primary);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+}
 
-        th {
-            background: #f8f9fa;
-            color: #333;
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-        }
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
 
-        tr:hover {
-            background: #f8f9fa;
-        }
+.stat-card {
+  background: var(--card);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius);
+  text-align: center;
+  border: 1px solid var(--border);
+  transition: all var(--transition-fast);
+}
 
-        .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-        }
+.stat-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
 
-        .status-active {
-            background: #d4edda;
-            color: #155724;
-        }
+.stat-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--primary);
+}
 
-        .status-inactive {
-            background: #f8d7da;
-            color: #721c24;
-        }
+.stat-label {
+  color: var(--muted-foreground);
+  font-size: var(--text-sm);
+  margin-top: var(--spacing-sm);
+}
 
-        .status-crawled {
-            background: #cce5ff;
-            color: #004085;
-        }
+.controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+  align-items: center;
+}
 
-        .status-not-crawled {
-            background: #fff3cd;
-            color: #856404;
-        }
+.btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
 
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            margin-top: 20px;
-        }
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
 
-        .pagination button {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            background: white;
-            cursor: pointer;
-            border-radius: 4px;
-        }
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
 
-        .pagination button:hover:not(:disabled) {
-            background: #f8f9fa;
-        }
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-        .pagination button:disabled {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
+.btn-success {
+  background: var(--success);
+  color: white;
+}
 
-        .pagination span {
-            font-size: 14px;
-            color: #666;
-        }
+.btn-success:hover {
+  background: #059669;
+}
 
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-        }
+.btn-danger {
+  background: var(--destructive);
+  color: white;
+}
 
-        .spinner {
-            display: inline-block;
-            width: 30px;
-            height: 30px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
+.btn-danger:hover {
+  background: #dc2626;
+}
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+.btn-warning {
+  background: var(--warning);
+  color: #92400e;
+}
 
-        .alert {
-            padding: 12px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
+.btn-warning:hover {
+  background: #d97706;
+}
 
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
+.btn-info {
+  background: var(--info);
+  color: white;
+}
 
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
+.btn-info:hover {
+  background: #2563eb;
+}
 
-        .alert-info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
+.btn-sm {
+  padding: 4px var(--spacing-sm);
+  font-size: 12px;
+}
 
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
+.btn-ghost {
+  background: transparent;
+  color: var(--foreground);
+}
 
-        .stat-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            border-left: 4px solid #667eea;
-        }
+.btn-ghost:hover {
+  background: var(--secondary);
+}
 
-        .stat-value {
-            font-size: 2em;
-            font-weight: bold;
-            color: #667eea;
-        }
+input[type="text"], input[type="date"], select {
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  min-width: 200px;
+  background: var(--card);
+  color: var(--foreground);
+}
 
-        .stat-label {
-            color: #666;
-            font-size: 0.9em;
-            margin-top: 5px;
-        }
+input[type="text"]:focus, input[type="date"]:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
 
-        .action-buttons {
-            display: flex;
-            gap: 5px;
-        }
+/* 数据表格 */
+.data-table {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-top: var(--spacing-sm);
+}
 
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 12px;
-        }
+.data-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
 
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-        }
+.data-table th {
+  background: var(--muted);
+  padding: var(--spacing-md);
+  text-align: left;
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+}
 
-        .modal-content {
-            background-color: white;
-            margin: 10% auto;
-            padding: 30px;
-            border-radius: 15px;
-            width: 80%;
-            max-width: 600px;
-            max-height: 70vh;
-            overflow-y: auto;
-        }
+.data-table td {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+}
 
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
+.data-table tr:hover {
+  background: var(--muted);
+}
 
-        .close:hover {
-            color: #000;
-        }
+.status-badge {
+  display: inline-block;
+  padding: 4px var(--spacing-sm);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: var(--font-semibold);
+}
+
+.status-active {
+  background: #dcfce7;
+  color: var(--success);
+}
+
+.status-inactive {
+  background: #fecaca;
+  color: var(--destructive);
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.pagination button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  border-radius: var(--radius);
+  color: var(--foreground);
+  transition: all var(--transition-fast);
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--secondary);
+}
+
+.pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.alert {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius);
+  margin-bottom: var(--spacing-md);
+}
+
+.alert-success {
+  background: #dcfce7;
+  color: var(--success);
+  border: 1px solid #bbf7d0;
+}
+
+.alert-error {
+  background: #fecaca;
+  color: var(--destructive);
+  border: 1px solid #fca5a5;
+}
+
+.alert-info {
+  background: #dbeafe;
+  color: var(--info);
+  border: 1px solid #93c5fd;
+}
+
+.action-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+/* 移动端样式 */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: var(--spacing-md);
+  left: var(--spacing-md);
+  z-index: 101;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing-sm);
+  cursor: pointer;
+}
+
+.theme-toggle {
+  padding: var(--spacing-sm);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all var(--transition-fast);
+}
+
+.theme-toggle:hover {
+  background: var(--secondary);
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .main-content {
+    margin-left: 0;
+  }
+  
+  .mobile-menu-btn {
+    display: flex;
+  }
+  
+  .content-header {
+    padding-left: calc(48px + var(--spacing-lg));
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .controls > * {
+    width: 100%;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+  }
+  
+  .data-table {
+    overflow-x: auto;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .action-buttons .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📊 销售数据管理</h1>
+    <!-- 移动端菜单按钮 -->
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i data-lucide="menu" width="20" height="20"></i>
+    </button>
+
+    <!-- 主容器 -->
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i data-lucide="book-open" width="24" height="24"></i>
+                Book Price Analysis
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/" class="sidebar-nav-item">
+                    <i data-lucide="home" width="18" height="18"></i>
+                    仪表板
+                </a>
+                <a href="/shop-admin" class="sidebar-nav-item">
+                    <i data-lucide="store" width="18" height="18"></i>
+                    店铺管理
+                </a>
+                <a href="/book-admin" class="sidebar-nav-item">
+                    <i data-lucide="book" width="18" height="18"></i>
+                    书籍管理
+                </a>
+                <a href="/sales-admin" class="sidebar-nav-item active">
+                    <i data-lucide="trending-up" width="18" height="18"></i>
+                    销售管理
+                </a>
+                <a href="/crawler-admin" class="sidebar-nav-item">
+                    <i data-lucide="spider" width="18" height="18"></i>
+                    爬虫管理
+                </a>
+                
+                <div class="sidebar-nav-divider"></div>
+                
+                <a href="#" class="sidebar-nav-item" onclick="showSettings()">
+                    <i data-lucide="settings" width="18" height="18"></i>
+                    设置
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">
+                    <i data-lucide="sun" width="18" height="18" class="theme-icon"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <header class="content-header">
+                <h1 class="content-title">销售管理</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="refreshData()">
+                        <i data-lucide="refresh-cw" width="16" height="16"></i>
+                        刷新数据
+                    </button>
+                </div>
+            </header>
+            
+            <div class="content-body">
 
         <!-- 统计概览 -->
         <div class="section">
@@ -390,6 +673,8 @@
 
             <div class="pagination" id="booksPagination"></div>
         </div>
+            </div>
+        </main>
     </div>
 
     <!-- 店铺详情模态框 -->
@@ -767,6 +1052,58 @@
                 modal.style.display = 'none';
             }
         }
+
+        // 侧边栏切换
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+
+        // 主题切换
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            // 更新图标
+            const icon = document.querySelector('.theme-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', newTheme === 'dark' ? 'moon' : 'sun');
+                lucide.createIcons();
+            }
+        }
+
+        // 初始化主题
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            
+            const icon = document.querySelector('.theme-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', savedTheme === 'dark' ? 'moon' : 'sun');
+            }
+        }
+
+        // 显示设置
+        function showSettings() {
+            showAlert('info', '设置功能开发中...');
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadStats();
+            loadShops();
+            loadBooksCrawlStatus();
+            showAlert('success', '数据刷新完成');
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            lucide.createIcons();
+        });
     </script>
 </body>
 </html>

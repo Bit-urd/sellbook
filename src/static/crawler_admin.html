@@ -1,51 +1,581 @@
 
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>爬虫控制面板</title>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Price Analysis - 爬虫管理</title>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
-        .success { color: green; }
-        .error { color: red; }
-        #log { background: #f5f5f5; padding: 10px; height: 200px; overflow-y: auto; }
+/* 极简扁平风格主题 */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --primary: #667eea;
+  --primary-foreground: #ffffff;
+  --primary-hover: #5a67d8;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #171717;
+  --muted: #f9fafb;
+  --muted-foreground: #6b7280;
+  --border: #e5e7eb;
+  --success: #10b981;
+  --destructive: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --sidebar-bg: #fafafa;
+  --sidebar-foreground: #171717;
+  --sidebar-border: #e5e7eb;
+  --sidebar-hover-bg: #f3f4f6;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --radius: 8px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --sidebar-width: 240px;
+  --header-height: 64px;
+  --nav-item-height: 48px;
+  --transition-fast: 150ms ease;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --font-medium: 500;
+  --font-semibold: 600;
+}
+
+[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #171717;
+  --card-foreground: #fafafa;
+  --secondary: #262626;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --border: #262626;
+  --sidebar-bg: #0f0f0f;
+  --sidebar-foreground: #fafafa;
+  --sidebar-border: #262626;
+  --sidebar-hover-bg: #262626;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--foreground);
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 新的布局系统 */
+.app-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-logo {
+  height: var(--header-height);
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--sidebar-border);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--primary);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: var(--spacing-md) 0;
+  overflow-y: auto;
+}
+
+.sidebar-nav-item {
+  height: var(--nav-item-height);
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--sidebar-foreground);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.sidebar-nav-item:hover {
+  background: var(--sidebar-hover-bg);
+}
+
+.sidebar-nav-item.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-left-color: var(--primary-hover);
+}
+
+.sidebar-nav-divider {
+  height: 1px;
+  background: var(--sidebar-border);
+  margin: var(--spacing-md) 0;
+}
+
+.sidebar-footer {
+  padding: var(--spacing-md) 0;
+  border-top: 1px solid var(--sidebar-border);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-header {
+  height: var(--header-height);
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.content-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  color: var(--foreground);
+}
+
+.content-body {
+  flex: 1;
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+  background: var(--muted);
+}
+
+.section {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  border: 1px solid var(--border);
+}
+
+.section h2 {
+  color: var(--foreground);
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--primary);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+}
+
+.controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-success {
+  background: var(--success);
+  color: white;
+}
+
+.btn-success:hover {
+  background: #059669;
+}
+
+.btn-danger {
+  background: var(--destructive);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: #92400e;
+}
+
+.btn-warning:hover {
+  background: #d97706;
+}
+
+.btn-info {
+  background: var(--info);
+  color: white;
+}
+
+.btn-info:hover {
+  background: #2563eb;
+}
+
+.btn-sm {
+  padding: 4px var(--spacing-sm);
+  font-size: 12px;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--foreground);
+}
+
+.btn-ghost:hover {
+  background: var(--secondary);
+}
+
+input[type="text"], select, textarea {
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  min-width: 200px;
+  background: var(--card);
+  color: var(--foreground);
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+input[type="text"]:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.task-list {
+  background: var(--muted);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.task-item {
+  background: var(--card);
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-status {
+  display: inline-block;
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: var(--font-semibold);
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: var(--warning);
+}
+
+.status-running {
+  background: #dbeafe;
+  color: var(--info);
+}
+
+.status-completed {
+  background: #dcfce7;
+  color: var(--success);
+}
+
+.status-failed {
+  background: #fecaca;
+  color: var(--destructive);
+}
+
+.log-container {
+  background: var(--muted);
+  border-radius: var(--radius);
+  padding: var(--spacing-md);
+  height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  font-family: monospace;
+  font-size: var(--text-sm);
+}
+
+.log-entry {
+  margin-bottom: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius);
+}
+
+.log-success {
+  background: #dcfce7;
+  color: var(--success);
+}
+
+.log-error {
+  background: #fecaca;
+  color: var(--destructive);
+}
+
+.log-info {
+  background: #dbeafe;
+  color: var(--info);
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+/* 移动端样式 */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: var(--spacing-md);
+  left: var(--spacing-md);
+  z-index: 101;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing-sm);
+  cursor: pointer;
+}
+
+.theme-toggle {
+  padding: var(--spacing-sm);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all var(--transition-fast);
+}
+
+.theme-toggle:hover {
+  background: var(--secondary);
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .main-content {
+    margin-left: 0;
+  }
+  
+  .mobile-menu-btn {
+    display: flex;
+  }
+  
+  .content-header {
+    padding-left: calc(48px + var(--spacing-lg));
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .controls > * {
+    width: 100%;
+  }
+}
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>爬虫控制面板</h1>
+    <!-- 移动端菜单按钮 -->
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <i data-lucide="menu" width="20" height="20"></i>
+    </button>
+
+    <!-- 主容器 -->
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <i data-lucide="book-open" width="24" height="24"></i>
+                Book Price Analysis
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="/" class="sidebar-nav-item">
+                    <i data-lucide="home" width="18" height="18"></i>
+                    仪表板
+                </a>
+                <a href="/shop-admin" class="sidebar-nav-item">
+                    <i data-lucide="store" width="18" height="18"></i>
+                    店铺管理
+                </a>
+                <a href="/book-admin" class="sidebar-nav-item">
+                    <i data-lucide="book" width="18" height="18"></i>
+                    书籍管理
+                </a>
+                <a href="/sales-admin" class="sidebar-nav-item">
+                    <i data-lucide="trending-up" width="18" height="18"></i>
+                    销售管理
+                </a>
+                <a href="/crawler-admin" class="sidebar-nav-item active">
+                    <i data-lucide="spider" width="18" height="18"></i>
+                    爬虫管理
+                </a>
+                
+                <div class="sidebar-nav-divider"></div>
+                
+                <a href="#" class="sidebar-nav-item" onclick="showSettings()">
+                    <i data-lucide="settings" width="18" height="18"></i>
+                    设置
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">
+                    <i data-lucide="sun" width="18" height="18" class="theme-icon"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <header class="content-header">
+                <h1 class="content-title">爬虫管理</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="refreshAllTasks()">
+                        <i data-lucide="refresh-cw" width="16" height="16"></i>
+                        刷新状态
+                    </button>
+                </div>
+            </header>
+            
+            <div class="content-body">
         
         <div class="section">
             <h2>店铺管理</h2>
-            <div>
+            <div class="controls">
                 <input type="text" id="shopIds" placeholder="输入店铺ID，多个用逗号分隔" style="width: 300px;">
-                <button onclick="addShops()">添加店铺</button>
+                <button class="btn btn-success" onclick="addShops()">
+                    <i data-lucide="plus" width="16" height="16"></i>
+                    添加店铺
+                </button>
             </div>
-            <div>
-                <button onclick="updateAllShops()">更新所有店铺数据</button>
-                <button onclick="updateDuozhuayuPrices()">更新多抓鱼价格</button>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="updateAllShops()">
+                    <i data-lucide="refresh-cw" width="16" height="16"></i>
+                    更新所有店铺数据
+                </button>
+                <button class="btn btn-warning" onclick="updateDuozhuayuPrices()">
+                    <i data-lucide="tag" width="16" height="16"></i>
+                    更新多抓鱼价格
+                </button>
             </div>
         </div>
         
         <div class="section">
             <h2>任务状态</h2>
-            <div>
-                <button onclick="getTaskStatus('pending')">待执行任务</button>
-                <button onclick="getTaskStatus('running')">运行中任务</button>
-                <button onclick="getTaskStatus()">所有任务</button>
-                <button onclick="runPendingTasks()">执行待处理任务</button>
-                <button onclick="deleteSelectedTasks()">删除选中任务</button>
+            <div class="controls">
+                <button class="btn btn-info" onclick="getTaskStatus('pending')">
+                    <i data-lucide="clock" width="16" height="16"></i>
+                    待执行任务
+                </button>
+                <button class="btn btn-primary" onclick="getTaskStatus('running')">
+                    <i data-lucide="play" width="16" height="16"></i>
+                    运行中任务
+                </button>
+                <button class="btn" onclick="getTaskStatus()">
+                    <i data-lucide="list" width="16" height="16"></i>
+                    所有任务
+                </button>
+                <button class="btn btn-success" onclick="runPendingTasks()">
+                    <i data-lucide="play-circle" width="16" height="16"></i>
+                    执行待处理任务
+                </button>
+                <button class="btn btn-danger" onclick="deleteSelectedTasks()">
+                    <i data-lucide="trash-2" width="16" height="16"></i>
+                    删除选中任务
+                </button>
             </div>
-            <div id="taskList" style="margin-top: 10px;"></div>
+            <div id="taskList" class="task-list" style="margin-top: 10px;"></div>
         </div>
         
         <div class="section">
             <h2>操作日志</h2>
-            <div id="log"></div>
+            <div id="log" class="log-container"></div>
         </div>
+            </div>
+        </main>
     </div>
     
     <script>
@@ -180,10 +710,81 @@
             }
         }
         
-        // 页面加载时获取任务状态
-        window.onload = () => {
+        // 侧边栏切换
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+
+        // 主题切换
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            // 更新图标
+            const icon = document.querySelector('.theme-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', newTheme === 'dark' ? 'moon' : 'sun');
+                lucide.createIcons();
+            }
+        }
+
+        // 初始化主题
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            
+            const icon = document.querySelector('.theme-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', savedTheme === 'dark' ? 'moon' : 'sun');
+            }
+        }
+
+        // 显示设置
+        function showSettings() {
+            log('设置功能开发中...', false);
+        }
+
+        // 刷新所有任务
+        function refreshAllTasks() {
             getTaskStatus();
-        };
+            log('任务状态已刷新', false);
+        }
+
+        // 更新日志显示
+        function log(message, isError = false) {
+            const logDiv = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const logClass = isError ? 'log-error' : 'log-success';
+            const icon = isError ? 'x-circle' : 'check-circle';
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${logClass}`;
+            logEntry.innerHTML = `
+                <i data-lucide="${icon}" width="16" height="16" style="display: inline; margin-right: 8px;"></i>
+                [${time}] ${message}
+            `;
+            
+            logDiv.insertBefore(logEntry, logDiv.firstChild);
+            
+            // 重新创建图标
+            lucide.createIcons();
+            
+            // 限制日志条数
+            while (logDiv.children.length > 50) {
+                logDiv.removeChild(logDiv.lastChild);
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            lucide.createIcons();
+            getTaskStatus();
+        });
     </script>
 </body>
 </html>
