@@ -28,7 +28,7 @@ class ChromeWindowPool:
         self.window_info = {}  # 窗口信息 {window_id: {'created_at': time, 'used_count': int}}
         
         # 封控状态追踪
-        self.rate_limited_windows = set()  # 被封控的窗口ID集合
+        self.rate_limited_windows = {}  # 被封控的窗口ID字典 {window_id: unban_time}
         self.last_success_time = {}  # 每个窗口最后成功时间 {window_id: timestamp}
         
         # 连接相关
@@ -256,6 +256,19 @@ class ChromeWindowPool:
                 if self.available_windows:
                     page = self.available_windows.popleft()
                     window_id = id(page)
+
+                    # 检查窗口是否被封禁
+                    if window_id in self.rate_limited_windows:
+                        unban_time = self.rate_limited_windows[window_id]
+                        if time.time() < unban_time:
+                            # 仍在封禁期，放回队列末尾，并继续查找
+                            self.available_windows.append(page)
+                            logger.debug(f"窗口 {window_id} 仍在封禁期，跳过")
+                            continue # 继续循环查找下一个可用窗口
+                        else:
+                            # 封禁已过，解除封禁
+                            self.rate_limited_windows.pop(window_id, None)
+                            logger.info(f"窗口 {window_id} 封禁期已过，已自动解封")
                     
                     # 检查窗口是否仍然有效
                     try:
@@ -405,16 +418,25 @@ class ChromeWindowPool:
         self.connected = False
         logger.info("已断开所有浏览器连接")
     
-    def mark_window_rate_limited(self, page: Page):
-        """标记窗口为被封控状态"""
+    def mark_window_rate_limited(self, page: Page, duration_minutes: int = 31):
+        """标记窗口为被封控状态
+        
+        Args:
+            page: 要标记的页面
+            duration_minutes: 封控持续时间（分钟）
+        """
         window_id = id(page)
-        self.rate_limited_windows.add(window_id)
-        logger.warning(f"窗口 {window_id} 被标记为封控状态")
+        unban_time = time.time() + duration_minutes * 60
+        self.rate_limited_windows[window_id] = unban_time
+        
+        # 格式化解封时间
+        unban_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(unban_time))
+        logger.warning(f"窗口 {window_id} 被标记为封控状态，将在 {unban_time_str} 后解封")
     
     def mark_window_success(self, page: Page):
         """标记窗口成功访问，清除封控状态"""
         window_id = id(page)
-        self.rate_limited_windows.discard(window_id)
+        self.rate_limited_windows.pop(window_id, None)
         self.last_success_time[window_id] = time.time()
         logger.debug(f"窗口 {window_id} 成功访问，清除封控状态")
     
@@ -424,31 +446,34 @@ class ChromeWindowPool:
         if total_windows == 0:
             return False
         
-        # 检查所有窗口是否都在封控列表中
         all_window_ids = set()
         for page in self.available_windows:
             all_window_ids.add(id(page))
         for window_id in self.busy_windows.keys():
             all_window_ids.add(window_id)
+            
+        now = time.time()
         
-        # 如果所有窗口都被封控，返回True
-        is_all_limited = all_window_ids.issubset(self.rate_limited_windows)
-        
-        if is_all_limited:
-            logger.error(f"警告：所有 {total_windows} 个窗口都被封控！")
-        
-        return is_all_limited
+        # 检查所有窗口是否都在封控列表且未到解封时间
+        for window_id in all_window_ids:
+            if window_id not in self.rate_limited_windows or self.rate_limited_windows[window_id] < now:
+                return False  # 只要有一个窗口没被封控，或已解封，就返回False
+
+        logger.error(f"警告：所有 {total_windows} 个窗口都被封控！")
+        return True
     
     def get_rate_limit_status(self) -> Dict[str, Any]:
         """获取封控状态详情"""
         total_windows = len(self.available_windows) + len(self.busy_windows)
         rate_limited_count = len(self.rate_limited_windows)
         
+        rate_limited_windows_info = {k: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(v)) for k, v in self.rate_limited_windows.items()}
+        
         return {
             "total_windows": total_windows,
             "rate_limited_count": rate_limited_count,
             "all_limited": self.is_all_windows_rate_limited(),
-            "rate_limited_window_ids": list(self.rate_limited_windows),
+            "rate_limited_windows": rate_limited_windows_info,  # 返回详细信息
             "percentage_limited": (rate_limited_count / total_windows * 100) if total_windows > 0 else 0
         }
     
@@ -458,11 +483,13 @@ class ChromeWindowPool:
         for window_id, info in self.window_info.items():
             status = "busy" if window_id in self.busy_windows else "available"
             is_rate_limited = window_id in self.rate_limited_windows
+            unban_time = self.rate_limited_windows.get(window_id)
             
             window_details.append({
                 "window_id": window_id,
                 "status": status,
                 "is_rate_limited": is_rate_limited,
+                "unban_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(unban_time)) if unban_time else None,
                 "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(info['created_at'])),
                 "used_count": info['used_count'],
                 "last_success": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.last_success_time.get(window_id, 0))) if window_id in self.last_success_time else "从未成功"
@@ -521,7 +548,7 @@ class WindowPoolManager:
                 # 检查是否是封控错误
                 if "RATE_LIMITED:" in error_msg or "LOGIN_REQUIRED:" in error_msg:
                     # 标记窗口为封控状态
-                    self.pool.mark_window_rate_limited(page)
+                    self.pool.mark_window_rate_limited(page, duration_minutes=31)
                     
                     # 检查是否所有窗口都被封控
                     if self.pool.is_all_windows_rate_limited():
