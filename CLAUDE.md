@@ -29,7 +29,7 @@ sqlite3 data/sellbook.db "SELECT * FROM sales_records LIMIT 3;"
 sqlite3 data/sellbook.db ".schema book_inventory"
 
 # 步骤2：测试ISBN搜索API响应格式
-curl "http://localhost:8000/api/isbn/9787544291200/analysis?quality=九品以上"
+curl "http://localhost:8282/api/isbn/9787544291200/analysis?quality=九品以上"
 
 # 步骤3：验证item_id去重机制
 sqlite3 data/sellbook.db "SELECT COUNT(*), COUNT(DISTINCT item_id) FROM sales_records;"
@@ -198,7 +198,7 @@ sqlite3 data/sellbook.db "SELECT item_id, COUNT(*) FROM sales_records GROUP BY i
 pytest tests/unit/test_price_distribution.py -v
 
 # 5. 测试品相筛选
-curl "http://localhost:8000/api/isbn/test/analysis?quality=九品以上"
+curl "http://localhost:8282/api/isbn/test/analysis?quality=九品以上"
 ```
 
 ### 2. 爬虫问题排查流程
@@ -272,10 +272,10 @@ rm -f data/sellbook.db && python -c "from src.models.database import db; db.init
 ### 开发服务器
 ```bash
 # 启动开发服务器
-uvicorn src.main:app --reload --port 8000
+uvicorn src.main:app --reload --port 8282
 
 # 访问API文档
-open http://localhost:8000/docs
+open http://localhost:8282/docs
 ```
 
 ## 📊 代码质量标准
@@ -316,10 +316,10 @@ def test_something(client):
 ## 📚 相关文档
 
 - **详细测试指南**: `tests/TESTING_GUIDE.md`
-- **API文档**: http://localhost:8000/docs
+- **API文档**: http://localhost:8282/docs
 - **数据库模式**: `src/models/database.py`
-- **主界面**: http://localhost:8000/ (包含所有分析功能)
-- **管理界面**: http://localhost:8000/shop-admin (店铺管理)
+- **主界面**: http://localhost:8282/ (包含所有分析功能)
+- **管理界面**: http://localhost:8282/shop-admin (店铺管理)
 
 ## 🔍 核心爬虫机制
 
