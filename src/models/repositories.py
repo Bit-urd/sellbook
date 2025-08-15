@@ -438,6 +438,12 @@ class CrawlTaskRepository:
         
         return db.execute_update(query, tuple(params)) > 0
     
+    def get_by_id(self, task_id: int) -> Optional[Dict]:
+        """根据ID获取任务"""
+        query = "SELECT * FROM crawl_tasks WHERE id = ?"
+        result = db.execute_query(query, (task_id,))
+        return result[0] if result else None
+    
     def get_pending_tasks(self) -> List[Dict]:
         """获取待执行的任务"""
         query = """
