@@ -7,7 +7,7 @@ import json
 import logging
 import re
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import aiohttp
 from playwright.async_api import async_playwright, Page
 
@@ -19,6 +19,92 @@ from ..models.repositories import (
 
 logger = logging.getLogger(__name__)
 
+class BrowserManager:
+    """单例模式的浏览器连接管理器"""
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if not self._initialized:
+            self.browser = None
+            self.page = None
+            self.playwright = None
+            self.connected = False
+            self._lock = asyncio.Lock()
+            BrowserManager._initialized = True
+    
+    async def get_browser_page(self):
+        """获取浏览器页面（单例复用）"""
+        async with self._lock:
+            if not self.connected:
+                await self._connect()
+            return self.page
+    
+    async def _connect(self):
+        """连接到Chrome浏览器"""
+        if self.connected:
+            return True
+        
+        try:
+            # 尝试连接到已打开的Chrome调试端口
+            async with aiohttp.ClientSession() as session:
+                async with session.get("http://localhost:9222/json/version") as response:
+                    if response.status == 200:
+                        version_info = await response.json()
+                        ws_url = version_info.get('webSocketDebuggerUrl', '')
+                    else:
+                        logger.error("无法获取Chrome调试信息")
+                        return False
+            
+            self.playwright = await async_playwright().start()
+            self.browser = await self.playwright.chromium.connect_over_cdp(ws_url)
+            
+            # 使用现有浏览器上下文
+            contexts = self.browser.contexts
+            if contexts:
+                context = contexts[0]
+            else:
+                context = await self.browser.new_context()
+            
+            # 使用现有页面或创建新页面
+            pages = context.pages
+            if pages:
+                self.page = pages[0]
+            else:
+                self.page = await context.new_page()
+            
+            self.connected = True
+            logger.info("成功连接到Chrome浏览器")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Chrome连接失败: {e}")
+            self.connected = False
+            return False
+    
+    async def disconnect(self):
+        """断开浏览器连接"""
+        async with self._lock:
+            if self.playwright:
+                await self.playwright.stop()
+                self.connected = False
+                self.browser = None
+                self.page = None
+                self.playwright = None
+                logger.info("已断开浏览器连接")
+    
+    def is_connected(self):
+        """检查连接状态"""
+        return self.connected
+
+# 创建全局单例实例
+browser_manager = BrowserManager()
+
 class KongfuziCrawler:
     """孔夫子网爬虫"""
     
@@ -27,10 +113,6 @@ class KongfuziCrawler:
     _max_wait_time = 24 * 60 * 60  # 最大等待时间：1天（24小时）
     
     def __init__(self):
-        self.browser = None
-        self.page = None
-        self.playwright = None
-        self.connected = False
         self.shop_repo = ShopRepository()
         self.book_repo = BookRepository()
         self.inventory_repo = BookInventoryRepository()
@@ -124,51 +206,19 @@ class KongfuziCrawler:
         }
     
     async def connect_browser(self):
-        """连接到Chrome浏览器"""
-        if self.connected:
-            return True
-        
+        """连接到Chrome浏览器（使用单例管理器）"""
         try:
-            # 尝试连接到已打开的Chrome调试端口
-            async with aiohttp.ClientSession() as session:
-                async with session.get("http://localhost:9222/json/version") as response:
-                    if response.status == 200:
-                        version_info = await response.json()
-                        ws_url = version_info.get('webSocketDebuggerUrl', '')
-                    else:
-                        logger.error("无法获取Chrome调试信息")
-                        return False
-            
-            self.playwright = await async_playwright().start()
-            self.browser = await self.playwright.chromium.connect_over_cdp(ws_url)
-            
-            # 使用现有浏览器上下文
-            contexts = self.browser.contexts
-            if contexts:
-                context = contexts[0]
-            else:
-                context = await self.browser.new_context()
-            
-            # 使用现有页面或创建新页面
-            pages = context.pages
-            if pages:
-                self.page = pages[0]
-            else:
-                self.page = await context.new_page()
-            
-            self.connected = True
-            logger.info("成功连接到Chrome浏览器")
-            return True
-            
+            self.page = await browser_manager.get_browser_page()
+            return browser_manager.is_connected()
         except Exception as e:
             logger.error(f"Chrome连接失败: {e}")
             return False
     
     async def disconnect_browser(self):
-        """断开浏览器连接"""
-        if self.playwright:
-            await self.playwright.stop()
-            self.connected = False
+        """断开浏览器连接（使用单例管理器）"""
+        # 注意：不要直接断开单例管理器的连接，让其保持连接状态供其他实例使用
+        # 如果确实需要断开，可以调用 browser_manager.disconnect()
+        pass
     
     async def analyze_book_sales(self, isbn: str, days_limit: int = 30, quality_filter: str = "high") -> Dict:
         """分析单本书的销售记录（用于实时ISBN搜索）
@@ -184,28 +234,38 @@ class KongfuziCrawler:
         cutoff_date = datetime.now() - timedelta(days=days_limit)
         all_sales = []
         
-        # 根据品相过滤构建搜索URL
-        if quality_filter == "high":
-            # 九品以上 (90分以上)
-            search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page=1&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=2"
-        else:
-            # 全部品相
-            search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page=1&sortType=10&actionPath=sortType"
+        page_num = 1
+        max_pages = 20
         
         try:
-            await self.page.goto(search_url, wait_until='networkidle')
-            await asyncio.sleep(2)
-            
-            page_num = 1
-            max_pages = 20
-            
             while page_num <= max_pages:
-                await asyncio.sleep(1)
+                # 根据品相过滤和页码构建搜索URL
+                if quality_filter == "high":
+                    # 九品以上 (90分以上)
+                    search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page={page_num}&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=1"
+                else:
+                    # 全部品相
+                    search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page={page_num}&sortType=10&actionPath=sortType&quaSelect=1"
+                
+                logger.info(f"正在爬取第 {page_num} 页: {search_url}")
+                
+                await self.page.goto(search_url, wait_until='networkidle')
+                await asyncio.sleep(2)
+                
+                # 第一页检查登录状态
+                if page_num == 1:
+                    await self._check_page_for_rate_limit()
                 
                 # 提取当前页面的销售记录
                 page_sales = await self.extract_sales_records()
                 
-                if not page_sales:
+                # 如果第一页就没有数据，可能是登录问题
+                if page_num == 1 and not page_sales:
+                    # 再次检查页面内容，看是否需要登录
+                    await self._check_page_content_for_empty_results()
+                    break
+                elif not page_sales:
+                    logger.info(f"第 {page_num} 页没有销售记录，停止翻页")
                     break
                 
                 # 检查时间限制
@@ -223,13 +283,11 @@ class KongfuziCrawler:
                 
                 if valid_sales:
                     all_sales.extend(valid_sales)
+                    logger.info(f"第 {page_num} 页获取了 {len(valid_sales)} 条有效销售记录")
                 
                 # 如果发现超过时间限制的记录，停止翻页
                 if has_old_records:
-                    break
-                
-                # 尝试翻到下一页
-                if not await self.go_to_next_page():
+                    logger.info(f"第 {page_num} 页发现超过 {days_limit} 天的记录，停止翻页")
                     break
                 
                 page_num += 1
@@ -243,6 +301,72 @@ class KongfuziCrawler:
             logger.error(f"爬取ISBN {isbn} 销售数据失败: {e}")
             raise
     
+    def check_isbn_crawled_recently(self, isbn: str, days_threshold: int = 7) -> bool:
+        """检查ISBN是否在最近几天内已被爬取过
+        
+        Args:
+            isbn: 书籍ISBN
+            days_threshold: 时间阈值（天数）
+        
+        Returns:
+            True: 已被爬取过，False: 未被爬取或爬取时间较早
+        """
+        from ..models.database import db
+        
+        query = """
+            SELECT last_sales_update FROM books 
+            WHERE isbn = ? AND last_sales_update IS NOT NULL
+            AND last_sales_update >= datetime('now', '-{} days')
+        """.format(days_threshold)
+        
+        results = db.execute_query(query, (isbn,))
+        return len(results) > 0
+    
+    async def crawl_single_book_sales(self, isbn: str, shop_id: int, days_limit: int = 30, 
+                                    skip_if_recent: bool = True) -> Dict:
+        """爬取单本书的销售记录（用于任务执行）
+        
+        Args:
+            isbn: 书籍ISBN
+            shop_id: 店铺ID
+            days_limit: 爬取天数限制
+            skip_if_recent: 是否跳过最近已爬取的书籍
+        
+        Returns:
+            包含爬取结果的字典
+        """
+        result = {
+            'isbn': isbn,
+            'status': 'pending',
+            'records_saved': 0,
+            'message': '',
+            'skipped': False
+        }
+        
+        try:
+            # 检查是否最近已被爬取过
+            if skip_if_recent and self.check_isbn_crawled_recently(isbn, days_threshold=7):
+                result['status'] = 'skipped'
+                result['skipped'] = True
+                result['message'] = f'ISBN {isbn} 在最近7天内已被爬取过，跳过'
+                logger.info(result['message'])
+                return result
+            
+            # 执行爬取
+            records_saved = await self.analyze_and_save_book_sales(isbn, shop_id, days_limit)
+            
+            result['status'] = 'completed'
+            result['records_saved'] = records_saved
+            result['message'] = f'成功爬取ISBN {isbn}，保存了 {records_saved} 条销售记录'
+            logger.info(result['message'])
+            
+        except Exception as e:
+            result['status'] = 'failed'
+            result['message'] = f'爬取ISBN {isbn} 失败: {str(e)}'
+            logger.error(result['message'])
+        
+        return result
+
     async def analyze_and_save_book_sales(self, isbn: str, shop_id: int, days_limit: int = 30) -> int:
         """分析并保存单本书的销售记录到数据库"""
         if not await self.connect_browser():
@@ -548,7 +672,7 @@ class KongfuziCrawler:
             'latest_sale_date': None,
             'average_price': None,
             'price_range': {'min': None, 'max': None},
-            'sales_records': sales[:50]  # 返回前50条记录用于展示
+            'sales_records': sales[:300]  # 返回最多300条记录用于展示
         }
         
         if not sales:
@@ -560,8 +684,15 @@ class KongfuziCrawler:
             sale_date = sale.get('sale_date')
             
             if sale_date:
+                # 如果是字符串，转换为datetime对象
+                if isinstance(sale_date, str):
+                    try:
+                        sale_date = datetime.fromisoformat(sale_date.replace('Z', '+00:00'))
+                    except:
+                        continue
+                
                 # 更新最新销售日期
-                if not stats['latest_sale_date'] or sale_date > datetime.fromisoformat(stats['latest_sale_date']):
+                if not stats['latest_sale_date'] or sale_date > datetime.fromisoformat(stats['latest_sale_date'].replace('Z', '+00:00') if 'Z' in stats['latest_sale_date'] else stats['latest_sale_date']):
                     stats['latest_sale_date'] = sale_date.isoformat()
                 
                 # 统计不同时间段的销量
@@ -572,6 +703,7 @@ class KongfuziCrawler:
                     stats['sales_7_days'] += 1
                 if days_diff <= 30:
                     stats['sales_30_days'] += 1
+                
             
             # 收集价格信息
             try:
@@ -590,6 +722,7 @@ class KongfuziCrawler:
             stats['average_price'] = round(sum(prices) / len(prices), 2)
             stats['price_range']['min'] = min(prices)
             stats['price_range']['max'] = max(prices)
+        
         
         return stats
     
@@ -774,8 +907,104 @@ class KongfuziCrawler:
         error_lower = error_message.lower()
         return any(keyword.lower() in error_lower for keyword in rate_limit_keywords)
     
+    def _is_login_required(self, page_content: str, current_url: str) -> bool:
+        """检测是否需要登录"""
+        # 检查URL是否跳转到登录页面
+        if "login" in current_url.lower() or "signin" in current_url.lower():
+            return True
+        
+        # 更严格的登录检测 - 只检查明确的登录提示
+        strict_login_keywords = [
+            "请先登录",
+            "用户登录",
+            "需要登录",
+            "登录账号",
+            "立即登录",
+            "登录孔夫子"
+        ]
+        
+        content_lower = page_content.lower()
+        
+        # 排除一些正常的页面内容
+        if ("搜索结果" in content_lower or 
+            "商品列表" in content_lower or
+            "暂无商品" in content_lower or
+            "无搜索结果" in content_lower):
+            return False
+        
+        # 只有明确包含登录提示才判断为需要登录
+        return any(keyword.lower() in content_lower for keyword in strict_login_keywords)
+    
+    def _is_login_required_error(self, error_message: str) -> bool:
+        """检测错误信息是否与登录相关"""
+        return "LOGIN_REQUIRED:" in error_message
+    
+    async def _check_page_content_for_empty_results(self) -> None:
+        """检查页面内容为空是否是因为未登录"""
+        if not self.page:
+            return
+        
+        try:
+            # 检查页面是否有搜索结果容器但内容为空
+            page_analysis = await self.page.evaluate("""
+                () => {
+                    // 检查是否有搜索结果容器
+                    const searchResults = document.querySelector('.search-results, .result-list, .product-list');
+                    const productItems = document.querySelectorAll('.product-item-wrap, .product-item');
+                    const noResults = document.querySelector('.no-results, .empty-results');
+                    
+                    // 检查页面文本内容
+                    const bodyText = document.body.innerText || '';
+                    const title = document.title || '';
+                    
+                    // 检查是否有明确的"无搜索结果"提示
+                    const noResultsText = bodyText.includes('无搜索结果') || 
+                                         bodyText.includes('没有找到') ||
+                                         bodyText.includes('暂无商品') ||
+                                         bodyText.includes('抱歉，没有找到相关商品');
+                    
+                    return {
+                        hasSearchContainer: !!searchResults,
+                        productCount: productItems.length,
+                        hasNoResultsMsg: !!noResults,
+                        bodyText: bodyText.substring(0, 500), // 只取前500字符用于调试
+                        title: title,
+                        url: window.location.href,
+                        hasNoResultsText: noResultsText
+                    };
+                }
+            """)
+            
+            # 调试：打印页面分析结果
+            logger.info(f"页面分析结果: {page_analysis}")
+            
+            # 分析结果
+            if page_analysis:
+                body_text = page_analysis.get('bodyText', '').lower()
+                title = page_analysis.get('title', '').lower()
+                product_count = page_analysis.get('productCount', 0)
+                has_no_results_text = page_analysis.get('hasNoResultsText', False)
+                
+                # 只有在明确没有"无搜索结果"提示，且页面内容包含登录关键词时才判断为需要登录
+                if (product_count == 0 and 
+                    not has_no_results_text and
+                    ('请登录' in body_text or 
+                     '用户登录' in body_text or
+                     'login' in body_text)):
+                    
+                    logger.warning(f"检测到可能需要登录: 商品数={product_count}, 无结果提示={has_no_results_text}, 页面文本包含登录关键词")
+                    raise Exception("LOGIN_REQUIRED:页面显示为空，可能需要登录孔夫子旧书网账号。请在浏览器中登录后重试。")
+                else:
+                    logger.info(f"页面检查通过: 商品数={product_count}, 无结果提示={has_no_results_text}")
+                    
+        except Exception as e:
+            error_str = str(e)
+            if "LOGIN_REQUIRED:" in error_str:
+                raise
+            # 其他异常不处理
+    
     async def _check_page_for_rate_limit(self) -> None:
-        """检查页面内容是否包含频率限制信息"""
+        """检查页面内容是否包含频率限制或登录要求"""
         if not self.page:
             return
         
@@ -786,19 +1015,27 @@ class KongfuziCrawler:
                     return {
                         title: document.title,
                         body: document.body.innerText || '',
-                        html: document.documentElement.innerHTML || ''
+                        html: document.documentElement.innerHTML || '',
+                        url: window.location.href
                     };
                 }
             """)
             
             # 检查所有内容
             all_content = f"{page_content.get('title', '')} {page_content.get('body', '')} {page_content.get('html', '')}"
+            current_url = page_content.get('url', '')
             
+            # 检查登录状态
+            if self._is_login_required(all_content, current_url):
+                raise Exception("LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。")
+            
+            # 检查频率限制
             if self._is_rate_limit_error(all_content):
-                raise Exception("很抱歉，您当前的搜索次数已达到上限，请稍后访问！请求错误，请降低访问频次或更换真实账号使用。")
+                raise Exception("RATE_LIMITED:很抱歉，您当前的搜索次数已达到上限，请稍后访问！请求错误，请降低访问频次或更换真实账号使用。")
                 
         except Exception as e:
-            if self._is_rate_limit_error(str(e)):
+            error_str = str(e)
+            if self._is_rate_limit_error(error_str) or self._is_login_required_error(error_str):
                 raise
             # 其他异常不处理，继续执行
     
@@ -1326,29 +1563,304 @@ class DuozhuayuCrawler:
         
         return False
 
-class CrawlerManager:
-    """爬虫管理器 - 统一管理所有爬虫"""
+class CrawlerTaskExecutor:
+    """爬虫任务执行器 - 维护任务类型与执行方法的映射"""
+    
+    # 任务类型映射：key=任务类型，value=执行方法和必需字段
+    TASK_TYPE_MAPPING = {
+        'book_sales_crawl': {
+            'method': 'crawl_single_book_sales',
+            'required_fields': ['target_isbn', 'shop_id'],
+            'optional_fields': ['days_limit', 'skip_if_recent'],
+            'description': '单本书籍销售记录爬取'
+        },
+        'shop_books_crawl': {
+            'method': 'crawl_shop_books', 
+            'required_fields': ['target_url'],
+            'optional_fields': ['max_pages'],
+            'description': '店铺书籍列表爬取'
+        },
+        'duozhuayu_price': {
+            'method': 'update_book_price',
+            'required_fields': ['target_isbn', 'shop_id'],
+            'optional_fields': [],
+            'description': '多抓鱼价格更新'
+        },
+        'isbn_analysis': {
+            'method': 'analyze_book_sales',
+            'required_fields': ['target_isbn'],
+            'optional_fields': ['days_limit', 'quality_filter'],
+            'description': 'ISBN销售数据分析'
+        }
+    }
     
     def __init__(self):
         self.kongfuzi = KongfuziCrawler()
         self.duozhuayu = DuozhuayuCrawler()
         self.task_repo = CrawlTaskRepository()
     
+    def get_task_method_info(self, task_type: str) -> Dict[str, Any]:
+        """获取任务类型对应的方法信息"""
+        return self.TASK_TYPE_MAPPING.get(task_type, {})
+    
+    def validate_task_params(self, task_type: str, task: Dict[str, Any]) -> Dict[str, Any]:
+        """验证任务参数是否满足要求，返回提取的参数"""
+        mapping = self.get_task_method_info(task_type)
+        if not mapping:
+            raise ValueError(f"未知的任务类型: {task_type}")
+        
+        params = {}
+        
+        # 检查必需字段
+        for field in mapping['required_fields']:
+            value = task.get(field)
+            if value is None:
+                raise ValueError(f"任务类型 {task_type} 缺少必需字段: {field}")
+            params[field] = value
+        
+        # 添加可选字段
+        for field in mapping['optional_fields']:
+            value = task.get(field)
+            if value is not None:
+                params[field] = value
+        
+        return params
+    
+    async def execute_task_by_type(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """根据任务类型执行相应的爬虫方法"""
+        task_type = task.get('task_type')
+        task_id = task.get('id')
+        
+        if not task_type:
+            raise ValueError("任务缺少task_type字段")
+        
+        mapping = self.get_task_method_info(task_type)
+        if not mapping:
+            raise ValueError(f"不支持的任务类型: {task_type}")
+        
+        # 验证参数
+        params = self.validate_task_params(task_type, task)
+        method_name = mapping['method']
+        
+        # 更新任务状态为运行中
+        self.task_repo.update_status(task_id, 'running')
+        
+        try:
+            # 根据任务类型选择对应的爬虫实例和方法
+            if task_type in ['book_sales_crawl', 'shop_books_crawl', 'isbn_analysis']:
+                crawler_instance = self.kongfuzi
+            elif task_type == 'duozhuayu_price':
+                crawler_instance = self.duozhuayu
+            else:
+                raise ValueError(f"任务类型 {task_type} 没有对应的爬虫实例")
+            
+            # 获取方法并执行
+            method = getattr(crawler_instance, method_name)
+            if not method:
+                raise AttributeError(f"爬虫实例没有方法: {method_name}")
+            
+            # 执行方法
+            if task_type == 'book_sales_crawl':
+                result = await method(
+                    params['target_isbn'], 
+                    params['shop_id'],
+                    params.get('days_limit', 30),
+                    params.get('skip_if_recent', True)
+                )
+            elif task_type == 'shop_books_crawl':
+                # 从target_url提取shop_id
+                shop_id = self._extract_shop_id_from_url(params['target_url'])
+                result = await method(shop_id, params.get('max_pages', 50))
+                result = {'books_crawled': result, 'status': 'completed'}
+            elif task_type == 'duozhuayu_price':
+                result = await method(params['target_isbn'], params['shop_id'])
+                result = {'updated': result, 'status': 'completed' if result else 'failed'}
+            elif task_type == 'isbn_analysis':
+                result = await method(
+                    params['target_isbn'],
+                    params.get('days_limit', 30),
+                    params.get('quality_filter', 'high')
+                )
+                result = {'analysis_data': result, 'status': 'completed'}
+            else:
+                raise ValueError(f"未实现的任务类型执行逻辑: {task_type}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"执行任务 {task_id} ({task_type}) 失败: {e}")
+            raise
+    
+    def _extract_shop_id_from_url(self, url: str) -> str:
+        """从URL中提取店铺ID"""
+        import re
+        match = re.search(r'/([^/]+)/', url.rstrip('/'))
+        if match:
+            return match.group(1)
+        return url.split('/')[-2] if '/' in url else url
+    
+    async def execute_incomplete_tasks(self) -> Dict[str, Any]:
+        """执行所有未完成的任务"""
+        pending_tasks = self.task_repo.get_pending_tasks()
+        results = {
+            'total_tasks': len(pending_tasks),
+            'completed': 0,
+            'failed': 0,
+            'skipped': 0,
+            'task_results': []
+        }
+        
+        for task in pending_tasks:
+            task_id = task.get('id')
+            task_type = task.get('task_type')
+            
+            try:
+                result = await self.execute_task_by_type(task)
+                
+                # 根据结果更新任务状态
+                if result.get('status') == 'completed':
+                    self.task_repo.update_status(
+                        task_id, 'completed', 
+                        progress=100.0,
+                        error_message=self._format_success_message(task_type, result)
+                    )
+                    results['completed'] += 1
+                elif result.get('status') == 'skipped':
+                    self.task_repo.update_status(
+                        task_id, 'skipped',
+                        progress=100.0,
+                        error_message=result.get('message', '任务已跳过')
+                    )
+                    results['skipped'] += 1
+                else:
+                    self.task_repo.update_status(
+                        task_id, 'failed',
+                        error_message=result.get('message', '任务执行失败')
+                    )
+                    results['failed'] += 1
+                
+                results['task_results'].append({
+                    'task_id': task_id,
+                    'task_type': task_type,
+                    'status': result.get('status'),
+                    'result': result
+                })
+                
+            except Exception as e:
+                error_msg = str(e)
+                self.task_repo.update_status(task_id, 'failed', error_message=error_msg)
+                results['failed'] += 1
+                results['task_results'].append({
+                    'task_id': task_id,
+                    'task_type': task_type,
+                    'status': 'failed',
+                    'error': error_msg
+                })
+                logger.error(f"执行任务 {task_id} 失败: {e}")
+        
+        return results
+    
+    def _format_success_message(self, task_type: str, result: Dict[str, Any]) -> str:
+        """格式化成功消息"""
+        if task_type == 'book_sales_crawl':
+            return f"保存了 {result.get('records_saved', 0)} 条销售记录"
+        elif task_type == 'shop_books_crawl':
+            return f"爬取了 {result.get('books_crawled', 0)} 本书籍"
+        elif task_type == 'shop_sales_batch':
+            return f"爬取了 {result.get('sales_crawled', 0)} 条销售记录"
+        elif task_type == 'duozhuayu_price':
+            return "价格更新成功" if result.get('updated') else "价格更新失败"
+        elif task_type == 'isbn_analysis':
+            data = result.get('analysis_data', {})
+            return f"分析完成，共 {data.get('total_records', 0)} 条记录"
+        else:
+            return "任务执行成功"
+
+
+class CrawlerManager:
+    """爬虫管理器 - 统一管理所有爬虫（保持向后兼容）"""
+    
+    def __init__(self):
+        self.kongfuzi = KongfuziCrawler()
+        self.duozhuayu = DuozhuayuCrawler()
+        self.task_repo = CrawlTaskRepository()
+        self.executor = CrawlerTaskExecutor()
+    
     async def run_pending_tasks(self):
-        """运行待执行的任务"""
+        """运行待执行的任务（使用新的执行器）"""
+        return await self.executor.execute_incomplete_tasks()
+    
+    async def run_pending_tasks_legacy(self):
+        """运行待执行的任务（保持旧版本兼容性）"""
         tasks = self.task_repo.get_pending_tasks()
         
         for task in tasks:
             try:
-                if task['task_type'] == 'shop_books':
-                    # 爬取店铺书籍
+                # 更新任务状态为运行中
+                self.task_repo.update_status(task['id'], 'running')
+                
+                if task['task_type'] == 'book_sales_crawl':
+                    # 新的书籍级别销售记录爬取任务
+                    isbn = task['target_isbn']
+                    shop_id = task['shop_id']
+                    
+                    if isbn and shop_id:
+                        result = await self.kongfuzi.crawl_single_book_sales(
+                            isbn, shop_id, skip_if_recent=True
+                        )
+                        
+                        if result['status'] == 'completed':
+                            self.task_repo.update_status(
+                                task['id'], 'completed', 
+                                progress=100.0,
+                                error_message=f"保存了 {result['records_saved']} 条记录"
+                            )
+                        elif result['status'] == 'skipped':
+                            self.task_repo.update_status(
+                                task['id'], 'skipped',
+                                progress=100.0,
+                                error_message=result['message']
+                            )
+                        else:
+                            self.task_repo.update_status(
+                                task['id'], 'failed',
+                                error_message=result['message']
+                            )
+                    else:
+                        self.task_repo.update_status(
+                            task['id'], 'failed',
+                            error_message="缺少必要参数: ISBN或shop_id"
+                        )
+                        
+                elif task['task_type'] == 'shop_books_crawl':
+                    # 店铺书籍爬取任务
+                    shop_id = task.get('target_url', '').split('/')[-2] if task.get('target_url') else None
+                    if shop_id:
+                        books_crawled = await self.kongfuzi.crawl_shop_books(shop_id)
+                        self.task_repo.update_status(
+                            task['id'], 'completed',
+                            progress=100.0,
+                            error_message=f"爬取了 {books_crawled} 本书籍"
+                        )
+                    else:
+                        self.task_repo.update_status(
+                            task['id'], 'failed',
+                            error_message="无法解析店铺ID"
+                        )
+                        
+                elif task['task_type'] == 'shop_books':
+                    # 兼容旧版本任务类型
                     await self.kongfuzi.crawl_shop_books(task['target_url'])
+                    self.task_repo.update_status(task['id'], 'completed', progress=100.0)
+                    
                 elif task['task_type'] == 'book_sales':
-                    # 爬取销售记录
+                    # 兼容旧版本任务类型
                     params = json.loads(task['task_params']) if task['task_params'] else {}
                     isbn = params.get('isbn')
                     if isbn:
                         await self.kongfuzi.crawl_book_sales(isbn)
+                        self.task_repo.update_status(task['id'], 'completed', progress=100.0)
+                        
                 elif task['task_type'] == 'duozhuayu_price':
                     # 更新多抓鱼价格
                     params = json.loads(task['task_params']) if task['task_params'] else {}
@@ -1356,6 +1868,8 @@ class CrawlerManager:
                     shop_id = params.get('shop_id')
                     if isbn and shop_id:
                         await self.duozhuayu.update_book_price(isbn, shop_id)
+                        self.task_repo.update_status(task['id'], 'completed', progress=100.0)
+                        
             except Exception as e:
                 logger.error(f"执行任务 {task['id']} 失败: {e}")
                 self.task_repo.update_status(task['id'], 'failed', error_message=str(e))

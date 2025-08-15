@@ -6,14 +6,16 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict
 from datetime import datetime
 import logging
+import json
 
 from ..services.analysis_service import AnalysisService
-from ..services.crawler_service import CrawlerManager, KongfuziCrawler, DuozhuayuCrawler
+from ..services.crawler_service import CrawlerManager, KongfuziCrawler, DuozhuayuCrawler, CrawlerTaskExecutor
 from ..models.repositories import (
     ShopRepository, BookRepository, BookInventoryRepository,
     SalesRepository, CrawlTaskRepository
 )
 from ..models.models import Shop, CrawlTask
+from ..models.database import db
 
 logger = logging.getLogger(__name__)
 
@@ -201,33 +203,38 @@ async def analyze_book_sales(isbn: str, quality: str = Query("high", regex="^(hi
         logger.error(f"分析书籍销售数据失败: {e}")
         
         # 根据不同错误类型返回用户友好的错误信息
-        error_message = "分析失败"
         error_str = str(e)
+        error_type = "UNKNOWN_ERROR"
+        error_message = "分析失败"
         
-        if "Cannot connect to host localhost:9222" in error_str:
+        # 分析错误类型
+        if "LOGIN_REQUIRED:" in error_str:
+            error_type = "LOGIN_REQUIRED"
+            error_message = error_str.split("LOGIN_REQUIRED:")[1].strip()
+        elif "RATE_LIMITED:" in error_str:
+            error_type = "RATE_LIMITED" 
+            error_message = error_str.split("RATE_LIMITED:")[1].strip()
+        elif "Cannot connect to host localhost:9222" in error_str:
+            error_type = "CRAWLER_SERVICE_UNAVAILABLE"
             error_message = "爬虫服务暂时不可用，请稍后再试"
         elif "Chrome" in error_str or "browser" in error_str.lower():
+            error_type = "BROWSER_ERROR"
             error_message = "数据抓取服务暂时不可用"
         elif "timeout" in error_str.lower():
+            error_type = "TIMEOUT"
             error_message = "请求超时，请稍后再试"
         elif "network" in error_str.lower() or "connection" in error_str.lower():
+            error_type = "NETWORK_ERROR"
             error_message = "网络连接异常，请检查网络后重试"
         else:
             error_message = f"分析失败: {error_str}"
         
         return {
             "isbn": isbn,
-            "stats": {
-                "sales_3_days": 0,
-                "sales_7_days": 0,
-                "sales_30_days": 0,
-                "total_records": 0,
-                "latest_sale_date": None,
-                "average_price": None,
-                "price_range": None
-            },
+            "error_type": error_type,
             "message": error_message,
-            "success": False
+            "success": False,
+            "stats": None  # 明确表示没有统计数据，而不是假的0值
         }
 
 # 爬虫控制API（需要认证保护）
@@ -542,6 +549,411 @@ async def delete_shop(shop_id: str):
         logger.error(f"删除店铺失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# 爬虫任务执行API
+task_executor_router = APIRouter(prefix="/task-executor", tags=["task-executor"])
+
+# 创建任务执行器实例
+task_executor = CrawlerTaskExecutor()
+
+@task_executor_router.get("/task-types")
+async def get_supported_task_types():
+    """获取支持的任务类型及其配置"""
+    try:
+        return {
+            "success": True,
+            "data": {
+                "task_types": task_executor.TASK_TYPE_MAPPING,
+                "description": "支持的爬虫任务类型及其参数要求"
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取任务类型失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.post("/execute-incomplete")
+async def execute_incomplete_tasks():
+    """执行所有未完成的爬虫任务"""
+    try:
+        results = await task_executor.execute_incomplete_tasks()
+        
+        return {
+            "success": True,
+            "data": results,
+            "message": f"执行完成：成功 {results['completed']} 个，失败 {results['failed']} 个，跳过 {results['skipped']} 个"
+        }
+    except Exception as e:
+        logger.error(f"执行未完成任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.post("/execute-task/{task_id}")
+async def execute_single_task(task_id: int):
+    """执行指定的单个任务"""
+    try:
+        # 获取任务信息
+        task = task_repo.get_by_id(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+        
+        if task.get('status') not in ['pending', 'failed']:
+            raise HTTPException(status_code=400, detail="任务状态不允许执行")
+        
+        # 执行任务
+        result = await task_executor.execute_task_by_type(task)
+        
+        # 更新任务状态
+        if result.get('status') == 'completed':
+            task_repo.update_status(
+                task_id, 'completed', 
+                progress=100.0,
+                error_message=task_executor._format_success_message(task.get('task_type'), result)
+            )
+        elif result.get('status') == 'skipped':
+            task_repo.update_status(
+                task_id, 'skipped',
+                progress=100.0,
+                error_message=result.get('message', '任务已跳过')
+            )
+        else:
+            task_repo.update_status(
+                task_id, 'failed',
+                error_message=result.get('message', '任务执行失败')
+            )
+        
+        return {
+            "success": True,
+            "data": {
+                "task_id": task_id,
+                "task_type": task.get('task_type'),
+                "status": result.get('status'),
+                "result": result
+            },
+            "message": f"任务 {task_id} 执行完成，状态：{result.get('status')}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"执行任务 {task_id} 失败: {e}")
+        # 更新任务状态为失败
+        try:
+            task_repo.update_status(task_id, 'failed', error_message=str(e))
+        except:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.post("/validate-task")
+async def validate_task_params(task_data: dict):
+    """验证任务参数是否有效"""
+    try:
+        task_type = task_data.get('task_type')
+        if not task_type:
+            raise HTTPException(status_code=400, detail="缺少task_type字段")
+        
+        # 获取任务类型信息
+        mapping = task_executor.get_task_method_info(task_type)
+        if not mapping:
+            raise HTTPException(status_code=400, detail=f"不支持的任务类型: {task_type}")
+        
+        # 验证参数
+        try:
+            params = task_executor.validate_task_params(task_type, task_data)
+            return {
+                "success": True,
+                "data": {
+                    "task_type": task_type,
+                    "mapping": mapping,
+                    "validated_params": params
+                },
+                "message": "任务参数验证通过"
+            }
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"验证任务参数失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.get("/execution-status")
+async def get_execution_status():
+    """获取当前任务执行状态"""
+    try:
+        # 获取待执行任务数量
+        pending_tasks = task_repo.get_pending_tasks()
+        running_tasks = task_repo.get_running_tasks() if hasattr(task_repo, 'get_running_tasks') else []
+        
+        # 获取爬虫服务状态
+        try:
+            rate_limit_status = KongfuziCrawler.get_rate_limit_status()
+        except:
+            rate_limit_status = {"is_rate_limited": False, "error": "无法获取状态"}
+        
+        return {
+            "success": True,
+            "data": {
+                "pending_tasks_count": len(pending_tasks),
+                "running_tasks_count": len(running_tasks),
+                "crawler_rate_limit": rate_limit_status,
+                "task_types_supported": list(task_executor.TASK_TYPE_MAPPING.keys())
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取执行状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.get("/tasks/list")
+async def list_crawler_tasks(
+    page: int = 1,
+    page_size: int = 20,
+    status: str = None,
+    task_type: str = None
+):
+    """分页查询爬虫任务列表"""
+    try:
+        # 构建查询条件
+        conditions = []
+        params = []
+        
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        
+        if task_type:
+            conditions.append("task_type = ?")
+            params.append(task_type)
+        
+        # 构建查询SQL
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
+        
+        # 计算偏移量
+        offset = (page - 1) * page_size
+        
+        # 查询总数
+        count_sql = f"SELECT COUNT(*) FROM crawl_tasks {where_clause}"
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(count_sql, params)
+            total_count = cursor.fetchone()[0]
+            
+            # 查询数据
+            data_sql = f"""
+                SELECT id, task_name, task_type, status, progress_percentage, 
+                       created_at, start_time, task_params
+                FROM crawl_tasks {where_clause}
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """
+            cursor.execute(data_sql, params + [page_size, offset])
+            rows = cursor.fetchall()
+            
+            tasks = []
+            for row in rows:
+                # 解析task_params JSON或从其他字段构造参数
+                params = json.loads(row[7]) if row[7] else {}
+                
+                # 如果task_params为空，从数据库其他字段构造参数显示
+                if not params:
+                    # 获取额外的字段信息
+                    cursor.execute("""
+                        SELECT target_isbn, shop_id, target_url, book_title 
+                        FROM crawl_tasks WHERE id = ?
+                    """, (row[0],))
+                    extra_row = cursor.fetchone()
+                    
+                    if extra_row:
+                        target_isbn, shop_id, target_url, book_title = extra_row
+                        task_type = row[2]
+                        
+                        if task_type == 'book_sales_crawl':
+                            params = {
+                                'target_isbn': target_isbn,
+                                'shop_id': shop_id,
+                                'book_title': book_title
+                            }
+                        elif task_type == 'shop_books_crawl':
+                            params = {
+                                'target_url': target_url,
+                                'shop_id': shop_id
+                            }
+                        elif task_type == 'duozhuayu_price':
+                            params = {
+                                'target_isbn': target_isbn,
+                                'shop_id': shop_id
+                            }
+                        elif task_type == 'isbn_analysis':
+                            params = {
+                                'target_isbn': target_isbn
+                            }
+                
+                task = {
+                    "id": row[0],
+                    "task_name": row[1], 
+                    "task_type": row[2],
+                    "status": row[3],
+                    "progress_percentage": row[4] if row[4] is not None else 0,
+                    "created_at": row[5],
+                    "updated_at": row[6],  # This is actually start_time now
+                    "params": params
+                }
+                tasks.append(task)
+            
+            # 计算分页信息
+            total_pages = (total_count + page_size - 1) // page_size
+            
+            return {
+                "success": True,
+                "data": {
+                    "tasks": tasks,
+                    "pagination": {
+                        "current_page": page,
+                        "page_size": page_size,
+                        "total_count": total_count,
+                        "total_pages": total_pages
+                    }
+                }
+            }
+            
+    except Exception as e:
+        logger.error(f"获取任务列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.post("/tasks/delete-batch")
+async def delete_batch_tasks(request: dict):
+    """批量删除任务"""
+    try:
+        task_ids = request.get("task_ids", [])
+        if not task_ids:
+            raise HTTPException(status_code=400, detail="未选择任务")
+            
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 批量删除任务
+            placeholders = ",".join(["?"] * len(task_ids))
+            cursor.execute(f"DELETE FROM crawl_tasks WHERE id IN ({placeholders})", task_ids)
+            affected_rows = cursor.rowcount
+            
+            conn.commit()
+            
+        return {
+            "success": True,
+            "message": f"成功删除 {affected_rows} 个任务"
+        }
+        
+    except Exception as e:
+        logger.error(f"删除任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.post("/tasks/execute-batch")
+async def execute_batch_tasks(request: dict):
+    """批量执行选中任务"""
+    try:
+        task_ids = request.get("task_ids", [])
+        if not task_ids:
+            raise HTTPException(status_code=400, detail="未选择任务")
+        
+        # 获取任务信息
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            placeholders = ",".join(["?"] * len(task_ids))
+            cursor.execute(f"""
+                SELECT id, task_type, task_params, target_isbn, shop_id, target_url, book_title
+                FROM crawl_tasks 
+                WHERE id IN ({placeholders}) AND status = 'pending'
+            """, task_ids)
+            tasks = cursor.fetchall()
+        
+        if not tasks:
+            raise HTTPException(status_code=400, detail="没有可执行的待处理任务")
+        
+        # 执行任务
+        success_count = 0
+        error_count = 0
+        
+        for row in tasks:
+            task_id, task_type, params_json, target_isbn, shop_id, target_url, book_title = row
+            try:
+                # 首先尝试从task_params JSON中获取参数
+                params = json.loads(params_json) if params_json else {}
+                
+                # 如果JSON参数为空，则从数据库列中构造参数
+                if not params:
+                    if task_type == 'book_sales_crawl':
+                        params = {
+                            'target_isbn': target_isbn,
+                            'shop_id': shop_id or 1,  # 默认shop_id为1
+                            'book_title': book_title
+                        }
+                    elif task_type == 'shop_books_crawl':
+                        params = {
+                            'target_url': target_url,
+                            'shop_id': shop_id or 1
+                        }
+                    elif task_type == 'duozhuayu_price':
+                        params = {
+                            'target_isbn': target_isbn,
+                            'shop_id': shop_id or 1
+                        }
+                    elif task_type == 'isbn_analysis':
+                        params = {
+                            'target_isbn': target_isbn
+                        }
+                
+                # 构造任务对象
+                task_obj = {
+                    'id': task_id,
+                    'task_type': task_type,
+                    **params  # 解包参数
+                }
+                result = await task_executor.execute_task_by_type(task_obj)
+                
+                # 执行成功后删除任务（因为需求是成功后物理删除）
+                with db.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM crawl_tasks WHERE id = ?", (task_id,))
+                    conn.commit()
+                
+                success_count += 1
+                logger.info(f"任务 {task_id} 执行成功并已删除")
+            except Exception as e:
+                error_count += 1
+                logger.error(f"执行任务 {task_id} 失败: {str(e)}")
+        
+        message = f"批量执行完成: 成功 {success_count} 个"
+        if error_count > 0:
+            message += f", 失败 {error_count} 个"
+            
+        return {"success": True, "message": message}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"批量执行失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.get("/task-types/list")
+async def get_task_types_list():
+    """获取所有任务类型列表"""
+    try:        
+        task_types = []
+        
+        for task_type, config in task_executor.TASK_TYPE_MAPPING.items():
+            task_types.append({
+                "value": task_type,
+                "label": config["description"],
+                "required_fields": config["required_fields"],
+                "optional_fields": config["optional_fields"]
+            })
+        
+        return {"success": True, "data": task_types}
+        
+    except Exception as e:
+        logger.error(f"获取任务类型失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @sales_data_router.post("/shop/{shop_id}/crawl-sales")
 async def crawl_shop_sales(shop_id: str):
     """爬取单个店铺的销售数据"""
@@ -745,4 +1157,129 @@ async def get_books_crawl_status(
         }
     except Exception as e:
         logger.error(f"获取书籍爬取状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 新增批量操作API
+from pydantic import BaseModel
+from typing import List
+
+class BatchShopRequest(BaseModel):
+    shop_ids: List[str]  # 店铺ID列表
+
+@sales_data_router.post("/batch-crawl-sales")
+async def batch_crawl_shops_sales(request: BatchShopRequest):
+    """批量爬取指定店铺的销售数据（书籍级别任务）"""
+    try:
+        if not request.shop_ids:
+            raise HTTPException(status_code=400, detail="店铺ID列表不能为空")
+        
+        total_tasks_created = 0
+        shop_task_summary = []
+        
+        for shop_id in request.shop_ids:
+            # 获取店铺信息
+            shop = shop_repo.get_by_shop_id(shop_id)
+            if not shop:
+                shop_task_summary.append({
+                    "shop_id": shop_id,
+                    "status": "error",
+                    "message": f"店铺 {shop_id} 不存在",
+                    "tasks_created": 0
+                })
+                continue
+            
+            # 获取店铺的书籍列表
+            from ..models.database import db
+            books = db.execute_query("""
+                SELECT DISTINCT bi.isbn, b.title
+                FROM book_inventory bi
+                LEFT JOIN books b ON bi.isbn = b.isbn
+                WHERE bi.shop_id = ? AND bi.isbn IS NOT NULL
+                ORDER BY bi.crawled_at DESC
+            """, (shop['id'],))
+            
+            if not books:
+                shop_task_summary.append({
+                    "shop_id": shop_id,
+                    "status": "warning", 
+                    "message": f"店铺 {shop_id} 没有书籍库存记录",
+                    "tasks_created": 0
+                })
+                continue
+            
+            # 为该店铺的每本书创建销售记录爬取任务
+            tasks_created = task_repo.create_book_sales_tasks(shop['id'], books)
+            total_tasks_created += tasks_created
+            
+            shop_task_summary.append({
+                "shop_id": shop_id,
+                "shop_name": shop.get('shop_name', f"店铺_{shop_id}"),
+                "status": "success",
+                "message": f"已创建 {tasks_created} 个书籍销售爬取任务",
+                "tasks_created": tasks_created,
+                "total_books": len(books)
+            })
+        
+        return {
+            "success": True,
+            "message": f"批量操作完成，总共创建了 {total_tasks_created} 个书籍级别的销售爬取任务",
+            "total_tasks_created": total_tasks_created,
+            "shop_details": shop_task_summary
+        }
+        
+    except Exception as e:
+        logger.error(f"批量创建销售爬取任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.post("/batch-update-books")  
+async def batch_update_shops_books(request: BatchShopRequest):
+    """批量更新指定店铺的书籍数据"""
+    try:
+        if not request.shop_ids:
+            raise HTTPException(status_code=400, detail="店铺ID列表不能为空")
+        
+        task_ids = []
+        shop_task_summary = []
+        
+        for shop_id in request.shop_ids:
+            # 检查店铺是否存在
+            shop = shop_repo.get_by_shop_id(shop_id)
+            if not shop:
+                shop_task_summary.append({
+                    "shop_id": shop_id,
+                    "status": "error",
+                    "message": f"店铺 {shop_id} 不存在",
+                    "task_id": None
+                })
+                continue
+            
+            # 创建店铺书籍更新任务
+            task = CrawlTask(
+                task_name=f"更新店铺 {shop_id} 的书籍数据",
+                task_type="shop_books_crawl",
+                target_platform="kongfuzi",
+                target_url=f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/",
+                shop_id=shop['id']
+            )
+            task_id = task_repo.create(task)
+            task_ids.append(task_id)
+            
+            shop_task_summary.append({
+                "shop_id": shop_id,
+                "shop_name": shop.get('shop_name', f"店铺_{shop_id}"),
+                "status": "success",
+                "message": f"已创建书籍更新任务",
+                "task_id": task_id
+            })
+        
+        return {
+            "success": True,
+            "message": f"批量操作完成，总共创建了 {len(task_ids)} 个店铺书籍更新任务",
+            "total_tasks_created": len(task_ids),
+            "task_ids": task_ids,
+            "shop_details": shop_task_summary
+        }
+        
+    except Exception as e:
+        logger.error(f"批量创建书籍更新任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

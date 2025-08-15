@@ -220,6 +220,51 @@
         input[type="checkbox"] {
             margin: 0;
         }
+
+        select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+            margin-left: 8px;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .pagination button {
+            padding: 8px 12px;
+            margin: 2px;
+            min-width: 40px;
+        }
+
+        .pagination button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .pagination button:disabled {
+            background: #e9ecef;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .pagination span {
+            color: #666;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -274,15 +319,45 @@
         </div>
         
         <div class="section">
-            <h2>任务状态</h2>
-            <div>
-                <button onclick="getTaskStatus('pending')">待执行任务</button>
-                <button onclick="getTaskStatus('running')">运行中任务</button>
-                <button onclick="getTaskStatus()">所有任务</button>
-                <button onclick="runPendingTasks()">执行待处理任务</button>
-                <button onclick="deleteSelectedTasks()">删除选中任务</button>
+            <h2>任务列表管理</h2>
+            
+            <!-- 筛选条件 -->
+            <div class="filter-section" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                    <div>
+                        <label>状态筛选:</label>
+                        <select id="statusFilter" onchange="loadTaskList()">
+                            <option value="">全部状态</option>
+                            <option value="pending">待执行</option>
+                            <option value="running">运行中</option>
+                            <option value="failed">失败</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>任务类型:</label>
+                        <select id="taskTypeFilter" onchange="loadTaskList()">
+                            <option value="">全部类型</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button onclick="loadTaskList()">刷新列表</button>
+                        <button onclick="loadTaskTypes()">更新任务类型</button>
+                    </div>
+                </div>
             </div>
+
+            <!-- 批量操作按钮 -->
+            <div class="batch-operations" style="margin-bottom: 15px;">
+                <button onclick="executeSelectedTasks()">执行选中任务</button>
+                <button onclick="deleteSelectedTasks()">删除选中任务</button>
+                <button onclick="runPendingTasks()">执行所有待处理任务</button>
+            </div>
+            
+            <!-- 任务列表 -->
             <div id="taskList" style="margin-top: 15px;"></div>
+            
+            <!-- 分页控件 -->
+            <div id="pagination" style="margin-top: 20px; text-align: center;"></div>
         </div>
         
         <div class="section">
@@ -292,6 +367,11 @@
     </div>
     
     <script>
+        // 全局变量
+        let currentPage = 1;
+        const pageSize = 20;
+        let totalPages = 1;
+
         function log(message, isError = false) {
             const logDiv = document.getElementById('log');
             const time = new Date().toLocaleTimeString();
@@ -348,33 +428,101 @@
             }
         }
         
-        async function getTaskStatus(status) {
+        // 加载任务列表 (新的分页版本)
+        async function loadTaskList(page = currentPage) {
             try {
-                const url = status ? `/crawler/tasks/status?status=${status}` : '/crawler/tasks/status';
+                const status = document.getElementById('statusFilter').value;
+                const taskType = document.getElementById('taskTypeFilter').value;
+                
+                let url = `/task-executor/tasks/list?page=${page}&page_size=${pageSize}`;
+                if (status) url += `&status=${status}`;
+                if (taskType) url += `&task_type=${taskType}`;
+                
                 const response = await fetch(url);
                 const data = await response.json();
-                displayTasks(data.data);
+                
+                if (data.success) {
+                    displayTasks(data.data.tasks);
+                    displayPagination(data.data.pagination);
+                    currentPage = data.data.pagination.current_page;
+                    totalPages = data.data.pagination.total_pages;
+                } else {
+                    log('获取任务列表失败: ' + data.message, true);
+                }
             } catch (error) {
-                log('获取任务状态失败: ' + error.message, true);
-            }
-        }
-        
-        async function runPendingTasks() {
-            try {
-                const response = await fetch('/crawler/tasks/run-pending', {method: 'POST'});
-                const data = await response.json();
-                log(data.message);
-                // 刷新封控状态
-                refreshRateLimitStatus();
-            } catch (error) {
-                log('执行任务失败: ' + error.message, true);
-                // 请求失败也刷新一下状态
-                refreshRateLimitStatus();
+                log('获取任务列表失败: ' + error.message, true);
             }
         }
 
+        // 加载任务类型列表
+        async function loadTaskTypes() {
+            try {
+                const response = await fetch('/task-executor/task-types/list');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.getElementById('taskTypeFilter');
+                    // 保持当前选中的值
+                    const currentValue = select.value;
+                    
+                    // 清空并重新填充选项
+                    select.innerHTML = '<option value="">全部类型</option>';
+                    data.data.forEach(type => {
+                        const option = document.createElement('option');
+                        option.value = type.value;
+                        option.textContent = type.label;
+                        select.appendChild(option);
+                    });
+                    
+                    // 恢复选中的值
+                    select.value = currentValue;
+                    log('任务类型列表已更新');
+                } else {
+                    log('获取任务类型失败: ' + data.message, true);
+                }
+            } catch (error) {
+                log('获取任务类型失败: ' + error.message, true);
+            }
+        }
+
+        // 执行选中任务
+        async function executeSelectedTasks() {
+            const selectedIds = Array.from(document.querySelectorAll('input[name="task_id"]:checked'))
+                .map(cb => parseInt(cb.value));
+            
+            if (selectedIds.length === 0) {
+                log('请选择要执行的任务', true);
+                return;
+            }
+
+            if (!confirm(`确定要执行选中的 ${selectedIds.length} 个任务吗？`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/task-executor/tasks/execute-batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_ids: selectedIds })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(data.message);
+                    loadTaskList(); // 刷新列表
+                } else {
+                    log('批量执行失败: ' + data.message, true);
+                }
+            } catch (error) {
+                log('批量执行失败: ' + error.message, true);
+            }
+        }
+
+        // 删除选中任务
         async function deleteSelectedTasks() {
-            const selectedIds = Array.from(document.querySelectorAll('input[name="task_id"]:checked')).map(cb => cb.value);
+            const selectedIds = Array.from(document.querySelectorAll('input[name="task_id"]:checked'))
+                .map(cb => parseInt(cb.value));
+            
             if (selectedIds.length === 0) {
                 log('请选择要删除的任务', true);
                 return;
@@ -385,23 +533,36 @@
             }
 
             try {
-                const response = await fetch('/crawler/tasks/delete', {
+                const response = await fetch('/task-executor/tasks/delete-batch', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ task_ids: selectedIds })
                 });
                 const data = await response.json();
+                
                 if (data.success) {
                     log(data.message);
-                    getTaskStatus(); // Refresh the list
+                    loadTaskList(); // 刷新列表
                 } else {
-                    log('删除任务失败: ' + data.detail, true);
+                    log('删除任务失败: ' + data.message, true);
                 }
             } catch (error) {
                 log('删除任务失败: ' + error.message, true);
             }
         }
         
+        async function runPendingTasks() {
+            try {
+                const response = await fetch('/task-executor/execute-incomplete', {method: 'POST'});
+                const data = await response.json();
+                log(data.message);
+                loadTaskList(); // 刷新列表
+            } catch (error) {
+                log('执行任务失败: ' + error.message, true);
+            }
+        }
+
+        // 显示任务列表
         function displayTasks(tasks) {
             const taskList = document.getElementById('taskList');
             if (tasks.length === 0) {
@@ -409,23 +570,159 @@
                 return;
             }
             
-            let html = '<table style="width: 100%; border-collapse: collapse;">';
-            html += '<tr><th><input type="checkbox" onchange="toggleSelectAll(this)"></th><th>ID</th><th>任务名称</th><th>类型</th><th>状态</th><th>进度</th><th>创建时间</th></tr>';
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <th><input type="checkbox" onchange="toggleSelectAll(this)"></th>
+                        <th>ID</th>
+                        <th>任务名称</th>
+                        <th>类型</th>
+                        <th>关键参数</th>
+                        <th>状态</th>
+                        <th>进度</th>
+                        <th>创建时间</th>
+                        <th>更新时间</th>
+                    </tr>
+            `;
             
             tasks.forEach(task => {
-                html += `<tr>
-                    <td><input type="checkbox" name="task_id" value="${task.id}"></td>
-                    <td>${task.id}</td>
-                    <td>${task.task_name}</td>
-                    <td>${task.task_type}</td>
-                    <td>${task.status}</td>
-                    <td>${task.progress_percentage}%</td>
-                    <td>${new Date(task.created_at).toLocaleString()}</td>
-                </tr>`;
+                const statusClass = getStatusClass(task.status);
+                const createTime = new Date(task.created_at).toLocaleString();
+                const updateTime = task.updated_at ? new Date(task.updated_at).toLocaleString() : '-';
+                
+                // 格式化关键参数显示
+                const keyParams = formatTaskParams(task.task_type, task.params);
+                
+                html += `
+                    <tr>
+                        <td><input type="checkbox" name="task_id" value="${task.id}"></td>
+                        <td>${task.id}</td>
+                        <td style="max-width: 200px; word-break: break-word;">${task.task_name}</td>
+                        <td>${task.task_type}</td>
+                        <td style="max-width: 150px; word-break: break-word; font-size: 12px;">${keyParams}</td>
+                        <td><span class="${statusClass}">${getStatusText(task.status)}</span></td>
+                        <td>${task.progress_percentage}%</td>
+                        <td>${createTime}</td>
+                        <td>${updateTime}</td>
+                    </tr>
+                `;
             });
             
             html += '</table>';
             taskList.innerHTML = html;
+        }
+
+        // 显示分页控件
+        function displayPagination(pagination) {
+            const paginationDiv = document.getElementById('pagination');
+            if (pagination.total_pages <= 1) {
+                paginationDiv.innerHTML = '';
+                return;
+            }
+            
+            let html = '<div class="pagination">';
+            
+            // 上一页按钮
+            const prevDisabled = pagination.current_page === 1 ? 'disabled' : '';
+            html += `<button onclick="changePage(${pagination.current_page - 1})" ${prevDisabled}>‹ 上一页</button>`;
+            
+            // 页码按钮
+            const startPage = Math.max(1, pagination.current_page - 2);
+            const endPage = Math.min(pagination.total_pages, pagination.current_page + 2);
+            
+            if (startPage > 1) {
+                html += '<button onclick="changePage(1)">1</button>';
+                if (startPage > 2) html += '<span>...</span>';
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const activeClass = i === pagination.current_page ? 'active' : '';
+                html += `<button onclick="changePage(${i})" class="${activeClass}">${i}</button>`;
+            }
+            
+            if (endPage < pagination.total_pages) {
+                if (endPage < pagination.total_pages - 1) html += '<span>...</span>';
+                html += `<button onclick="changePage(${pagination.total_pages})">${pagination.total_pages}</button>`;
+            }
+            
+            // 下一页按钮
+            const nextDisabled = pagination.current_page === pagination.total_pages ? 'disabled' : '';
+            html += `<button onclick="changePage(${pagination.current_page + 1})" ${nextDisabled}>下一页 ›</button>`;
+            
+            // 统计信息
+            html += `<span style="margin-left: 20px;">共 ${pagination.total_count} 条记录，第 ${pagination.current_page} / ${pagination.total_pages} 页</span>`;
+            
+            html += '</div>';
+            paginationDiv.innerHTML = html;
+        }
+
+        // 页面跳转
+        function changePage(page) {
+            if (page < 1 || page > totalPages) return;
+            loadTaskList(page);
+        }
+
+        // 获取状态样式类
+        function getStatusClass(status) {
+            switch (status) {
+                case 'completed': return 'success';
+                case 'failed': return 'error';
+                case 'running': return 'success';
+                case 'pending': return '';
+                default: return '';
+            }
+        }
+
+        // 获取状态显示文本
+        function getStatusText(status) {
+            switch (status) {
+                case 'pending': return '待执行';
+                case 'running': return '运行中';
+                case 'completed': return '已完成';
+                case 'failed': return '失败';
+                case 'skipped': return '已跳过';
+                default: return status;
+            }
+        }
+
+        // 格式化任务关键参数显示
+        function formatTaskParams(taskType, params) {
+            if (!params || Object.keys(params).length === 0) {
+                return '-';
+            }
+            
+            let result = [];
+            
+            switch (taskType) {
+                case 'book_sales_crawl':
+                    if (params.target_isbn) result.push(`ISBN: ${params.target_isbn}`);
+                    if (params.shop_id) result.push(`店铺: ${params.shop_id}`);
+                    if (params.days_limit) result.push(`天数: ${params.days_limit}`);
+                    break;
+                case 'shop_books_crawl':
+                    if (params.target_url) result.push(`URL: ${params.target_url.substring(0, 30)}...`);
+                    if (params.max_pages) result.push(`页数: ${params.max_pages}`);
+                    break;
+                case 'duozhuayu_price':
+                    if (params.target_isbn) result.push(`ISBN: ${params.target_isbn}`);
+                    if (params.shop_id) result.push(`店铺: ${params.shop_id}`);
+                    break;
+                case 'isbn_analysis':
+                    if (params.target_isbn) result.push(`ISBN: ${params.target_isbn}`);
+                    if (params.quality_filter) result.push(`品相: ${params.quality_filter}`);
+                    break;
+                default:
+                    // 通用参数显示
+                    for (const [key, value] of Object.entries(params)) {
+                        if (value && typeof value === 'string' && value.length > 20) {
+                            result.push(`${key}: ${value.substring(0, 15)}...`);
+                        } else if (value) {
+                            result.push(`${key}: ${value}`);
+                        }
+                    }
+            }
+            
+            return result.length > 0 ? result.join(', ') : '-';
         }
 
         function toggleSelectAll(source) {
@@ -435,9 +732,10 @@
             }
         }
         
-        // 页面加载时获取任务状态
+        // 页面加载时初始化
         window.onload = () => {
-            getTaskStatus();
+            loadTaskTypes(); // 加载任务类型下拉框
+            loadTaskList();  // 加载任务列表
         };
     </script>
 </body>

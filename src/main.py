@@ -4,13 +4,17 @@
 """
 import logging
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import uvicorn
 
-from .routes.api_routes import api_router, crawler_router, sales_data_router
+# 性能分析工具
+from fastapi_profiler import PyInstrumentProfilerMiddleware
+
+from .routes.api_routes import api_router, crawler_router, sales_data_router, task_executor_router
 from .models.database import db
 
 # 配置日志
@@ -20,12 +24,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+class CSPMiddleware(BaseHTTPMiddleware):
+    """CSP中间件，允许Chart.js正常运行"""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # 设置CSP策略，允许Chart.js使用unsafe-eval
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "connect-src 'self'"
+        )
+        return response
+
 # 创建FastAPI应用
 app = FastAPI(
     title="卖书网站价差数据分析系统",
     description="孔夫子和多抓鱼价差分析系统",
     version="2.0.0"
 )
+
+# 添加CSP中间件
+app.add_middleware(CSPMiddleware)
 
 # 配置CORS
 app.add_middleware(
@@ -36,10 +58,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 添加性能分析中间件 (仅在开发环境启用)
+import os
+if os.getenv("ENABLE_PROFILER", "false").lower() == "true":
+    app.add_middleware(
+        PyInstrumentProfilerMiddleware,
+        profiler_output_type="html",
+        is_print_each_request=True,
+    )
+
 # 注册路由
 app.include_router(api_router)
 app.include_router(crawler_router)
 app.include_router(sales_data_router)
+app.include_router(task_executor_router)
 
 # 静态文件目录
 static_dir = Path(__file__).parent / "static"
