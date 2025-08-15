@@ -71,7 +71,8 @@ class BookInventory:
 @dataclass
 class SalesRecord:
     """销售记录模型"""
-    isbn: str   # 书籍ISBN (业务外键)
+    item_id: str  # 商品ID，作为主键
+    isbn: str     # 书籍ISBN (业务外键)
     shop_id: int
     sale_price: float
     sale_date: datetime

@@ -188,30 +188,31 @@ class BookInventoryRepository:
 class SalesRepository:
     """销售记录数据仓库"""
     
-    def create(self, sale: SalesRecord) -> int:
-        """创建销售记录"""
-        query = """
-            INSERT INTO sales_records 
-            (isbn, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+    def create(self, sale: SalesRecord) -> str:
+        """创建销售记录（使用item_id作为主键自动去重）"""
+        insert_query = """
+            INSERT OR IGNORE INTO sales_records 
+            (item_id, isbn, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
-        params = (sale.isbn, sale.shop_id, sale.sale_price, sale.original_price,
-                 sale.sale_date, sale.sale_platform, sale.book_condition)
+        insert_params = (sale.item_id, sale.isbn, sale.shop_id, sale.sale_price, sale.original_price,
+                        sale.sale_date, sale.sale_platform, sale.book_condition)
         
         with db.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(query, params)
-            return cursor.lastrowid
+            cursor.execute(insert_query, insert_params)
+            # 返回item_id作为标识符
+            return sale.item_id
     
     def batch_create(self, sales: List[SalesRecord]) -> int:
         """批量创建销售记录"""
         query = """
-            INSERT INTO sales_records 
-            (isbn, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO sales_records 
+            (item_id, isbn, shop_id, sale_price, original_price, sale_date, sale_platform, book_condition)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
         params_list = [
-            (s.isbn, s.shop_id, s.sale_price, s.original_price,
+            (s.item_id, s.isbn, s.shop_id, s.sale_price, s.original_price,
              s.sale_date, s.sale_platform, s.book_condition)
             for s in sales
         ]
@@ -236,15 +237,34 @@ class SalesRepository:
                    COUNT(*) as sale_count,
                    AVG(sr.sale_price) as avg_price,
                    MIN(sr.sale_price) as min_price,
-                   MAX(sr.sale_price) as max_price
+                   MAX(sr.sale_price) as max_price,
+                   COALESCE(bi.duozhuayu_second_hand_price, bi.duozhuayu_new_price) as cost_price
             FROM sales_records sr
             JOIN books b ON sr.isbn = b.isbn
+            LEFT JOIN book_inventory bi ON sr.isbn = bi.isbn
             WHERE sr.sale_date >= datetime('now', '-{} days')
             GROUP BY sr.isbn
             ORDER BY sale_count DESC
             LIMIT ?
         """.format(days)
         return db.execute_query(query, (limit,))
+    
+    def get_hot_sales_by_isbn(self, isbn: str) -> List[Dict]:
+        """获取指定ISBN的销售统计"""
+        query = """
+            SELECT b.title, b.isbn, b.author, 
+                   COUNT(*) as sale_count,
+                   AVG(sr.sale_price) as avg_price,
+                   MIN(sr.sale_price) as min_price,
+                   MAX(sr.sale_price) as max_price,
+                   COALESCE(bi.duozhuayu_second_hand_price, bi.duozhuayu_new_price) as cost_price
+            FROM sales_records sr
+            JOIN books b ON sr.isbn = b.isbn
+            LEFT JOIN book_inventory bi ON sr.isbn = bi.isbn
+            WHERE sr.isbn = ?
+            GROUP BY sr.isbn
+        """
+        return db.execute_query(query, (isbn,))
     
     def get_price_statistics(self, isbn: str, days: int = 30) -> Dict:
         """获取价格统计信息"""

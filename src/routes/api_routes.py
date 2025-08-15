@@ -126,9 +126,46 @@ async def get_price_comparison(isbn: str):
         logger.error(f"获取价格对比失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.get("/isbn/{isbn}/analysis")
+async def get_isbn_analysis(isbn: str, quality: str = Query("九品以上", regex="^(九品以上|全部品相)$")):
+    """获取ISBN分析数据（GET方式，用于前端调用）
+    
+    Args:
+        isbn: ISBN号码
+        quality: 品相筛选 - "九品以上" 或 "全部品相"
+    """
+    try:
+        # 验证ISBN格式
+        isbn = isbn.strip()
+        if not isbn or len(isbn) < 10:
+            raise HTTPException(status_code=400, detail="请输入有效的ISBN号码")
+        
+        # 获取销售记录数据进行分析
+        hot_sales = sales_repo.get_hot_sales_by_isbn(isbn)
+        price_distribution = analysis_service.calculate_price_distribution(isbn)
+        sales_trend = analysis_service.get_sales_trend(30)  # 获取30天趋势
+        
+        return {
+            "success": True,
+            "data": {
+                "hot_sales": hot_sales,
+                "price_distribution": price_distribution,
+                "sales_trend": sales_trend,
+                "quality_filter": quality
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取ISBN分析数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.post("/book/analyze")
-async def analyze_book_sales(isbn: str):
-    """实时分析单本书的销售数据（ISBN搜索）"""
+async def analyze_book_sales(isbn: str, quality: str = Query("high", regex="^(high|all)$")):
+    """实时分析单本书的销售数据（ISBN搜索）
+    
+    Args:
+        isbn: ISBN号码
+        quality: 品相过滤 - "high" (九品以上) 或 "all" (全部品相)
+    """
     try:
         # 验证ISBN格式
         isbn = isbn.strip()
@@ -137,19 +174,20 @@ async def analyze_book_sales(isbn: str):
         
         # 使用爬虫实时获取销售数据
         crawler = KongfuziCrawler()
-        stats = await crawler.analyze_book_sales(isbn, days_limit=30)
+        stats = await crawler.analyze_book_sales(isbn, days_limit=30, quality_filter=quality)
         
         # 构建响应
         response = {
             "isbn": isbn,
             "stats": {
-                "sales_1_day": stats.get("sales_1_day", 0),
+                "sales_3_days": stats.get("sales_3_days", 0),
                 "sales_7_days": stats.get("sales_7_days", 0),
                 "sales_30_days": stats.get("sales_30_days", 0),
                 "total_records": stats.get("total_records", 0),
                 "latest_sale_date": stats.get("latest_sale_date"),
                 "average_price": stats.get("average_price"),
                 "price_range": stats.get("price_range"),
+                "sales_records": stats.get("sales_records", []),
             },
             "message": "分析完成",
             "success": True
@@ -180,7 +218,7 @@ async def analyze_book_sales(isbn: str):
         return {
             "isbn": isbn,
             "stats": {
-                "sales_1_day": 0,
+                "sales_3_days": 0,
                 "sales_7_days": 0,
                 "sales_30_days": 0,
                 "total_records": 0,

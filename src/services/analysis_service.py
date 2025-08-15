@@ -163,7 +163,7 @@ class AnalysisService:
         query = """
             SELECT b.category, 
                    COUNT(DISTINCT sr.isbn) as book_count,
-                   COUNT(sr.id) as sales_count,
+                   COUNT(sr.item_id) as sales_count,
                    SUM(sr.sale_price) as total_revenue,
                    AVG(sr.sale_price) as avg_price
             FROM sales_records sr
@@ -188,7 +188,7 @@ class AnalysisService:
         query = """
             SELECT s.shop_name, s.shop_id,
                    COUNT(DISTINCT bi.isbn) as book_count,
-                   COUNT(sr.id) as sales_count,
+                   COUNT(sr.item_id) as sales_count,
                    COALESCE(SUM(sr.sale_price), 0) as total_revenue,
                    COALESCE(AVG(sr.sale_price), 0) as avg_price
             FROM shops s
@@ -362,3 +362,53 @@ class AnalysisService:
         }
         
         return dashboard_data
+    
+    def calculate_price_distribution(self, isbn: str) -> Dict:
+        """计算价格分布（动态5个区间）"""
+        from ..models.database import db
+        
+        # 获取该ISBN的所有销售记录价格
+        query = """
+            SELECT sale_price FROM sales_records 
+            WHERE isbn = ? AND sale_price > 0
+            ORDER BY sale_price
+        """
+        results = db.execute_query(query, (isbn,))
+        
+        if not results or len(results) < 2:
+            return {"buckets": [], "counts": []}
+        
+        prices = [r['sale_price'] for r in results]
+        min_price = min(prices)
+        max_price = max(prices)
+        
+        # 动态计算5个价格区间
+        price_range = max_price - min_price
+        if price_range == 0:  # 所有价格相同
+            return {
+                "buckets": [f"{min_price:.0f}"],
+                "counts": [len(prices)]
+            }
+        
+        bucket_size = price_range / 5
+        buckets = []
+        counts = [0] * 5
+        
+        # 创建区间标签
+        for i in range(5):
+            start = min_price + i * bucket_size
+            end = min_price + (i + 1) * bucket_size
+            if i == 4:  # 最后一个区间包含最大值
+                buckets.append(f"{start:.0f}-{end:.0f}")
+            else:
+                buckets.append(f"{start:.0f}-{end:.0f}")
+        
+        # 分配价格到区间
+        for price in prices:
+            bucket_idx = min(int((price - min_price) / bucket_size), 4)
+            counts[bucket_idx] += 1
+        
+        return {
+            "buckets": buckets,
+            "counts": counts
+        }

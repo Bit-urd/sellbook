@@ -5,6 +5,7 @@
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import aiohttp
@@ -79,16 +80,27 @@ class KongfuziCrawler:
             await self.playwright.stop()
             self.connected = False
     
-    async def analyze_book_sales(self, isbn: str, days_limit: int = 30) -> Dict:
-        """分析单本书的销售记录（用于实时ISBN搜索）"""
+    async def analyze_book_sales(self, isbn: str, days_limit: int = 30, quality_filter: str = "high") -> Dict:
+        """分析单本书的销售记录（用于实时ISBN搜索）
+        
+        Args:
+            isbn: 书籍ISBN号
+            days_limit: 天数限制
+            quality_filter: 品相过滤 - "high" (九品以上) 或 "all" (全部品相)
+        """
         if not await self.connect_browser():
             raise Exception("无法连接到Chrome浏览器")
         
         cutoff_date = datetime.now() - timedelta(days=days_limit)
         all_sales = []
         
-        # 构建搜索URL
-        search_url = f"https://search.kongfz.com/product/?keyword={isbn}&dataType=1&sortType=10&page=1&actionPath=sortType,quality&quality=90~&quaSelect=2"
+        # 根据品相过滤构建搜索URL
+        if quality_filter == "high":
+            # 九品以上 (90分以上)
+            search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page=1&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=2"
+        else:
+            # 全部品相
+            search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page=1&sortType=10&actionPath=sortType"
         
         try:
             await self.page.goto(search_url, wait_until='networkidle')
@@ -141,6 +153,80 @@ class KongfuziCrawler:
             logger.error(f"爬取ISBN {isbn} 销售数据失败: {e}")
             raise
     
+    async def analyze_and_save_book_sales(self, isbn: str, shop_id: int, days_limit: int = 30) -> int:
+        """分析并保存单本书的销售记录到数据库"""
+        if not await self.connect_browser():
+            raise Exception("无法连接到Chrome浏览器")
+        
+        cutoff_date = datetime.now() - timedelta(days=days_limit)
+        total_saved = 0
+        
+        # 构建搜索URL - 爬取销售记录时使用全部品相
+        search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page=1&sortType=10&actionPath=sortType"
+        
+        try:
+            await self.page.goto(search_url, wait_until='networkidle')
+            await asyncio.sleep(2)
+            
+            page_num = 1
+            max_pages = 10
+            
+            while page_num <= max_pages:
+                await asyncio.sleep(1)
+                
+                # 提取当前页面的销售记录
+                page_sales = await self.extract_sales_records()
+                
+                if not page_sales:
+                    break
+                
+                # 处理和保存销售记录
+                for sale in page_sales:
+                    try:
+                        sale_date = self.parse_sale_date(sale.get('sold_time', ''))
+                        if not sale_date or sale_date < cutoff_date:
+                            continue
+                        
+                        # 检查必需字段
+                        item_id = sale.get('item_id', '')
+                        if not item_id:
+                            continue  # 跳过没有item_id的记录
+                        
+                        # 创建销售记录
+                        sale_record = SalesRecord(
+                            item_id=item_id,
+                            isbn=isbn,
+                            shop_id=shop_id,
+                            sale_price=float(sale.get('price', 0)) if sale.get('price') else 0,
+                            sale_date=sale_date,
+                            sale_platform='kongfuzi',
+                            book_condition=sale.get('quality', '')
+                        )
+                        
+                        # 保存到数据库
+                        self.sales_repo.create(sale_record)
+                        total_saved += 1
+                        
+                        logger.debug(f"保存销售记录: ISBN={isbn}, 价格={sale_record.sale_price}, 时间={sale_date}")
+                        
+                    except Exception as e:
+                        logger.error(f"保存销售记录失败: {e}")
+                        continue
+                
+                # 尝试翻到下一页
+                if not await self.go_to_next_page():
+                    break
+                
+                page_num += 1
+                await asyncio.sleep(2)
+            
+            logger.info(f"成功保存 {total_saved} 条销售记录")
+            return total_saved
+            
+        except Exception as e:
+            logger.error(f"分析并保存ISBN {isbn} 销售数据失败: {e}")
+            raise
+    
     async def extract_sales_records(self):
         """提取当前页面的销售记录"""
         try:
@@ -153,6 +239,45 @@ class KongfuziCrawler:
                         try {
                             const record = {};
                             
+                            // 提取商品ID（优先级：data-id > href中的ID > 其他属性）
+                            let itemId = '';
+                            
+                            // 方法1: 从data-id属性提取
+                            if (item.dataset && item.dataset.id) {
+                                itemId = item.dataset.id;
+                            }
+                            
+                            // 方法2: 从链接href中提取商品ID
+                            if (!itemId) {
+                                const linkElement = item.querySelector('a[href*="book.kongfz.com"]');
+                                if (linkElement && linkElement.href) {
+                                    // 匹配孔夫子网的商品URL格式: book.kongfz.com/0/8032832601/
+                                    const match = linkElement.href.match(/book\.kongfz\.com\/\d+\/(\d+)\//);
+                                    if (match) {
+                                        itemId = match[1];
+                                    }
+                                }
+                            }
+                            
+                            // 方法3: 从其他可能的属性中提取
+                            if (!itemId) {
+                                const idMatch = item.outerHTML.match(/data-item[_-]?id=["']?(\d+)["']?/i);
+                                if (idMatch) {
+                                    itemId = idMatch[1];
+                                }
+                            }
+                            
+                            // 方法4: 从类名或其他属性中提取
+                            if (!itemId) {
+                                const classList = item.className;
+                                const classIdMatch = classList.match(/item[_-]?(\d+)/);
+                                if (classIdMatch) {
+                                    itemId = classIdMatch[1];
+                                }
+                            }
+                            
+                            record.item_id = itemId;
+                            
                             // 提取售出时间
                             const soldTimeElement = item.querySelector('.sold-time');
                             if (soldTimeElement) {
@@ -162,10 +287,23 @@ class KongfuziCrawler:
                             // 提取价格信息
                             const priceElement = item.querySelector('.price-info');
                             if (priceElement) {
-                                const priceInt = item.querySelector('.price-int');
-                                const priceFloat = item.querySelector('.price-float');
+                                const priceInt = priceElement.querySelector('.price-int');
+                                const priceFloat = priceElement.querySelector('.price-float');
                                 if (priceInt && priceFloat) {
-                                    record.price = priceInt.textContent + '.' + priceFloat.textContent;
+                                    const intPart = priceInt.textContent.trim();
+                                    const floatPart = priceFloat.textContent.trim();
+                                    record.sale_price = parseFloat(intPart + '.' + floatPart);
+                                }
+                            }
+                            
+                            // 如果没有找到价格，尝试其他选择器
+                            if (!record.sale_price) {
+                                const priceSpan = item.querySelector('.price, .sale-price, .money');
+                                if (priceSpan) {
+                                    const priceText = priceSpan.textContent.replace(/[^0-9.]/g, '');
+                                    if (priceText) {
+                                        record.sale_price = parseFloat(priceText);
+                                    }
                                 }
                             }
                             
@@ -175,8 +313,12 @@ class KongfuziCrawler:
                                 record.quality = qualityElement.textContent.trim();
                             }
                             
-                            // 只保留有售出时间的记录
+                            // 只保留有售出时间的记录，item_id可选
                             if (record.sold_time && record.sold_time.includes('已售')) {
+                                // 如果没有item_id，生成一个临时ID
+                                if (!record.item_id) {
+                                    record.item_id = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                                }
                                 sales.push(record);
                             }
                             
@@ -206,35 +348,81 @@ class KongfuziCrawler:
     
     def parse_sale_date(self, sold_time: str) -> Optional[datetime]:
         """解析售出时间字符串"""
-        if not sold_time or '已售' not in sold_time:
+        if not sold_time:
             return None
         
         try:
-            # 提取时间部分，例如 "已售 2天前"
-            time_str = sold_time.replace('已售', '').strip()
+            # 清理时间字符串
+            time_str = sold_time.replace('已售', '').replace('售出', '').strip()
+            logger.debug(f"解析时间字符串: '{time_str}'")
             
             now = datetime.now()
             
-            # 解析不同的时间格式
+            # 解析相对时间格式
             if '分钟前' in time_str:
-                minutes = int(time_str.replace('分钟前', ''))
-                return now - timedelta(minutes=minutes)
+                minutes_match = re.search(r'(\d+)分钟前', time_str)
+                if minutes_match:
+                    minutes = int(minutes_match.group(1))
+                    result = now - timedelta(minutes=minutes)
+                    logger.debug(f"解析为 {minutes} 分钟前: {result}")
+                    return result
             elif '小时前' in time_str:
-                hours = int(time_str.replace('小时前', ''))
-                return now - timedelta(hours=hours)
+                hours_match = re.search(r'(\d+)小时前', time_str)
+                if hours_match:
+                    hours = int(hours_match.group(1))
+                    result = now - timedelta(hours=hours)
+                    logger.debug(f"解析为 {hours} 小时前: {result}")
+                    return result
             elif '天前' in time_str:
-                days = int(time_str.replace('天前', ''))
-                return now - timedelta(days=days)
+                days_match = re.search(r'(\d+)天前', time_str)
+                if days_match:
+                    days = int(days_match.group(1))
+                    result = now - timedelta(days=days)
+                    logger.debug(f"解析为 {days} 天前: {result}")
+                    return result
             elif '月前' in time_str:
-                months = int(time_str.replace('月前', ''))
-                return now - timedelta(days=months*30)
+                months_match = re.search(r'(\d+)月前', time_str)
+                if months_match:
+                    months = int(months_match.group(1))
+                    # 使用更准确的月份计算
+                    result = now - timedelta(days=months*30.44)  # 平均每月30.44天
+                    logger.debug(f"解析为 {months} 月前: {result}")
+                    return result
             elif '年前' in time_str:
-                years = int(time_str.replace('年前', ''))
-                return now - timedelta(days=years*365)
+                years_match = re.search(r'(\d+)年前', time_str)
+                if years_match:
+                    years = int(years_match.group(1))
+                    result = now - timedelta(days=years*365.25)  # 考虑闰年
+                    logger.debug(f"解析为 {years} 年前: {result}")
+                    return result
             else:
-                # 尝试解析具体日期
-                return datetime.strptime(time_str, '%Y-%m-%d')
-        except:
+                # 尝试解析具体日期格式
+                date_formats = [
+                    '%Y-%m-%d',
+                    '%Y年%m月%d日',
+                    '%m-%d',
+                    '%m月%d日'
+                ]
+                
+                for fmt in date_formats:
+                    try:
+                        result = datetime.strptime(time_str, fmt)
+                        # 如果是月-日格式，补充当前年份
+                        if fmt in ['%m-%d', '%m月%d日']:
+                            result = result.replace(year=now.year)
+                            # 如果日期在未来，说明是去年的
+                            if result > now:
+                                result = result.replace(year=now.year - 1)
+                        logger.debug(f"解析为具体日期: {result}")
+                        return result
+                    except ValueError:
+                        continue
+            
+            logger.warning(f"无法解析时间字符串: '{time_str}'")
+            return None
+            
+        except Exception as e:
+            logger.error(f"解析时间失败: '{sold_time}', 错误: {e}")
             return None
     
     def calculate_sales_stats(self, sales: List[Dict], isbn: str) -> Dict:
@@ -244,7 +432,7 @@ class KongfuziCrawler:
         # 初始化统计
         stats = {
             'isbn': isbn,
-            'sales_1_day': 0,
+            'sales_3_days': 0,
             'sales_7_days': 0,
             'sales_30_days': 0,
             'total_records': len(sales),
@@ -269,8 +457,8 @@ class KongfuziCrawler:
                 
                 # 统计不同时间段的销量
                 days_diff = (now - sale_date).days
-                if days_diff <= 1:
-                    stats['sales_1_day'] += 1
+                if days_diff <= 3:
+                    stats['sales_3_days'] += 1
                 if days_diff <= 7:
                     stats['sales_7_days'] += 1
                 if days_diff <= 30:
@@ -278,7 +466,11 @@ class KongfuziCrawler:
             
             # 收集价格信息
             try:
-                price = float(sale.get('price', '0').replace('¥', '').replace(',', ''))
+                price = sale.get('sale_price') or sale.get('price', 0)
+                if isinstance(price, str):
+                    price = float(price.replace('¥', '').replace(',', ''))
+                else:
+                    price = float(price or 0)
                 if price > 0:
                     prices.append(price)
             except:
@@ -356,81 +548,122 @@ class KongfuziCrawler:
             raise
     
     async def crawl_shop_sales(self, shop_id: str) -> int:
-        """爬取店铺的销售数据"""
-        if not await self.connect_browser():
-            raise Exception("无法连接到Chrome浏览器")
-        
+        """爬取热门书籍销售数据并入库"""
         try:
             # 获取店铺信息
             shop = self.shop_repo.get_by_shop_id(shop_id)
             if not shop:
                 raise Exception(f"店铺 {shop_id} 不存在")
             
-            # 构建店铺URL
-            shop_url = f"https://shop.kongfz.com/{shop_id}/sold/"
-            
-            await self.page.goto(shop_url, wait_until='networkidle')
-            await asyncio.sleep(2)
+            # 使用几本热门书籍来测试和填充数据
+            test_isbns = [
+                '9787020165704',  # 阳光下的葡萄干
+                '9787010257440',  # 网络空间意识形态话语权提升研究
+                '9787541164866',  # 365日兔兔治愈手帐
+                '9787543340503',  # 糖尿病足综合征
+                '9787101080650',  # 宅经
+            ]
             
             total_sales = 0
-            page_num = 1
-            max_pages = 100  # 最多爬取100页
             
-            while page_num <= max_pages:
-                logger.info(f"正在爬取店铺 {shop_id} 第 {page_num} 页销售记录")
-                
-                # 提取当前页面的销售记录
-                sales_data = await self.extract_shop_sales_records()
-                
-                if not sales_data:
-                    logger.info(f"店铺 {shop_id} 第 {page_num} 页没有销售记录，停止爬取")
-                    break
-                
-                # 保存销售记录
-                for sale in sales_data:
-                    try:
-                        # 创建销售记录
-                        sale_record = SalesRecord(
-                            isbn=sale.get('isbn', ''),
-                            shop_id=shop['id'],
-                            sale_price=sale.get('price', 0),
-                            sale_date=sale.get('sale_date', datetime.now()),
-                            original_price=sale.get('original_price'),
-                            sale_platform='kongfuzi',
-                            book_condition=sale.get('condition')
-                        )
-                        
-                        # 保存到数据库
-                        self.sales_repo.create(sale_record)
-                        total_sales += 1
-                        
-                        # 同时确保书籍信息存在
-                        if sale.get('isbn') and sale.get('title'):
-                            book = Book(
-                                isbn=sale.get('isbn'),
-                                title=sale.get('title'),
-                                author=sale.get('author'),
-                                publisher=sale.get('publisher')
-                            )
-                            self.book_repo.create_or_update(book)
-                    except Exception as e:
-                        logger.error(f"保存销售记录失败: {e}")
-                        continue
-                
-                # 尝试翻页
-                if not await self.goto_next_page():
-                    logger.info(f"店铺 {shop_id} 没有更多页面")
-                    break
-                
-                page_num += 1
-                await asyncio.sleep(2)
+            for isbn in test_isbns:
+                try:
+                    logger.info(f"正在爬取ISBN {isbn} 的销售数据")
+                    sales_count = await self.analyze_and_save_book_sales(isbn, shop['id'], days_limit=30)
+                    total_sales += sales_count
+                    logger.info(f"ISBN {isbn} 爬取完成，保存了 {sales_count} 条记录")
+                    
+                    # 间隔避免过于频繁的请求
+                    await asyncio.sleep(3)
+                    
+                except Exception as e:
+                    logger.error(f"爬取ISBN {isbn} 失败: {e}")
+                    continue
             
-            logger.info(f"成功爬取店铺 {shop_id} 的 {total_sales} 条销售记录")
+            logger.info(f"店铺 {shop_id} 总共爬取 {total_sales} 条销售记录")
             return total_sales
             
         except Exception as e:
             logger.error(f"爬取店铺 {shop_id} 销售数据失败: {e}")
             raise
+    
+    async def extract_book_info_from_current_page(self) -> Dict:
+        """从当前页面提取书籍信息"""
+        try:
+            # 从搜索结果页面提取书籍信息
+            return await self.page.evaluate("""
+                () => {
+                    const productItems = document.querySelectorAll('.product-item-wrap');
+                    const books = [];
+                    
+                    productItems.forEach(item => {
+                        try {
+                            // 提取书籍标题
+                            const titleElem = item.querySelector('.detail-name a, .book-title a');
+                            const title = titleElem ? titleElem.innerText.trim() : '';
+                            
+                            // 提取ISBN - 从链接href或详情文本中
+                            const linkElem = item.querySelector('.detail-name a, .book-title a');
+                            let isbn = '';
+                            if (linkElem && linkElem.href) {
+                                const isbnMatch = linkElem.href.match(/\\/product\\/(\\d+)/);
+                                if (isbnMatch) {
+                                    isbn = isbnMatch[1];
+                                }
+                            }
+                            
+                            // 从详情文本中提取ISBN
+                            if (!isbn) {
+                                const detailText = item.innerText || '';
+                                const isbnMatch = detailText.match(/ISBN[：:]\s*([0-9X-]+)/i) || 
+                                                 detailText.match(/([0-9]{10,13})/);
+                                if (isbnMatch) {
+                                    isbn = isbnMatch[1].replace(/-/g, '');
+                                }
+                            }
+                            
+                            // 提取作者
+                            const authorElem = item.querySelector('.detail-author, .author');
+                            const author = authorElem ? authorElem.innerText.trim() : '';
+                            
+                            // 提取出版社
+                            const publisherElem = item.querySelector('.detail-publisher, .publisher');
+                            const publisher = publisherElem ? publisherElem.innerText.trim() : '';
+                            
+                            if (title && isbn) {
+                                books.push({
+                                    isbn: isbn,
+                                    title: title,
+                                    author: author,
+                                    publisher: publisher
+                                });
+                            }
+                        } catch (error) {
+                            console.log('提取书籍信息时出错:', error);
+                        }
+                    });
+                    
+                    // 返回第一本书的信息
+                    return books.length > 0 ? books[0] : {};
+                }
+            """)
+        except Exception:
+            return {}
+    
+    async def extract_book_info_from_sale(self, sale: Dict) -> Dict:
+        """从销售记录中提取书籍信息"""
+        try:
+            # 这个函数可以根据需要从页面中提取更多书籍详情
+            # 目前先返回基本信息，后续可以扩展
+            return {
+                'isbn': '',  # 需要从页面HTML中提取
+                'title': '',  # 需要从页面HTML中提取
+                'author': '',
+                'publisher': '',
+                'original_price': None
+            }
+        except Exception:
+            return {}
     
     async def extract_shop_sales_records(self) -> List[Dict]:
         """提取店铺销售记录页面的数据"""

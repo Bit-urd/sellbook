@@ -11,8 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from .routes.api_routes import api_router, crawler_router, sales_data_router
-from .routes.shop_routes import shop_router
-from .routes.book_routes import book_router
 from .models.database import db
 
 # 配置日志
@@ -42,8 +40,6 @@ app.add_middleware(
 app.include_router(api_router)
 app.include_router(crawler_router)
 app.include_router(sales_data_router)
-app.include_router(shop_router)
-app.include_router(book_router)
 
 # 静态文件目录
 static_dir = Path(__file__).parent / "static"
@@ -334,7 +330,7 @@ async def health_check():
         "timestamp": datetime.now().isoformat()
     }
 
-def run_server(host: str = "127.0.0.1", port: int = 8000):
+def run_server(host: str = "0.0.0.0", port: int = 8282):
     """运行服务器"""
     uvicorn.run("src.main:app", host=host, port=port, reload=True)
 
