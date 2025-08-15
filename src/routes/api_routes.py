@@ -1518,6 +1518,21 @@ async def clear_all_tasks():
         logger.error(f"清空所有任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@task_executor_router.post("/tasks/retry-failed")
+async def retry_failed_tasks():
+    """重试所有失败的任务"""
+    try:
+        retried_count = await task_queue.retry_failed_tasks()
+        return {
+            "success": True,
+            "message": f"已成功重试 {retried_count} 个失败的任务",
+            "tasks_retried": retried_count
+        }
+    except Exception as e:
+        logger.error(f"重试失败的任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @task_executor_router.get("/queue/status")
 async def get_queue_status():
     """获取任务队列状态"""

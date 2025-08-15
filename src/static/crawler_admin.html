@@ -363,7 +363,7 @@
                         <select id="statusFilter" onchange="loadTaskList()">
                             <option value="">全部状态</option>
                             <option value="pending">待执行</option>
-                            <option value="queued">队列中</option>
+                            <option value="queued" selected>队列中</option>
                             <option value="running">运行中</option>
                             <option value="failed">失败</option>
                         </select>
@@ -375,10 +375,10 @@
                         </select>
                     </div>
                     <div>
-                        <button onclick="loadTaskList()">刷新列表</button>
                         <button onclick="startAllTasks()" style="background: #ffc107; color: #212529;">一键启动所有任务</button>
                         <button onclick="clearTaskQueue()" style="background: #28a745;">一键清空任务队列</button>
                         <button onclick="clearAllTasks()" style="background: #dc3545;">一键清空所有任务</button>
+                        <button onclick="retryAllFailedTasks()" style="background: #ff9800;">所有失败任务重试</button>
                     </div>
                 </div>
             </div>
@@ -843,6 +843,29 @@
                 }
             } catch (error) {
                 log('清空队列失败: ' + error.message, true);
+            }
+        }
+
+        // 重试所有失败的任务
+        async function retryAllFailedTasks() {
+            if (!confirm('确定要重试所有失败的任务吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/task-executor/tasks/retry-failed', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    log(data.message);
+                    loadTaskList(); // 刷新任务列表
+                } else {
+                    log('重试失败: ' + data.message, true);
+                }
+            } catch (error) {
+                log('重试失败: ' + error.message, true);
             }
         }
 

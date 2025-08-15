@@ -1967,6 +1967,41 @@ class TaskQueue:
                 "queue_cleared": queue_count,
                 "tasks_deleted": deleted_count
             }
+
+    async def retry_failed_tasks(self) -> int:
+        """重试所有失败的任务"""
+        async with self._lock:
+            from ..models.database import db
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 查找所有失败的任务
+                cursor.execute("SELECT id FROM crawl_tasks WHERE status = 'failed'")
+                failed_tasks = cursor.fetchall()
+                
+                if not failed_tasks:
+                    return 0
+                
+                failed_task_ids = [task[0] for task in failed_tasks]
+                
+                # 更新状态为待执行
+                placeholders = ",".join(["?"] * len(failed_task_ids))
+                cursor.execute(f"UPDATE crawl_tasks SET status = 'pending' WHERE id IN ({placeholders})", failed_task_ids)
+                updated_count = cursor.rowcount
+                conn.commit()
+                
+                # 添加到内存队列
+                added_to_queue = 0
+                for task_id in failed_task_ids:
+                    if task_id not in self.running_tasks and task_id not in self.queue:
+                        self.queue.append(task_id)
+                        added_to_queue += 1
+                
+                # 如果队列不为空且没有在处理，启动处理
+                if self.queue and not self._processing:
+                    asyncio.create_task(self._process_queue())
+                
+                return updated_count
     
     def get_queue_status(self) -> Dict[str, Any]:
         """获取队列状态"""
