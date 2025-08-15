@@ -10,17 +10,19 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import aiohttp
 from playwright.async_api import async_playwright, Page
+from collections import deque
 
 from ..models.models import Shop, Book, BookInventory, SalesRecord, CrawlTask
 from ..models.repositories import (
     ShopRepository, BookRepository, BookInventoryRepository, 
     SalesRepository, CrawlTaskRepository
 )
+from .window_pool import chrome_pool, WindowPoolManager
 
 logger = logging.getLogger(__name__)
 
 class BrowserManager:
-    """单例模式的浏览器连接管理器"""
+    """兼容旧代码的浏览器管理器（实际使用窗口池）"""
     _instance = None
     _initialized = False
     
@@ -31,78 +33,23 @@ class BrowserManager:
     
     def __init__(self):
         if not self._initialized:
-            self.browser = None
-            self.page = None
-            self.playwright = None
-            self.connected = False
-            self._lock = asyncio.Lock()
+            self.pool = chrome_pool
             BrowserManager._initialized = True
     
     async def get_browser_page(self):
-        """获取浏览器页面（单例复用）"""
-        async with self._lock:
-            if not self.connected:
-                await self._connect()
-            return self.page
-    
-    async def _connect(self):
-        """连接到Chrome浏览器"""
-        if self.connected:
-            return True
-        
-        try:
-            # 尝试连接到已打开的Chrome调试端口
-            async with aiohttp.ClientSession() as session:
-                async with session.get("http://localhost:9222/json/version") as response:
-                    if response.status == 200:
-                        version_info = await response.json()
-                        ws_url = version_info.get('webSocketDebuggerUrl', '')
-                    else:
-                        logger.error("无法获取Chrome调试信息")
-                        return False
-            
-            self.playwright = await async_playwright().start()
-            self.browser = await self.playwright.chromium.connect_over_cdp(ws_url)
-            
-            # 使用现有浏览器上下文
-            contexts = self.browser.contexts
-            if contexts:
-                context = contexts[0]
-            else:
-                context = await self.browser.new_context()
-            
-            # 使用现有页面或创建新页面
-            pages = context.pages
-            if pages:
-                self.page = pages[0]
-            else:
-                self.page = await context.new_page()
-            
-            self.connected = True
-            logger.info("成功连接到Chrome浏览器")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Chrome连接失败: {e}")
-            self.connected = False
-            return False
+        """获取浏览器页面（从窗口池获取）"""
+        return await self.pool.get_window()
     
     async def disconnect(self):
-        """断开浏览器连接"""
-        async with self._lock:
-            if self.playwright:
-                await self.playwright.stop()
-                self.connected = False
-                self.browser = None
-                self.page = None
-                self.playwright = None
-                logger.info("已断开浏览器连接")
+        """断开浏览器连接（兼容旧接口，实际不断开池）"""
+        # 不断开池连接，因为可能有其他实例在使用
+        pass
     
     def is_connected(self):
         """检查连接状态"""
-        return self.connected
+        return self.pool.connected
 
-# 创建全局单例实例
+# 创建全局单例实例（兼容旧代码）
 browser_manager = BrowserManager()
 
 class KongfuziCrawler:
@@ -156,10 +103,16 @@ class KongfuziCrawler:
         """获取当前封控等待时间（秒）"""
         return cls._rate_limit_wait_time
     
-    async def _safe_page_goto(self, url: str, **kwargs):
-        """安全的页面跳转，成功时重置封控时间"""
+    async def _safe_page_goto(self, page: Page, url: str, **kwargs):
+        """安全的页面跳转，成功时重置封控时间
+        
+        Args:
+            page: 浏览器页面
+            url: 目标URL
+            **kwargs: goto方法的其他参数
+        """
         try:
-            result = await self.page.goto(url, **kwargs)
+            result = await page.goto(url, **kwargs)
             # 页面加载成功，重置封控等待时间
             self._update_rate_limit_wait_time(success=True)
             return result
@@ -206,31 +159,31 @@ class KongfuziCrawler:
         }
     
     async def connect_browser(self):
-        """连接到Chrome浏览器（使用单例管理器）"""
+        """连接到Chrome浏览器（从窗口池获取页面）"""
         try:
-            self.page = await browser_manager.get_browser_page()
-            return browser_manager.is_connected()
+            # 确保窗口池已初始化
+            if not chrome_pool._initialized:
+                await chrome_pool.initialize()
+            return chrome_pool.connected
         except Exception as e:
             logger.error(f"Chrome连接失败: {e}")
             return False
     
     async def disconnect_browser(self):
-        """断开浏览器连接（使用单例管理器）"""
-        # 注意：不要直接断开单例管理器的连接，让其保持连接状态供其他实例使用
-        # 如果确实需要断开，可以调用 browser_manager.disconnect()
+        """断开浏览器连接（兼容旧接口）"""
+        # 不断开池连接，因为可能有其他实例在使用
         pass
     
-    async def analyze_book_sales(self, isbn: str, days_limit: int = 30, quality_filter: str = "high") -> Dict:
+    @WindowPoolManager()
+    async def analyze_book_sales(self, isbn: str, days_limit: int = 30, quality_filter: str = "high", page: Page = None) -> Dict:
         """分析单本书的销售记录（用于实时ISBN搜索）
         
         Args:
             isbn: 书籍ISBN号
             days_limit: 天数限制
             quality_filter: 品相过滤 - "high" (九品以上) 或 "all" (全部品相)
+            page: 浏览器页面（由装饰器自动注入）
         """
-        if not await self.connect_browser():
-            raise Exception("无法连接到Chrome浏览器")
-        
         cutoff_date = datetime.now() - timedelta(days=days_limit)
         all_sales = []
         
@@ -249,20 +202,20 @@ class KongfuziCrawler:
                 
                 logger.info(f"正在爬取第 {page_num} 页: {search_url}")
                 
-                await self.page.goto(search_url, wait_until='networkidle')
+                await page.goto(search_url, wait_until='networkidle')
                 await asyncio.sleep(2)
                 
                 # 第一页检查登录状态
                 if page_num == 1:
-                    await self._check_page_for_rate_limit()
+                    await self._check_page_for_rate_limit(page)
                 
                 # 提取当前页面的销售记录
-                page_sales = await self.extract_sales_records()
+                page_sales = await self.extract_sales_records(page)
                 
                 # 如果第一页就没有数据，可能是登录问题
                 if page_num == 1 and not page_sales:
                     # 再次检查页面内容，看是否需要登录
-                    await self._check_page_content_for_empty_results()
+                    await self._check_page_content_for_empty_results(page)
                     break
                 elif not page_sales:
                     logger.info(f"第 {page_num} 页没有销售记录，停止翻页")
@@ -367,11 +320,16 @@ class KongfuziCrawler:
         
         return result
 
-    async def analyze_and_save_book_sales(self, isbn: str, shop_id: int, days_limit: int = 30) -> int:
-        """分析并保存单本书的销售记录到数据库"""
-        if not await self.connect_browser():
-            raise Exception("无法连接到Chrome浏览器")
+    @WindowPoolManager()
+    async def analyze_and_save_book_sales(self, isbn: str, shop_id: int, days_limit: int = 30, page: Page = None) -> int:
+        """分析并保存单本书的销售记录到数据库
         
+        Args:
+            isbn: 书籍ISBN
+            shop_id: 店铺ID
+            days_limit: 天数限制
+            page: 浏览器页面（由装饰器自动注入）
+        """
         cutoff_date = datetime.now() - timedelta(days=days_limit)
         total_saved = 0
         
@@ -379,11 +337,11 @@ class KongfuziCrawler:
         search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page=1&sortType=10&actionPath=sortType"
         
         try:
-            await self._safe_page_goto(search_url, wait_until='networkidle')
+            await self._safe_page_goto(page, search_url, wait_until='networkidle')
             await asyncio.sleep(2)
             
             # 检查页面是否出现频率限制
-            await self._check_page_for_rate_limit()
+            await self._check_page_for_rate_limit(page)
             
             page_num = 1
             max_pages = 10
@@ -392,7 +350,7 @@ class KongfuziCrawler:
                 await asyncio.sleep(1)
                 
                 # 提取当前页面的销售记录
-                page_sales = await self.extract_sales_records()
+                page_sales = await self.extract_sales_records(page)
                 
                 if not page_sales:
                     break
@@ -431,7 +389,7 @@ class KongfuziCrawler:
                         continue
                 
                 # 尝试翻到下一页
-                if not await self.go_to_next_page():
+                if not await self.go_to_next_page(page):
                     break
                 
                 page_num += 1
@@ -460,10 +418,14 @@ class KongfuziCrawler:
             logger.error(f"分析并保存ISBN {isbn} 销售数据失败: {e}")
             raise
     
-    async def extract_sales_records(self):
-        """提取当前页面的销售记录"""
+    async def extract_sales_records(self, page: Page):
+        """提取当前页面的销售记录
+        
+        Args:
+            page: 浏览器页面
+        """
         try:
-            return await self.page.evaluate("""
+            return await page.evaluate("""
                 () => {
                     const sales = [];
                     const productItems = document.querySelectorAll('.product-item-wrap');
@@ -579,11 +541,15 @@ class KongfuziCrawler:
         except:
             return []
     
-    async def go_to_next_page(self):
-        """翻到下一页"""
+    async def go_to_next_page(self, page: Page):
+        """翻到下一页
+        
+        Args:
+            page: 浏览器页面
+        """
         try:
             # 查找下一页按钮
-            next_button = await self.page.query_selector('a.next-page:not(.disabled)')
+            next_button = await page.query_selector('a.next-page:not(.disabled)')
             if next_button:
                 await next_button.click()
                 await asyncio.sleep(2)
@@ -739,15 +705,18 @@ class KongfuziCrawler:
         
         return stats
     
-    async def crawl_book_sales(self, isbn: str) -> Dict:
-        """爬取单本书籍的销售数据"""
-        if not await self.connect_browser():
-            raise Exception("无法连接到Chrome浏览器")
+    @WindowPoolManager()
+    async def crawl_book_sales(self, isbn: str, page: Page = None) -> Dict:
+        """爬取单本书籍的销售数据
         
+        Args:
+            isbn: 书籍ISBN
+            page: 浏览器页面（由装饰器自动注入）
+        """
         try:
             # 搜索书籍
             search_url = f"https://search.kongfz.com/product/?keyword={isbn}&dataType=1&sortType=10&page=1"
-            await self._safe_page_goto(search_url, wait_until='networkidle')
+            await self._safe_page_goto(page, search_url, wait_until='networkidle')
             await asyncio.sleep(2)
             
             sales_records = []
@@ -756,7 +725,7 @@ class KongfuziCrawler:
             
             while page_num <= max_pages:
                 # 提取当前页面的销售记录
-                page_sales = await self.extract_sales_records()
+                page_sales = await self.extract_sales_records(page)
                 
                 if not page_sales:
                     break
@@ -803,7 +772,10 @@ class KongfuziCrawler:
             raise
     
     async def crawl_shop_sales(self, shop_id: str) -> int:
-        """爬取店铺所有书籍的销售数据，基于数据库中该店铺的书籍库存记录"""
+        """爬取店铺所有书籍的销售数据，基于数据库中该店铺的书籍库存记录
+        
+        注意：这个方法会多次调用analyze_and_save_book_sales，每次都会从池中获取窗口
+        """
         try:
             logger.info(f"开始爬取店铺 {shop_id} 的销售数据")
             
@@ -844,6 +816,7 @@ class KongfuziCrawler:
                 
                 try:
                     logger.info(f"[{i}/{len(shop_books)}] 正在爬取《{title}》(ISBN: {isbn}) 的销售数据")
+                    # analyze_and_save_book_sales会自动从池中获取窗口
                     sales_count = await self.analyze_and_save_book_sales(isbn, shop['id'], days_limit=30)
                     total_sales += sales_count
                     success_count += 1
@@ -952,14 +925,18 @@ class KongfuziCrawler:
         """检测错误信息是否与登录相关"""
         return "LOGIN_REQUIRED:" in error_message
     
-    async def _check_page_content_for_empty_results(self) -> None:
-        """检查页面内容为空是否是因为未登录"""
-        if not self.page:
+    async def _check_page_content_for_empty_results(self, page: Page) -> None:
+        """检查页面内容为空是否是因为未登录
+        
+        Args:
+            page: 浏览器页面
+        """
+        if not page:
             return
         
         try:
             # 检查页面是否有搜索结果容器但内容为空
-            page_analysis = await self.page.evaluate("""
+            page_analysis = await page.evaluate("""
                 () => {
                     // 检查是否有搜索结果容器
                     const searchResults = document.querySelector('.search-results, .result-list, .product-list');
@@ -1016,14 +993,18 @@ class KongfuziCrawler:
                 raise
             # 其他异常不处理
     
-    async def _check_page_for_rate_limit(self) -> None:
-        """检查页面内容是否包含频率限制或登录要求"""
-        if not self.page:
+    async def _check_page_for_rate_limit(self, page: Page) -> None:
+        """检查页面内容是否包含频率限制或登录要求
+        
+        Args:
+            page: 浏览器页面
+        """
+        if not page:
             return
         
         try:
             # 检查页面标题和内容
-            page_content = await self.page.evaluate("""
+            page_content = await page.evaluate("""
                 () => {
                     return {
                         title: document.title,
@@ -1052,11 +1033,15 @@ class KongfuziCrawler:
                 raise
             # 其他异常不处理，继续执行
     
-    async def extract_book_info_from_current_page(self) -> Dict:
-        """从当前页面提取书籍信息"""
+    async def extract_book_info_from_current_page(self, page: Page) -> Dict:
+        """从当前页面提取书籍信息
+        
+        Args:
+            page: 浏览器页面
+        """
         try:
             # 从搜索结果页面提取书籍信息
-            return await self.page.evaluate("""
+            return await page.evaluate("""
                 () => {
                     const productItems = document.querySelectorAll('.product-item-wrap');
                     const books = [];
@@ -1130,10 +1115,14 @@ class KongfuziCrawler:
         except Exception:
             return {}
     
-    async def extract_shop_sales_records(self) -> List[Dict]:
-        """提取店铺销售记录页面的数据"""
+    async def extract_shop_sales_records(self, page: Page) -> List[Dict]:
+        """提取店铺销售记录页面的数据
+        
+        Args:
+            page: 浏览器页面
+        """
         try:
-            sales = await self.page.evaluate("""
+            sales = await page.evaluate("""
                 () => {
                     const items = [];
                     const bookItems = document.querySelectorAll('.book-item, .item, .sold-item');
@@ -1205,11 +1194,15 @@ class KongfuziCrawler:
             logger.error(f"提取销售记录失败: {e}")
             return []
     
-    async def crawl_shop_books(self, shop_id: str, max_pages: int = 50) -> int:
-        """爬取店铺的书籍列表"""
-        if not await self.connect_browser():
-            raise Exception("无法连接到浏览器")
+    @WindowPoolManager()
+    async def crawl_shop_books(self, shop_id: str, max_pages: int = 50, page: Page = None) -> int:
+        """爬取店铺的书籍列表
         
+        Args:
+            shop_id: 店铺ID
+            max_pages: 最大爬取页数
+            page: 浏览器页面（由装饰器自动注入）
+        """
         # 创建爬虫任务
         task = CrawlTask(
             task_name=f"爬取店铺 {shop_id} 的书籍",
@@ -1226,13 +1219,13 @@ class KongfuziCrawler:
             
             # 访问店铺首页
             url = f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/"
-            await self._safe_page_goto(url, wait_until='networkidle')
+            await self._safe_page_goto(page, url, wait_until='networkidle')
             await asyncio.sleep(2)  # 等待页面加载
             
             while current_page <= max_pages:
                 try:
                     # 提取书籍信息
-                    books_data = await self.page.evaluate("""
+                    books_data = await page.evaluate("""
                     () => {
                         const items = [];
                         // 查找item-row元素，它包含了itemid和isbn属性
@@ -1379,7 +1372,7 @@ class KongfuziCrawler:
                     self.task_repo.update_status(task_id, 'running', progress)
                     
                     # 检查是否有下一页
-                    has_next_page = await self.page.evaluate("""
+                    has_next_page = await page.evaluate("""
                         () => {
                             // 查找下一页按钮，可能有多种selector
                             const nextBtn = document.querySelector('.next-btn') || 
@@ -1396,7 +1389,7 @@ class KongfuziCrawler:
                         break
                     
                     # 点击下一页
-                    await self.page.evaluate("""
+                    await page.evaluate("""
                         () => {
                             const nextBtn = document.querySelector('.next-btn') || 
                                            document.querySelector('.pagination .next') ||
@@ -1411,7 +1404,7 @@ class KongfuziCrawler:
                     
                     # 等待页面稳定
                     try:
-                        await self.page.wait_for_load_state('networkidle', timeout=5000)
+                        await page.wait_for_load_state('networkidle', timeout=5000)
                     except:
                         # 如果等待超时，继续执行
                         pass
@@ -1438,21 +1431,25 @@ class KongfuziCrawler:
             self.task_repo.update_status(task_id, 'failed', error_message=str(e))
             raise
     
-    async def crawl_book_sales(self, isbn: str, days_limit: int = 30) -> List[Dict]:
-        """爬取书籍的销售记录"""
-        if not await self.connect_browser():
-            raise Exception("无法连接到浏览器")
+    @WindowPoolManager()
+    async def crawl_book_sales(self, isbn: str, days_limit: int = 30, page: Page = None) -> List[Dict]:
+        """爬取书籍的销售记录
         
+        Args:
+            isbn: 书籍ISBN
+            days_limit: 天数限制
+            page: 浏览器页面（由装饰器自动注入）
+        """
         url = f"https://search.kongfz.com/product/?keyword={isbn}&dataType=1&sortType=10&page=1"
         cutoff_date = datetime.now() - timedelta(days=days_limit)
         all_sales = []
         
         try:
-            await self._safe_page_goto(url, wait_until='networkidle')
+            await self._safe_page_goto(page, url, wait_until='networkidle')
             await asyncio.sleep(2)
             
             # 提取已售记录
-            sales_data = await self.page.evaluate("""
+            sales_data = await page.evaluate("""
                 () => {
                     const sales = [];
                     document.querySelectorAll('.sold-item').forEach(item => {
@@ -1704,6 +1701,20 @@ class CrawlerTaskExecutor:
             logger.error(f"执行任务 {task_id} ({task_type}) 失败: {e}")
             raise
     
+    def _format_success_message(self, task_type: str, result: Dict[str, Any]) -> str:
+        """格式化成功消息"""
+        if task_type == 'book_sales_crawl':
+            return f"成功爬取销售记录"
+        elif task_type == 'shop_books_crawl':
+            books_count = result.get('books_crawled', 0)
+            return f"成功爬取 {books_count} 本书籍"
+        elif task_type == 'duozhuayu_price':
+            return "成功更新多抓鱼价格"
+        elif task_type == 'isbn_analysis':
+            return "成功完成ISBN分析"
+        else:
+            return "任务执行成功"
+    
     def _extract_shop_id_from_url(self, url: str) -> str:
         """从URL中提取店铺ID"""
         import re
@@ -1890,3 +1901,155 @@ class CrawlerManager:
     async def cleanup(self):
         """清理资源"""
         await self.kongfuzi.disconnect_browser()
+
+
+class TaskQueue:
+    """内存任务队列管理器（单例模式）"""
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if not self._initialized:
+            self.queue = deque()
+            self.running_tasks = set()
+            self.task_executor = CrawlerTaskExecutor()
+            self.task_repo = CrawlTaskRepository()
+            self._lock = asyncio.Lock()
+            self._processing = False
+            TaskQueue._initialized = True
+    
+    async def add_tasks(self, task_ids: List[int]) -> int:
+        """将任务添加到队列"""
+        async with self._lock:
+            added_count = 0
+            for task_id in task_ids:
+                if task_id not in self.running_tasks and task_id not in self.queue:
+                    # 只加入内存队列，不更改数据库状态
+                    self.queue.append(task_id)
+                    added_count += 1
+            
+            # 如果队列不为空且没有在处理，启动处理
+            if self.queue and not self._processing:
+                asyncio.create_task(self._process_queue())
+            
+            return added_count
+    
+    async def add_pending_tasks(self) -> int:
+        """将所有待执行任务添加到队列"""
+        pending_tasks = self.task_repo.get_pending_tasks()
+        task_ids = [task['id'] for task in pending_tasks]
+        return await self.add_tasks(task_ids)
+    
+    async def clear_queue(self) -> int:
+        """清空任务队列"""
+        async with self._lock:
+            # 只清空内存队列，不更改数据库状态
+            cleared_count = len(self.queue)
+            self.queue.clear()
+            
+            return cleared_count
+    
+    async def clear_all_tasks(self) -> Dict[str, int]:
+        """清空队列并删除所有待执行任务"""
+        async with self._lock:
+            # 清空队列
+            queue_count = await self.clear_queue()
+            
+            # 删除所有pending任务
+            from ..models.database import db
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM crawl_tasks WHERE status IN ('pending', 'queued')")
+                deleted_count = cursor.rowcount
+                conn.commit()
+            
+            return {
+                "queue_cleared": queue_count,
+                "tasks_deleted": deleted_count
+            }
+    
+    def get_queue_status(self) -> Dict[str, Any]:
+        """获取队列状态"""
+        return {
+            "queue_length": len(self.queue),
+            "running_count": len(self.running_tasks),
+            "is_processing": self._processing,
+            "next_tasks": list(self.queue)[:5]  # 显示前5个任务
+        }
+    
+    async def _process_queue(self):
+        """处理队列中的任务"""
+        self._processing = True
+        logger.info("开始处理任务队列")
+        
+        try:
+            while self.queue:
+                async with self._lock:
+                    if not self.queue:
+                        break
+                    task_id = self.queue.popleft()
+                    self.running_tasks.add(task_id)
+                
+                try:
+                    # 获取任务详情
+                    task = self.task_repo.get_by_id(task_id)
+                    if not task:
+                        logger.warning(f"任务 {task_id} 不存在")
+                        continue
+                    
+                    if task.get('status') not in ['queued', 'pending']:
+                        logger.warning(f"任务 {task_id} 状态不正确: {task.get('status')}")
+                        continue
+                    
+                    # 执行任务
+                    logger.info(f"开始执行任务 {task_id}: {task.get('task_name')}")
+                    result = await self.task_executor.execute_task_by_type(task)
+                    
+                    # 更新任务状态
+                    if result.get('status') == 'completed':
+                        self.task_repo.update_status(
+                            task_id, 'completed',
+                            progress=100.0,
+                            error_message=self.task_executor._format_success_message(task.get('task_type'), result)
+                        )
+                        logger.info(f"任务 {task_id} 执行成功")
+                    elif result.get('status') == 'skipped':
+                        self.task_repo.update_status(
+                            task_id, 'skipped',
+                            progress=100.0,
+                            error_message=result.get('message', '任务已跳过')
+                        )
+                        logger.info(f"任务 {task_id} 已跳过")
+                    else:
+                        self.task_repo.update_status(
+                            task_id, 'failed',
+                            error_message=result.get('message', '任务执行失败')
+                        )
+                        logger.error(f"任务 {task_id} 执行失败: {result.get('message')}")
+                
+                except Exception as e:
+                    logger.error(f"处理任务 {task_id} 时发生异常: {e}")
+                    try:
+                        self.task_repo.update_status(task_id, 'failed', error_message=str(e))
+                    except:
+                        pass
+                
+                finally:
+                    async with self._lock:
+                        self.running_tasks.discard(task_id)
+                
+                # 任务间间隔，避免过快执行
+                await asyncio.sleep(1)
+        
+        finally:
+            self._processing = False
+            logger.info("任务队列处理完成")
+
+
+# 全局任务队列实例
+task_queue = TaskQueue()

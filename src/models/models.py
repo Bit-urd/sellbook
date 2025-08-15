@@ -94,7 +94,7 @@ class CrawlTask:
     book_title: Optional[str] = None  # 书籍标题（便于显示）
     task_params: Optional[Dict[str, Any]] = None
     priority: int = 5
-    status: str = 'pending'  # pending, running, completed, failed, skipped
+    status: str = 'pending'  # pending, queued, running, completed, failed, skipped
     progress_percentage: float = 0.0
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None

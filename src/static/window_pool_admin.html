@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>窗口池管理控制台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* 登录界面样式 */
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 350px;
+        }
+        
+        .login-container h2 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 24px;
+        }
+        
+        .login-form input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .login-form input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .login-form button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .login-form button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        /* 管理界面样式 */
+        .admin-container {
+            display: none;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            overflow: hidden;
+        }
+        
+        .admin-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .admin-header h1 {
+            font-size: 24px;
+        }
+        
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .admin-content {
+            padding: 20px;
+            height: calc(90vh - 70px);
+            overflow-y: auto;
+        }
+        
+        /* 状态卡片 */
+        .status-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .status-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+        
+        .status-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .status-card .value {
+            color: #333;
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .status-card.connected {
+            border-left-color: #27ae60;
+        }
+        
+        .status-card.disconnected {
+            border-left-color: #e74c3c;
+        }
+        
+        /* 控制按钮 */
+        .control-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .control-panel h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .control-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-info {
+            background: #3498db;
+            color: white;
+        }
+        
+        /* 窗口详情表格 */
+        .window-details {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .window-details h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        .window-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .window-table th,
+        .window-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .window-table th {
+            background: #667eea;
+            color: white;
+            font-weight: normal;
+        }
+        
+        .window-table tr:hover {
+            background: #f0f0f0;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-badge.available {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-badge.busy {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        /* 调整大小控制 */
+        .resize-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .resize-control input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        /* 日志区域 */
+        .log-panel {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+        }
+        
+        .log-entry.success {
+            color: #27ae60;
+        }
+        
+        .log-entry.error {
+            color: #e74c3c;
+        }
+        
+        .log-entry.info {
+            color: #3498db;
+        }
+        
+        .log-entry.warning {
+            color: #f39c12;
+        }
+        
+        /* 加载动画 */
+        .spinner {
+            display: none;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <!-- 登录界面 -->
+    <div class="login-container" id="loginContainer">
+        <h2>🔐 窗口池管理控制台</h2>
+        <form class="login-form" id="loginForm">
+            <input type="text" id="username" placeholder="用户名" required>
+            <input type="password" id="password" placeholder="密码" required>
+            <button type="submit">登录</button>
+        </form>
+        <div class="error-message" id="loginError">用户名或密码错误</div>
+    </div>
+    
+    <!-- 管理界面 -->
+    <div class="admin-container" id="adminContainer">
+        <div class="admin-header">
+            <h1>🖥️ Chrome窗口池管理控制台</h1>
+            <button class="logout-btn" onclick="logout()">退出登录</button>
+        </div>
+        
+        <div class="admin-content">
+            <!-- 状态卡片 -->
+            <div class="status-cards">
+                <div class="status-card" id="connectionCard">
+                    <h3>连接状态</h3>
+                    <div class="value" id="connectionStatus">未连接</div>
+                </div>
+                <div class="status-card">
+                    <h3>池大小</h3>
+                    <div class="value" id="poolSize">0</div>
+                </div>
+                <div class="status-card">
+                    <h3>可用窗口</h3>
+                    <div class="value" id="availableCount">0</div>
+                </div>
+                <div class="status-card">
+                    <h3>使用中</h3>
+                    <div class="value" id="busyCount">0</div>
+                </div>
+                <div class="status-card">
+                    <h3>总窗口数</h3>
+                    <div class="value" id="totalWindows">0</div>
+                </div>
+            </div>
+            
+            <!-- 控制面板 -->
+            <div class="control-panel">
+                <h2>控制面板</h2>
+                <div class="control-buttons">
+                    <button class="control-btn btn-primary" onclick="initializePool()">
+                        初始化窗口池
+                    </button>
+                    <button class="control-btn btn-success" onclick="refreshStatus()">
+                        刷新状态
+                    </button>
+                    <button class="control-btn btn-warning" onclick="closeAllWindows()">
+                        关闭所有窗口
+                    </button>
+                    <button class="control-btn btn-danger" onclick="disconnectPool()">
+                        断开连接
+                    </button>
+                </div>
+                
+                <div class="resize-control">
+                    <label>调整池大小：</label>
+                    <input type="number" id="newPoolSize" min="1" max="10" value="2">
+                    <button class="control-btn btn-info" onclick="resizePool()">
+                        调整大小
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 窗口详情 -->
+            <div class="window-details">
+                <h2>窗口详情</h2>
+                <div class="spinner" id="windowSpinner"></div>
+                <table class="window-table" id="windowTable">
+                    <thead>
+                        <tr>
+                            <th>窗口ID</th>
+                            <th>状态</th>
+                            <th>创建时间</th>
+                            <th>使用次数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="windowTableBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center;">暂无窗口数据</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 操作日志 -->
+            <div class="log-panel" id="logPanel">
+                <div class="log-entry info">[系统] 窗口池管理控制台已就绪</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 认证相关
+        const AUTH_KEY = 'window_pool_auth';
+        const VALID_USERNAME = 'biturd';
+        const VALID_PASSWORD = 'biturd';
+        
+        // 检查是否已登录
+        function checkAuth() {
+            const auth = sessionStorage.getItem(AUTH_KEY);
+            if (auth === 'true') {
+                showAdminPanel();
+                refreshStatus();
+            }
+        }
+        
+        // 登录处理
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (username === VALID_USERNAME && password === VALID_PASSWORD) {
+                sessionStorage.setItem(AUTH_KEY, 'true');
+                showAdminPanel();
+                refreshStatus();
+            } else {
+                document.getElementById('loginError').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('loginError').style.display = 'none';
+                }, 3000);
+            }
+        });
+        
+        // 显示管理面板
+        function showAdminPanel() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('adminContainer').style.display = 'block';
+        }
+        
+        // 退出登录
+        function logout() {
+            sessionStorage.removeItem(AUTH_KEY);
+            document.getElementById('loginContainer').style.display = 'block';
+            document.getElementById('adminContainer').style.display = 'none';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+        
+        // 添加日志
+        function addLog(message, type = 'info') {
+            const logPanel = document.getElementById('logPanel');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logPanel.appendChild(logEntry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+        
+        // 刷新状态
+        async function refreshStatus() {
+            try {
+                addLog('正在获取窗口池状态...', 'info');
+                const response = await fetch('/window-pool/status');
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateStatus(result.data);
+                    addLog('状态更新成功', 'success');
+                } else {
+                    addLog('获取状态失败', 'error');
+                }
+            } catch (error) {
+                addLog(`错误: ${error.message}`, 'error');
+            }
+        }
+        
+        // 更新状态显示
+        function updateStatus(data) {
+            // 更新连接状态
+            const connectionCard = document.getElementById('connectionCard');
+            const connectionStatus = document.getElementById('connectionStatus');
+            
+            if (data.connected) {
+                connectionStatus.textContent = '已连接';
+                connectionCard.className = 'status-card connected';
+            } else {
+                connectionStatus.textContent = '未连接';
+                connectionCard.className = 'status-card disconnected';
+            }
+            
+            // 更新数值
+            document.getElementById('poolSize').textContent = data.pool_size;
+            document.getElementById('availableCount').textContent = data.available_count;
+            document.getElementById('busyCount').textContent = data.busy_count;
+            document.getElementById('totalWindows').textContent = data.total_windows;
+            
+            // 更新窗口表格
+            updateWindowTable(data.window_details);
+        }
+        
+        // 更新窗口表格
+        function updateWindowTable(windows) {
+            const tbody = document.getElementById('windowTableBody');
+            
+            if (!windows || windows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">暂无窗口数据</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            windows.forEach(window => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${window.window_id}</td>
+                    <td><span class="status-badge ${window.status}">${window.status === 'available' ? '可用' : '使用中'}</span></td>
+                    <td>${window.created_at}</td>
+                    <td>${window.used_count}</td>
+                `;
+            });
+        }
+        
+        // 初始化窗口池
+        async function initializePool() {
+            try {
+                addLog('正在初始化窗口池...', 'info');
+                const response = await fetch('/window-pool/initialize', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(result.message, 'success');
+                    setTimeout(refreshStatus, 1000);
+                } else {
+                    addLog('初始化失败', 'error');
+                }
+            } catch (error) {
+                addLog(`错误: ${error.message}`, 'error');
+            }
+        }
+        
+        // 关闭所有窗口
+        async function closeAllWindows() {
+            if (!confirm('确定要关闭所有窗口吗？')) return;
+            
+            try {
+                addLog('正在关闭所有窗口...', 'warning');
+                const response = await fetch('/window-pool/close-all', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(result.message, 'success');
+                    setTimeout(refreshStatus, 1000);
+                } else {
+                    addLog('关闭失败', 'error');
+                }
+            } catch (error) {
+                addLog(`错误: ${error.message}`, 'error');
+            }
+        }
+        
+        // 断开连接
+        async function disconnectPool() {
+            if (!confirm('确定要断开窗口池连接吗？')) return;
+            
+            try {
+                addLog('正在断开连接...', 'warning');
+                const response = await fetch('/window-pool/disconnect', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(result.message, 'success');
+                    setTimeout(refreshStatus, 1000);
+                } else {
+                    addLog('断开失败', 'error');
+                }
+            } catch (error) {
+                addLog(`错误: ${error.message}`, 'error');
+            }
+        }
+        
+        // 调整池大小
+        async function resizePool() {
+            const newSize = document.getElementById('newPoolSize').value;
+            
+            try {
+                addLog(`正在调整池大小为 ${newSize}...`, 'info');
+                const response = await fetch(`/window-pool/resize?pool_size=${newSize}`, { method: 'PUT' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(`${result.message}: ${result.action_taken}`, 'success');
+                    setTimeout(refreshStatus, 1000);
+                } else {
+                    addLog('调整失败', 'error');
+                }
+            } catch (error) {
+                addLog(`错误: ${error.message}`, 'error');
+            }
+        }
+        
+        // 自动刷新（每10秒）
+        let autoRefreshInterval;
+        
+        function startAutoRefresh() {
+            autoRefreshInterval = setInterval(() => {
+                if (sessionStorage.getItem(AUTH_KEY) === 'true') {
+                    refreshStatus();
+                }
+            }, 10000);
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        }
+        
+        // 页面加载时检查认证
+        window.onload = function() {
+            checkAuth();
+            startAutoRefresh();
+        };
+        
+        // 页面卸载时停止自动刷新
+        window.onbeforeunload = function() {
+            stopAutoRefresh();
+        };
+    </script>
+</body>
+</html>

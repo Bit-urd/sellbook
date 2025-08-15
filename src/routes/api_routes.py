@@ -9,7 +9,8 @@ import logging
 import json
 
 from ..services.analysis_service import AnalysisService
-from ..services.crawler_service import CrawlerManager, KongfuziCrawler, DuozhuayuCrawler, CrawlerTaskExecutor
+from ..services.crawler_service import CrawlerManager, KongfuziCrawler, DuozhuayuCrawler, CrawlerTaskExecutor, task_queue
+from ..services.window_pool import chrome_pool
 from ..models.repositories import (
     ShopRepository, BookRepository, BookInventoryRepository,
     SalesRepository, CrawlTaskRepository
@@ -1052,11 +1053,36 @@ async def list_crawler_tasks(
 ):
     """分页查询爬虫任务列表"""
     try:
+        # 获取队列状态
+        queue_status = task_queue.get_queue_status()
+        queued_task_ids = set(queue_status.get("next_tasks", []) + list(task_queue.queue))
+        running_task_ids = queue_status.get("running_count", 0)
+        
         # 构建查询条件
         conditions = []
         params = []
         
-        if status:
+        if status == "queued":
+            # 特殊处理队列中状态：只显示在内存队列中的任务
+            if not queued_task_ids:
+                # 如果队列为空，返回空结果
+                return {
+                    "success": True,
+                    "data": {
+                        "tasks": [],
+                        "pagination": {
+                            "current_page": page,
+                            "page_size": page_size,
+                            "total_count": 0,
+                            "total_pages": 0
+                        }
+                    }
+                }
+            else:
+                placeholders = ",".join(["?"] * len(queued_task_ids))
+                conditions.append(f"id IN ({placeholders})")
+                params.extend(list(queued_task_ids))
+        elif status and status != "queued":
             conditions.append("status = ?")
             params.append(status)
         
@@ -1093,10 +1119,10 @@ async def list_crawler_tasks(
             tasks = []
             for row in rows:
                 # 解析task_params JSON或从其他字段构造参数
-                params = json.loads(row[7]) if row[7] else {}
+                params_dict = json.loads(row[7]) if row[7] else {}
                 
                 # 如果task_params为空，从数据库其他字段构造参数显示
-                if not params:
+                if not params_dict:
                     # 获取额外的字段信息
                     cursor.execute("""
                         SELECT target_isbn, shop_id, target_url, book_title 
@@ -1106,38 +1132,46 @@ async def list_crawler_tasks(
                     
                     if extra_row:
                         target_isbn, shop_id, target_url, book_title = extra_row
-                        task_type = row[2]
+                        task_type_val = row[2]
                         
-                        if task_type == 'book_sales_crawl':
-                            params = {
+                        if task_type_val == 'book_sales_crawl':
+                            params_dict = {
                                 'target_isbn': target_isbn,
                                 'shop_id': shop_id,
                                 'book_title': book_title
                             }
-                        elif task_type == 'shop_books_crawl':
-                            params = {
+                        elif task_type_val == 'shop_books_crawl':
+                            params_dict = {
                                 'target_url': target_url,
                                 'shop_id': shop_id
                             }
-                        elif task_type == 'duozhuayu_price':
-                            params = {
+                        elif task_type_val == 'duozhuayu_price':
+                            params_dict = {
                                 'target_isbn': target_isbn,
                                 'shop_id': shop_id
                             }
-                        elif task_type == 'isbn_analysis':
-                            params = {
+                        elif task_type_val == 'isbn_analysis':
+                            params_dict = {
                                 'target_isbn': target_isbn
                             }
                 
+                # 确定任务实际状态
+                task_id = row[0]
+                actual_status = row[3]
+                if task_id in queued_task_ids:
+                    actual_status = "queued"
+                elif task_id in task_queue.running_tasks:
+                    actual_status = "running"
+                
                 task = {
-                    "id": row[0],
+                    "id": task_id,
                     "task_name": row[1], 
                     "task_type": row[2],
-                    "status": row[3],
+                    "status": actual_status,
                     "progress_percentage": row[4] if row[4] is not None else 0,
                     "created_at": row[5],
                     "updated_at": row[6],  # This is actually start_time now
-                    "params": params
+                    "params": params_dict
                 }
                 tasks.append(task)
             
@@ -1438,6 +1472,66 @@ async def get_rate_limit_status():
         logger.error(f"获取封控状态失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@task_executor_router.post("/queue/start-all")
+async def start_all_tasks():
+    """一键启动所有任务（将待执行任务加入队列）"""
+    try:
+        added_count = await task_queue.add_pending_tasks()
+        
+        return {
+            "success": True,
+            "message": f"已将 {added_count} 个任务加入执行队列",
+            "tasks_added": added_count
+        }
+    except Exception as e:
+        logger.error(f"启动所有任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.post("/queue/clear")
+async def clear_task_queue():
+    """一键清空任务队列（绿色按钮）"""
+    try:
+        cleared_count = await task_queue.clear_queue()
+        
+        return {
+            "success": True,
+            "message": f"已清空队列中的 {cleared_count} 个任务",
+            "tasks_cleared": cleared_count
+        }
+    except Exception as e:
+        logger.error(f"清空任务队列失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.post("/queue/clear-all")
+async def clear_all_tasks():
+    """一键清空所有任务（红色按钮）"""
+    try:
+        result = await task_queue.clear_all_tasks()
+        
+        return {
+            "success": True,
+            "message": f"已清空队列中的 {result['queue_cleared']} 个任务，删除了 {result['tasks_deleted']} 个待执行任务",
+            "queue_cleared": result["queue_cleared"],
+            "tasks_deleted": result["tasks_deleted"]
+        }
+    except Exception as e:
+        logger.error(f"清空所有任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@task_executor_router.get("/queue/status")
+async def get_queue_status():
+    """获取任务队列状态"""
+    try:
+        status = task_queue.get_queue_status()
+        
+        return {
+            "success": True,
+            "data": status
+        }
+    except Exception as e:
+        logger.error(f"获取队列状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @sales_data_router.get("/books/crawl-status")
 async def get_books_crawl_status(
     status: str = Query("all", regex="^(all|crawled|not_crawled)$"),
@@ -1648,4 +1742,111 @@ async def batch_update_shops_books(request: BatchShopRequest):
         
     except Exception as e:
         logger.error(f"批量创建书籍更新任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 窗口池管理API
+window_pool_router = APIRouter(prefix="/window-pool", tags=["window-pool"])
+
+@window_pool_router.get("/status")
+async def get_window_pool_status():
+    """获取窗口池状态"""
+    try:
+        status = chrome_pool.get_pool_status()
+        return {
+            "success": True,
+            "data": status
+        }
+    except Exception as e:
+        logger.error(f"获取窗口池状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@window_pool_router.post("/initialize")
+async def initialize_window_pool():
+    """初始化窗口池"""
+    try:
+        if chrome_pool._initialized:
+            return {
+                "success": True,
+                "message": "窗口池已经初始化"
+            }
+        
+        success = await chrome_pool.initialize()
+        if success:
+            return {
+                "success": True,
+                "message": f"窗口池初始化成功，创建了 {chrome_pool.pool_size} 个窗口"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="窗口池初始化失败")
+    except Exception as e:
+        logger.error(f"初始化窗口池失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@window_pool_router.post("/close-all")
+async def close_all_windows():
+    """关闭所有窗口"""
+    try:
+        await chrome_pool.close_all_windows()
+        return {
+            "success": True,
+            "message": "所有窗口已关闭"
+        }
+    except Exception as e:
+        logger.error(f"关闭窗口失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@window_pool_router.post("/disconnect")
+async def disconnect_window_pool():
+    """断开窗口池连接"""
+    try:
+        await chrome_pool.disconnect()
+        return {
+            "success": True,
+            "message": "窗口池已断开连接"
+        }
+    except Exception as e:
+        logger.error(f"断开连接失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@window_pool_router.put("/resize")
+async def resize_window_pool(pool_size: int = Query(..., ge=1, le=10)):
+    """智能调整窗口池大小"""
+    try:
+        old_size = chrome_pool.pool_size
+        current_windows = len(chrome_pool.available_windows) + len(chrome_pool.busy_windows)
+        
+        # 更新目标池大小
+        chrome_pool.pool_size = pool_size
+        
+        # 如果已初始化，智能调整窗口数量
+        if chrome_pool._initialized:
+            await chrome_pool._adjust_window_count()
+            
+            # 获取调整后的状态
+            new_count = len(chrome_pool.available_windows) + len(chrome_pool.busy_windows)
+            
+            return {
+                "success": True,
+                "message": f"窗口池大小调整完成",
+                "old_size": old_size,
+                "new_size": pool_size,
+                "previous_windows": current_windows,
+                "current_windows": new_count,
+                "action_taken": (
+                    f"创建了 {new_count - current_windows} 个新窗口" if new_count > current_windows
+                    else f"关闭了 {current_windows - new_count} 个窗口" if new_count < current_windows
+                    else "窗口数量未变化"
+                )
+            }
+        else:
+            # 未初始化，只更新配置
+            return {
+                "success": True,
+                "message": f"窗口池大小配置已更新为 {pool_size}（窗口池未初始化）",
+                "old_size": old_size,
+                "new_size": pool_size
+            }
+    except Exception as e:
+        logger.error(f"调整窗口池大小失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

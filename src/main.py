@@ -14,7 +14,7 @@ import uvicorn
 # 性能分析工具
 from fastapi_profiler import PyInstrumentProfilerMiddleware
 
-from .routes.api_routes import api_router, crawler_router, sales_data_router, task_executor_router
+from .routes.api_routes import api_router, crawler_router, sales_data_router, task_executor_router, window_pool_router
 from .models.database import db
 
 # 配置日志
@@ -72,6 +72,7 @@ app.include_router(api_router)
 app.include_router(crawler_router)
 app.include_router(sales_data_router)
 app.include_router(task_executor_router)
+app.include_router(window_pool_router)
 
 # 静态文件目录
 static_dir = Path(__file__).parent / "static"
@@ -89,6 +90,18 @@ async def startup_event():
 async def shutdown_event():
     """应用关闭事件"""
     logger.info("应用关闭中...")
+    
+    # 断开窗口池连接，但保留窗口
+    from .services.window_pool import chrome_pool
+    if chrome_pool.connected:
+        logger.info("断开窗口池连接（保留Chrome窗口）...")
+        # 只断开playwright连接，不关闭窗口
+        if chrome_pool.playwright:
+            await chrome_pool.playwright.stop()
+            chrome_pool.playwright = None
+            chrome_pool.browser = None
+            chrome_pool.connected = False
+        logger.info("窗口池已断开，Chrome窗口保持打开状态")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -348,6 +361,26 @@ async def crawler_admin():
                     getTaskStatus();
                 };
             </script>
+        </body>
+        </html>
+        """)
+
+@app.get("/window-pool-admin", response_class=HTMLResponse)
+async def window_pool_admin():
+    """窗口池管理页面 - 需要认证"""
+    admin_file = static_dir / "window_pool_admin.html"
+    if admin_file.exists():
+        return FileResponse(admin_file)
+    else:
+        return HTMLResponse("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>窗口池管理</title>
+            <meta charset="utf-8">
+        </head>
+        <body>
+            <h1>页面加载中...</h1>
         </body>
         </html>
         """)
