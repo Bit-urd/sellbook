@@ -64,13 +64,14 @@ async def get_books_list(
         from ..models.database import db
         books_query = f"""
             SELECT 
-                isbn, title, author, publisher, last_sales_update, created_at,
-                (CASE WHEN last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as is_crawled,
+                b.isbn, b.title, b.author, b.publisher, b.last_sales_update, b.created_at,
+                (CASE WHEN b.last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as is_crawled,
                 (SELECT COUNT(*) FROM sales_records sr WHERE sr.isbn = b.isbn) as sales_count,
-                (SELECT AVG(sale_price) FROM sales_records sr WHERE sr.isbn = b.isbn) as avg_price
+                (SELECT AVG(sale_price) FROM sales_records sr WHERE sr.isbn = b.isbn) as avg_price,
+                (SELECT AVG(bi.duozhuayu_second_hand_price) FROM book_inventory bi WHERE bi.isbn = b.isbn AND bi.duozhuayu_second_hand_price > 0) as cost_price
             FROM books b
             {where_clause}
-            ORDER BY last_sales_update DESC NULLS LAST, created_at DESC
+            ORDER BY b.last_sales_update DESC NULLS LAST, b.created_at DESC
             LIMIT ? OFFSET ?
         """
         books = db.execute_query(books_query, params + [page_size, offset])
@@ -302,6 +303,44 @@ async def crawl_book_sales(isbn: str):
         raise
     except Exception as e:
         logger.error(f"创建爬虫任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/books/{isbn}/sales")
+async def get_book_sales_records(
+    isbn: str, 
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
+    """获取指定书籍的销售记录"""
+    try:
+        from ..models.database import db
+        
+        # 检查书籍是否存在
+        existing = db.execute_query("SELECT isbn FROM books WHERE isbn = ?", (isbn,))
+        if not existing:
+            raise HTTPException(status_code=404, detail="书籍不存在")
+        
+        # 获取销售记录
+        query = """
+            SELECT item_id, sale_price, sale_date, book_condition, 
+                   sale_platform, original_price
+            FROM sales_records 
+            WHERE isbn = ? 
+            ORDER BY sale_date DESC 
+            LIMIT ? OFFSET ?
+        """
+        
+        sales_records = db.execute_query(query, (isbn, limit, offset))
+        
+        return {
+            "success": True,
+            "data": sales_records
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取销售记录失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/books/batch-crawl")

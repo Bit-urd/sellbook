@@ -86,13 +86,15 @@ class SalesRecord:
 class CrawlTask:
     """爬虫任务模型"""
     task_name: str
-    task_type: str
+    task_type: str  # book_sales_crawl, shop_books_crawl, shop_sales_batch等
     target_platform: str
     target_url: Optional[str] = None
     shop_id: Optional[int] = None
+    target_isbn: Optional[str] = None  # 目标ISBN（用于书籍级别任务）
+    book_title: Optional[str] = None  # 书籍标题（便于显示）
     task_params: Optional[Dict[str, Any]] = None
     priority: int = 5
-    status: str = 'pending'
+    status: str = 'pending'  # pending, running, completed, failed, skipped
     progress_percentage: float = 0.0
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None

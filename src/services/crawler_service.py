@@ -414,7 +414,7 @@ class KongfuziCrawler:
                             item_id=item_id,
                             isbn=isbn,
                             shop_id=shop_id,
-                            sale_price=float(sale.get('price', 0)) if sale.get('price') else 0,
+                            sale_price=float(sale.get('sale_price', 0)) if sale.get('sale_price') else 0,
                             sale_date=sale_date,
                             sale_platform='kongfuzi',
                             book_condition=sale.get('quality', '')
@@ -517,20 +517,33 @@ class KongfuziCrawler:
                                 record.sold_time = soldTimeElement.textContent.trim();
                             }
                             
-                            // 提取价格信息
+                            // 提取价格信息 - 改进版本
                             const priceElement = item.querySelector('.price-info');
                             if (priceElement) {
+                                let priceString = '';
+                                
+                                // 按顺序提取价格组件
                                 const priceInt = priceElement.querySelector('.price-int');
+                                const priceDot = priceElement.querySelector('.price-dot');
                                 const priceFloat = priceElement.querySelector('.price-float');
-                                if (priceInt && priceFloat) {
-                                    const intPart = priceInt.textContent.trim();
-                                    const floatPart = priceFloat.textContent.trim();
-                                    record.sale_price = parseFloat(intPart + '.' + floatPart);
+                                
+                                if (priceInt) {
+                                    priceString += priceInt.textContent.trim();
+                                }
+                                if (priceDot) {
+                                    priceString += priceDot.textContent.trim();
+                                }
+                                if (priceFloat) {
+                                    priceString += priceFloat.textContent.trim();
+                                }
+                                
+                                if (priceString) {
+                                    record.sale_price = parseFloat(priceString);
                                 }
                             }
                             
                             // 如果没有找到价格，尝试其他选择器
-                            if (!record.sale_price) {
+                            if (!record.sale_price || record.sale_price === 0) {
                                 const priceSpan = item.querySelector('.price, .sale-price, .money');
                                 if (priceSpan) {
                                     const priceText = priceSpan.textContent.replace(/[^0-9.]/g, '');

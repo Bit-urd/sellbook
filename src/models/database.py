@@ -137,6 +137,8 @@ class Database:
                     target_url TEXT,
                     
                     shop_id INTEGER REFERENCES shops(id),
+                    target_isbn TEXT,  -- 目标ISBN（用于书籍级别任务）
+                    book_title TEXT,   -- 书籍标题（便于显示）
                     
                     -- 任务参数
                     task_params TEXT,
@@ -159,6 +161,17 @@ class Database:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            
+            # 添加新字段（兼容已有数据库）
+            try:
+                cursor.execute("ALTER TABLE crawl_tasks ADD COLUMN target_isbn TEXT")
+            except sqlite3.OperationalError:
+                pass  # 字段已存在
+            
+            try:
+                cursor.execute("ALTER TABLE crawl_tasks ADD COLUMN book_title TEXT")
+            except sqlite3.OperationalError:
+                pass  # 字段已存在
             
             # 6. 数据统计缓存表
             cursor.execute("""

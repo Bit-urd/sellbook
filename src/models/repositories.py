@@ -66,34 +66,48 @@ class ShopRepository:
             where_clause = "WHERE s.shop_id LIKE ? OR s.shop_name LIKE ?"
             params.extend([f"%{search}%", f"%{search}%"])
         
+        # 优化查询：使用更简单的聚合，减少复杂度
         query = f"""
             SELECT s.*,
-                   COALESCE(shop_stats.total_books, 0) as total_books,
-                   COALESCE(shop_stats.crawled_books, 0) as crawled_books,
-                   COALESCE(shop_stats.uncrawled_books, 0) as uncrawled_books,
-                   COALESCE(shop_stats.crawl_progress, 0) as crawl_progress,
-                   COALESCE(shop_stats.total_sales, 0) as total_sales,
-                   shop_stats.last_update
+                   COALESCE(bi_count.total_books, 0) as total_books,
+                   COALESCE(b_crawled.crawled_books, 0) as crawled_books,
+                   COALESCE(bi_count.total_books - b_crawled.crawled_books, 0) as uncrawled_books,
+                   CASE 
+                       WHEN COALESCE(bi_count.total_books, 0) = 0 THEN 0
+                       ELSE ROUND((COALESCE(b_crawled.crawled_books, 0) * 100.0 / bi_count.total_books), 2)
+                   END as crawl_progress,
+                   COALESCE(sr_count.total_sales, 0) as total_sales,
+                   COALESCE(b_last.last_update, sr_last.last_update) as last_update
             FROM shops s
             LEFT JOIN (
-                SELECT 
-                    s2.id as shop_db_id,
-                    COUNT(DISTINCT bi.isbn) as total_books,
-                    COUNT(DISTINCT CASE WHEN b.last_sales_update IS NOT NULL THEN b.isbn END) as crawled_books,
-                    COUNT(DISTINCT CASE WHEN b.last_sales_update IS NULL THEN b.isbn END) as uncrawled_books,
-                    CASE 
-                        WHEN COUNT(DISTINCT bi.isbn) = 0 THEN 0
-                        ELSE ROUND((COUNT(DISTINCT CASE WHEN b.last_sales_update IS NOT NULL THEN b.isbn END) * 100.0 / 
-                                  COUNT(DISTINCT bi.isbn)), 2)
-                    END as crawl_progress,
-                    COUNT(DISTINCT sr.item_id) as total_sales,
-                    MAX(COALESCE(b.last_sales_update, sr.created_at)) as last_update
-                FROM shops s2
-                LEFT JOIN book_inventory bi ON s2.id = bi.shop_id
-                LEFT JOIN books b ON bi.isbn = b.isbn
-                LEFT JOIN sales_records sr ON s2.id = sr.shop_id
-                GROUP BY s2.id
-            ) shop_stats ON s.id = shop_stats.shop_db_id
+                SELECT shop_id, COUNT(DISTINCT isbn) as total_books 
+                FROM book_inventory 
+                GROUP BY shop_id
+            ) bi_count ON s.id = bi_count.shop_id
+            LEFT JOIN (
+                SELECT bi.shop_id, COUNT(DISTINCT bi.isbn) as crawled_books
+                FROM book_inventory bi
+                JOIN books b ON bi.isbn = b.isbn 
+                WHERE b.last_sales_update IS NOT NULL
+                GROUP BY bi.shop_id
+            ) b_crawled ON s.id = b_crawled.shop_id
+            LEFT JOIN (
+                SELECT shop_id, COUNT(DISTINCT item_id) as total_sales
+                FROM sales_records 
+                GROUP BY shop_id
+            ) sr_count ON s.id = sr_count.shop_id
+            LEFT JOIN (
+                SELECT bi.shop_id, MAX(b.last_sales_update) as last_update
+                FROM book_inventory bi
+                JOIN books b ON bi.isbn = b.isbn
+                WHERE b.last_sales_update IS NOT NULL
+                GROUP BY bi.shop_id
+            ) b_last ON s.id = b_last.shop_id
+            LEFT JOIN (
+                SELECT shop_id, MAX(created_at) as last_update
+                FROM sales_records
+                GROUP BY shop_id
+            ) sr_last ON s.id = sr_last.shop_id
             {where_clause}
             ORDER BY s.created_at DESC 
             LIMIT ? OFFSET ?
@@ -387,11 +401,11 @@ class CrawlTaskRepository:
         query = """
             INSERT INTO crawl_tasks 
             (task_name, task_type, target_platform, target_url, shop_id, 
-             task_params, priority, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             target_isbn, book_title, task_params, priority, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (task.task_name, task.task_type, task.target_platform,
-                 task.target_url, task.shop_id,
+                 task.target_url, task.shop_id, task.target_isbn, task.book_title,
                  json.dumps(task.task_params) if task.task_params else None,
                  task.priority, task.status)
         
@@ -456,6 +470,81 @@ class CrawlTaskRepository:
         query = f"DELETE FROM crawl_tasks WHERE id IN ({placeholders})"
         
         return db.execute_update(query, tuple(task_ids))
+    
+    def create_book_sales_tasks(self, shop_id: int, book_list: List[Dict]) -> int:
+        """为店铺的书籍列表批量创建销售记录爬取任务"""
+        created_count = 0
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            for book in book_list:
+                # 检查是否已经有该ISBN的爬取任务（pending或running状态）
+                check_query = """
+                    SELECT COUNT(*) FROM crawl_tasks 
+                    WHERE target_isbn = ? AND task_type = 'book_sales_crawl' 
+                    AND status IN ('pending', 'running')
+                """
+                cursor.execute(check_query, (book['isbn'],))
+                existing_tasks = cursor.fetchone()[0]
+                
+                if existing_tasks > 0:
+                    continue  # 跳过已有任务的书籍
+                
+                # 创建任务
+                task = CrawlTask(
+                    task_name=f"爬取《{book.get('title', 'Unknown')}》销售记录",
+                    task_type="book_sales_crawl",
+                    target_platform="kongfuzi",
+                    shop_id=shop_id,
+                    target_isbn=book['isbn'],
+                    book_title=book.get('title', 'Unknown'),
+                    priority=5,
+                    status='pending'
+                )
+                
+                insert_query = """
+                    INSERT INTO crawl_tasks 
+                    (task_name, task_type, target_platform, shop_id, target_isbn, 
+                     book_title, priority, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                cursor.execute(insert_query, (
+                    task.task_name, task.task_type, task.target_platform,
+                    task.shop_id, task.target_isbn, task.book_title,
+                    task.priority, task.status
+                ))
+                created_count += 1
+        
+        return created_count
+    
+    def get_book_sales_tasks_by_shop(self, shop_id: int, status: str = None) -> List[Dict]:
+        """获取指定店铺的书籍销售爬取任务"""
+        if status:
+            query = """
+                SELECT * FROM crawl_tasks 
+                WHERE shop_id = ? AND task_type = 'book_sales_crawl' AND status = ?
+                ORDER BY created_at DESC
+            """
+            return db.execute_query(query, (shop_id, status))
+        else:
+            query = """
+                SELECT * FROM crawl_tasks 
+                WHERE shop_id = ? AND task_type = 'book_sales_crawl'
+                ORDER BY created_at DESC
+            """
+            return db.execute_query(query, (shop_id,))
+    
+    def get_next_pending_book_task(self) -> Optional[Dict]:
+        """获取下一个待执行的书籍销售爬取任务"""
+        query = """
+            SELECT * FROM crawl_tasks 
+            WHERE task_type = 'book_sales_crawl' AND status = 'pending'
+            ORDER BY priority DESC, created_at ASC
+            LIMIT 1
+        """
+        results = db.execute_query(query)
+        return results[0] if results else None
 
 class StatisticsRepository:
     """统计数据仓库"""

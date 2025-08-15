@@ -146,7 +146,7 @@ class RateLimitStatusComponent {
                                 ✅ 爬虫正常运行
                             </div>
                             <div style="font-size: 12px; opacity: 0.9;">
-                                策略等待: ${nextTimeText}
+                                异常等待时间: ${nextTimeText}
                             </div>
                         </div>
                     </div>

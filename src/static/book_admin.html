@@ -470,15 +470,16 @@
                             <th>书名</th>
                             <th>作者</th>
                             <th>出版社</th>
-                            <th>销售数</th>
+                            <th>30天内销售数</th>
                             <th>平均价格</th>
+                            <th>成本价</th>
                             <th>爬取状态</th>
                             <th>最后更新</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="bookTableBody">
-                        <tr><td colspan="10" style="text-align: center;">加载中...</td></tr>
+                        <tr><td colspan="11" style="text-align: center;">加载中...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -560,7 +561,7 @@
         async function loadBooks(page = 1) {
             currentPage = page;
             const tbody = document.getElementById('bookTableBody');
-            tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">加载中...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">加载中...</td></tr>';
             
             try {
                 const search = document.getElementById('searchInput').value;
@@ -590,7 +591,7 @@
                 }
             } catch (error) {
                 console.error('加载书籍列表失败:', error);
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: red;">加载失败: ' + error.message + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: red;">加载失败: ' + error.message + '</td></tr>';
                 showAlert('error', '加载书籍列表失败: ' + error.message);
             }
         }
@@ -600,7 +601,7 @@
             const tbody = document.getElementById('bookTableBody');
             
             if (!books || books.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">暂无数据</td></tr>';
                 updateBatchButtonsState();
                 return;
             }
@@ -621,6 +622,7 @@
                         <td>${book.publisher || '-'}</td>
                         <td>${book.sales_count || 0}</td>
                         <td>${avgPrice}</td>
+                        <td>${book.cost_price ? `¥${book.cost_price.toFixed(2)}` : '-'}</td>
                         <td><span class="status-badge ${crawlStatusClass}">${crawlStatus}</span></td>
                         <td>${lastUpdate}</td>
                         <td class="action-buttons">
@@ -820,13 +822,8 @@
                             </div>
                             
                             <div class="detail-section">
-                                <h3>在售店铺</h3>
-                                ${book.shops && book.shops.length > 0 ? 
-                                    '<ul>' + book.shops.map(shop => 
-                                        `<li>${shop.shop_name} (${shop.shop_id}) - 销量: ${shop.sale_count}, 均价: ¥${shop.avg_price.toFixed(2)}</li>`
-                                    ).join('') + '</ul>' : 
-                                    '<p>暂无数据</p>'
-                                }
+                                <h3>销售记录 (最近20条)</h3>
+                                <div id="salesRecordsTable"></div>
                             </div>
                         </div>
                     `;
@@ -834,6 +831,9 @@
                     document.getElementById('detailTitle').textContent = `书籍详情 - ${book.title}`;
                     document.getElementById('bookDetailContent').innerHTML = html;
                     document.getElementById('bookDetailModal').style.display = 'block';
+                    
+                    // 加载销售记录
+                    loadSalesRecords(isbn);
                 }
             } catch (error) {
                 showAlert('error', '获取书籍详情失败: ' + error.message);
@@ -987,6 +987,51 @@
             setTimeout(() => {
                 container.innerHTML = '';
             }, 5000);
+        }
+
+        // 加载销售记录
+        async function loadSalesRecords(isbn) {
+            try {
+                const response = await fetch(`/api/books/${isbn}/sales?limit=20`);
+                const data = await response.json();
+                
+                const container = document.getElementById('salesRecordsTable');
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    let html = `
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <thead>
+                                <tr style="background: #f5f5f5;">
+                                    <th style="padding: 8px; border: 1px solid #ddd;">销售时间</th>
+                                    <th style="padding: 8px; border: 1px solid #ddd;">销售价格</th>
+                                    <th style="padding: 8px; border: 1px solid #ddd;">品相</th>
+                                    <th style="padding: 8px; border: 1px solid #ddd;">商品ID</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    data.data.forEach(record => {
+                        const saleDate = new Date(record.sale_date).toLocaleString('zh-CN');
+                        html += `
+                            <tr>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${saleDate}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">¥${record.sale_price.toFixed(2)}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${record.book_condition || '-'}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${record.item_id}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p style="text-align: center; color: #666; margin: 20px 0;">暂无销售记录</p>';
+                }
+            } catch (error) {
+                console.error('加载销售记录失败:', error);
+                document.getElementById('salesRecordsTable').innerHTML = '<p style="text-align: center; color: #ff6b6b; margin: 20px 0;">加载销售记录失败</p>';
+            }
         }
 
         // 点击模态框外部关闭

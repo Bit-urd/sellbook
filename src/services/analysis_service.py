@@ -376,7 +376,7 @@ class AnalysisService:
                     COUNT(DISTINCT isbn) as unique_books,
                     COUNT(DISTINCT shop_id) as active_shops
                 FROM sales_records 
-                WHERE sale_time >= datetime('now', '-30 days')
+                WHERE sale_date >= datetime('now', '-30 days')
             """
             
             quick_stats = db.execute_query(quick_stats_query)

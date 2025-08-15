@@ -1090,6 +1090,22 @@
             });
             event.target.classList.add('active');
             loadDashboardData();
+            
+            // 重新加载当前激活标签页的数据
+            const activeTab = document.querySelector('.tab-content.active');
+            if (activeTab) {
+                switch(activeTab.id) {
+                    case 'salesRank':
+                        loadSalesRank(1);
+                        break;
+                    case 'priceDiffRank':
+                        loadPriceDiffRank(1);
+                        break;
+                    case 'profitRank':
+                        loadProfitRank(1);
+                        break;
+                }
+            }
         }
 
         function switchTab(tabName) {
@@ -1165,7 +1181,7 @@
         async function loadSalesRank(page = 1) {
             try {
                 const offset = (page - 1) * pageSize;
-                const days = currentDays === 0 ? 9999 : currentDays;
+                const days = currentDays === 0 ? 365 : currentDays;
                 const response = await fetch(`/api/sales/hot?days=${days}&limit=${pageSize}&offset=${offset}`);
                 const data = await response.json();
 
@@ -1245,7 +1261,7 @@
         async function loadProfitRank(page = 1) {
             try {
                 const offset = (page - 1) * pageSize;
-                const days = currentDays === 0 ? 9999 : currentDays;
+                const days = currentDays === 0 ? 365 : currentDays;
                 // 这里需要后端支持，暂时用模拟数据
                 const response = await fetch(`/api/sales/hot?days=${days}&limit=${pageSize}&offset=${offset}`);
                 const data = await response.json();

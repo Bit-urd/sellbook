@@ -1,0 +1,229 @@
+INFO:     Will watch for changes in these directories: ['/Users/admin/my-project/sellbook/src']
+INFO:     Uvicorn running on http://0.0.0.0:8282 (Press CTRL+C to quit)
+INFO:     Started reloader process [96037] using StatReload
+INFO:     Started server process [96039]
+INFO:     Waiting for application startup.
+2025-08-16 00:37:44,473 - src.main - INFO - 应用启动中...
+2025-08-16 00:37:44,473 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:52760 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52760 - "GET /static/common-components.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52760 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52765 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52766 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52760 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52775 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52812 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52813 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52970 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53053 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53165 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53165 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53165 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53169 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
+2025-08-16 00:39:51,790 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
+INFO:     127.0.0.1:53329 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53228 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53228 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53464 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53639 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53786 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53953 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:42:01,191 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [96039]
+INFO:     Started server process [98566]
+INFO:     Waiting for application startup.
+2025-08-16 00:42:01,735 - src.main - INFO - 应用启动中...
+2025-08-16 00:42:01,735 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:42:12,870 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [98566]
+INFO:     Started server process [98734]
+INFO:     Waiting for application startup.
+2025-08-16 00:42:13,304 - src.main - INFO - 应用启动中...
+2025-08-16 00:42:13,304 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:54093 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/routes/api_routes.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:42:34,032 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [98734]
+INFO:     Started server process [98916]
+INFO:     Waiting for application startup.
+2025-08-16 00:42:34,470 - src.main - INFO - 应用启动中...
+2025-08-16 00:42:34,470 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:54226 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54357 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54691 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:44:37,963 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [98916]
+INFO:     Started server process [99982]
+INFO:     Waiting for application startup.
+2025-08-16 00:44:38,388 - src.main - INFO - 应用启动中...
+2025-08-16 00:44:38,389 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:44:53,858 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [99982]
+INFO:     Started server process [226]
+INFO:     Waiting for application startup.
+2025-08-16 00:44:54,275 - src.main - INFO - 应用启动中...
+2025-08-16 00:44:54,275 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:54809 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55029 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55119 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55124 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55124 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55124 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55127 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55129 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+2025-08-16 00:46:16,817 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
+2025-08-16 00:46:20,873 - src.services.crawler_service - ERROR - 爬取ISBN 9787572201882 销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
+2025-08-16 00:46:20,873 - src.routes.api_routes - ERROR - 分析书籍销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
+INFO:     127.0.0.1:55127 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55229 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55234 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55421 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 00:46:59,445 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
+2025-08-16 00:47:02,780 - src.services.crawler_service - ERROR - 爬取ISBN 9787572201882 销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
+2025-08-16 00:47:02,780 - src.routes.api_routes - ERROR - 分析书籍销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
+INFO:     127.0.0.1:55390 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55537 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55547 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55664 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55775 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:48:26,359 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [226]
+INFO:     Started server process [1579]
+INFO:     Waiting for application startup.
+2025-08-16 00:48:26,797 - src.main - INFO - 应用启动中...
+2025-08-16 00:48:26,797 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55795 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:48:49,444 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1579]
+INFO:     Started server process [1802]
+INFO:     Waiting for application startup.
+2025-08-16 00:48:49,852 - src.main - INFO - 应用启动中...
+2025-08-16 00:48:49,852 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:56242 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 00:50:03,493 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
+INFO:     127.0.0.1:56224 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56224 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56350 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56361 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56483 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56573 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56609 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56769 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56864 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56877 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57036 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:53:20,004 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1802]
+INFO:     Started server process [3176]
+INFO:     Waiting for application startup.
+2025-08-16 00:53:20,443 - src.main - INFO - 应用启动中...
+2025-08-16 00:53:20,443 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:57132 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57145 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57465 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57584 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57584 - "GET /static/common-components.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:57584 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57584 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57586 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57690 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 00:55:23,956 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
+2025-08-16 00:55:23,956 - src.services.crawler_service - INFO - 正在爬取第 1 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=1&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=1
+INFO:     127.0.0.1:57739 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 00:55:27,088 - src.services.crawler_service - INFO - 第 1 页获取了 50 条有效销售记录
+2025-08-16 00:55:29,089 - src.services.crawler_service - INFO - 正在爬取第 2 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=2&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=2
+2025-08-16 00:55:32,162 - src.services.crawler_service - INFO - 第 2 页获取了 50 条有效销售记录
+2025-08-16 00:55:34,163 - src.services.crawler_service - INFO - 正在爬取第 3 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=3&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=3
+2025-08-16 00:55:36,842 - src.services.crawler_service - INFO - 第 3 页获取了 50 条有效销售记录
+2025-08-16 00:55:38,843 - src.services.crawler_service - INFO - 正在爬取第 4 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=4&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=4
+2025-08-16 00:55:41,862 - src.services.crawler_service - INFO - 第 4 页获取了 28 条有效销售记录
+2025-08-16 00:55:41,862 - src.services.crawler_service - INFO - 第 4 页发现超过 30 天的记录，停止翻页
+INFO:     127.0.0.1:57644 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57644 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57836 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57836 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57836 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57838 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
+2025-08-16 00:56:13,632 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
+2025-08-16 00:56:13,632 - src.services.crawler_service - INFO - 正在爬取第 1 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=1&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=1
+2025-08-16 00:56:16,754 - src.services.crawler_service - INFO - 第 1 页获取了 50 条有效销售记录
+2025-08-16 00:56:18,755 - src.services.crawler_service - INFO - 正在爬取第 2 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=2&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=2
+2025-08-16 00:56:21,826 - src.services.crawler_service - INFO - 第 2 页获取了 50 条有效销售记录
+INFO:     127.0.0.1:57968 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57974 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 00:56:23,827 - src.services.crawler_service - INFO - 正在爬取第 3 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=3&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=3
+2025-08-16 00:56:26,907 - src.services.crawler_service - INFO - 第 3 页获取了 50 条有效销售记录
+2025-08-16 00:56:28,908 - src.services.crawler_service - INFO - 正在爬取第 4 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=4&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=4
+2025-08-16 00:56:31,951 - src.services.crawler_service - INFO - 第 4 页获取了 28 条有效销售记录
+2025-08-16 00:56:31,951 - src.services.crawler_service - INFO - 第 4 页发现超过 30 天的记录，停止翻页
+INFO:     127.0.0.1:57877 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57877 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58071 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58179 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58185 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58324 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:58:16,621 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3176]
+INFO:     Started server process [4855]
+INFO:     Waiting for application startup.
+2025-08-16 00:58:17,091 - src.main - INFO - 应用启动中...
+2025-08-16 00:58:17,091 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:58477 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58481 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 00:58:31,950 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4855]
+INFO:     Started server process [5032]
+INFO:     Waiting for application startup.
+2025-08-16 00:58:32,366 - src.main - INFO - 应用启动中...
+2025-08-16 00:58:32,366 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     127.0.0.1:58599 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
