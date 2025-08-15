@@ -77,7 +77,10 @@ class RateLimitStatusComponent {
     displayStatus(status) {
         if (!this.container) return;
 
-        const { is_rate_limited, current_wait_time_minutes, next_wait_time_minutes } = status;
+        const { is_rate_limited, current_wait_time, next_wait_time } = status;
+        // 向后兼容旧格式
+        const currentTimeText = current_wait_time?.display_text || `${status.current_wait_time_minutes}分钟`;
+        const nextTimeText = next_wait_time?.display_text || `${status.next_wait_time_minutes}分钟`;
 
         if (is_rate_limited) {
             // 显示封控状态
@@ -102,10 +105,10 @@ class RateLimitStatusComponent {
                             🚫 系统封控中
                         </div>
                         <div style="font-size: 12px; opacity: 0.9;">
-                            当前等待: ${current_wait_time_minutes} 分钟
+                            当前等待: ${currentTimeText}
                         </div>
                         <div style="font-size: 11px; opacity: 0.8; margin-top: 2px;">
-                            下次等待: ${next_wait_time_minutes} 分钟
+                            下次等待: ${nextTimeText}
                         </div>
                     </div>
                 </div>

@@ -24,7 +24,7 @@ class KongfuziCrawler:
     
     # 全局封控等待时间（秒），使用类变量在所有实例间共享
     _rate_limit_wait_time = 0
-    _max_wait_time = 16 * 60  # 最大等待时间：16分钟
+    _max_wait_time = 24 * 60 * 60  # 最大等待时间：1天（24小时）
     
     def __init__(self):
         self.browser = None
@@ -55,7 +55,19 @@ class KongfuziCrawler:
             else:
                 cls._rate_limit_wait_time = min(cls._rate_limit_wait_time * 2, cls._max_wait_time)
             
-            logger.warning(f"遇到封控，更新等待时间为 {cls._rate_limit_wait_time // 60} 分钟")
+            # 根据等待时间选择合适的显示单位
+            wait_time_minutes = cls._rate_limit_wait_time // 60
+            if wait_time_minutes >= 60:
+                wait_time_hours = wait_time_minutes // 60
+                remaining_minutes = wait_time_minutes % 60
+                if remaining_minutes > 0:
+                    time_str = f"{wait_time_hours}小时{remaining_minutes}分钟"
+                else:
+                    time_str = f"{wait_time_hours}小时"
+            else:
+                time_str = f"{wait_time_minutes}分钟"
+            
+            logger.warning(f"遇到封控，更新等待时间为 {time_str}")
     
     @classmethod
     def _get_current_wait_time(cls) -> int:
@@ -77,12 +89,38 @@ class KongfuziCrawler:
     def get_rate_limit_status(cls) -> dict:
         """获取当前封控状态信息"""
         wait_time = cls._rate_limit_wait_time
+        next_wait_time = min(wait_time * 2, cls._max_wait_time) if wait_time > 0 else 2 * 60
+        
+        def format_time_display(seconds: int) -> dict:
+            """格式化时间显示"""
+            minutes = seconds // 60
+            if minutes >= 60:
+                hours = minutes // 60
+                remaining_minutes = minutes % 60
+                if remaining_minutes > 0:
+                    display_text = f"{hours}小时{remaining_minutes}分钟"
+                else:
+                    display_text = f"{hours}小时"
+            else:
+                display_text = f"{minutes}分钟"
+            
+            return {
+                "seconds": seconds,
+                "minutes": minutes,
+                "hours": minutes // 60 if minutes >= 60 else 0,
+                "display_text": display_text
+            }
+        
         return {
             "is_rate_limited": wait_time > 0,
+            "current_wait_time": format_time_display(wait_time),
+            "next_wait_time": format_time_display(next_wait_time),
+            "max_wait_time": format_time_display(cls._max_wait_time),
+            # 保持向后兼容
             "current_wait_time_seconds": wait_time,
             "current_wait_time_minutes": wait_time // 60,
             "max_wait_time_minutes": cls._max_wait_time // 60,
-            "next_wait_time_minutes": min(wait_time * 2, cls._max_wait_time) // 60 if wait_time > 0 else 2
+            "next_wait_time_minutes": next_wait_time // 60
         }
     
     async def connect_browser(self):
@@ -627,7 +665,8 @@ class KongfuziCrawler:
             # 检查当前封控状态
             rate_limit_status = self.get_rate_limit_status()
             if rate_limit_status["is_rate_limited"]:
-                logger.info(f"当前处于封控状态，等待时间: {rate_limit_status['current_wait_time_minutes']} 分钟")
+                current_time_display = rate_limit_status["current_wait_time"]["display_text"]
+                logger.info(f"当前处于封控状态，等待时间: {current_time_display}")
             
             # 获取店铺信息
             shop = self.shop_repo.get_by_shop_id(shop_id)
@@ -685,7 +724,19 @@ class KongfuziCrawler:
                         self._update_rate_limit_wait_time(success=False)
                         wait_time = self._get_current_wait_time()
                         
-                        logger.warning(f"遇到访问频率限制，等待 {wait_time // 60} 分钟后继续: {error_msg}")
+                        # 格式化等待时间显示
+                        wait_minutes = wait_time // 60
+                        if wait_minutes >= 60:
+                            wait_hours = wait_minutes // 60
+                            remaining_minutes = wait_minutes % 60
+                            if remaining_minutes > 0:
+                                time_display = f"{wait_hours}小时{remaining_minutes}分钟"
+                            else:
+                                time_display = f"{wait_hours}小时"
+                        else:
+                            time_display = f"{wait_minutes}分钟"
+                        
+                        logger.warning(f"遇到访问频率限制，等待 {time_display} 后继续: {error_msg}")
                         await asyncio.sleep(wait_time)
                         continue  # 继续处理下一本书
                     
@@ -694,14 +745,15 @@ class KongfuziCrawler:
             
             logger.info(f"店铺 {shop_id} 销售数据爬取完成: 成功 {success_count} 本，失败 {error_count} 本，总共保存 {total_sales} 条销售记录")
             
-        # 显示最终封控状态
-        final_status = self.get_rate_limit_status()
-        if final_status["is_rate_limited"]:
-            logger.warning(f"爬取结束时仍处于封控状态，当前等待时间: {final_status['current_wait_time_minutes']} 分钟")
-        else:
-            logger.info("爬取结束时封控状态已重置")
-            
-        return total_sales
+            # 显示最终封控状态
+            final_status = self.get_rate_limit_status()
+            if final_status["is_rate_limited"]:
+                current_time_display = final_status["current_wait_time"]["display_text"]
+                logger.warning(f"爬取结束时仍处于封控状态，当前等待时间: {current_time_display}")
+            else:
+                logger.info("爬取结束时封控状态已重置")
+                
+            return total_sales
             
         except Exception as e:
             logger.error(f"爬取店铺 {shop_id} 销售数据失败: {e}")
