@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'">
     <title>卖书网站价差数据分析系统</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/static/common-components.js"></script>
@@ -297,22 +298,6 @@
             color: #333;
         }
 
-        .isbn-chart-container {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            border: 1px solid #eee;
-        }
-
-        .isbn-chart-container h3 {
-            margin-bottom: 10px;
-            color: #333;
-            font-size: 1.1em;
-        }
-
-        #isbnSalesChart {
-            max-height: 300px;
-        }
         .isbn-quality-container {
             background: white;
             border-radius: 8px;
@@ -621,18 +606,13 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="/static/shop_admin.html" class="nav-link">
-                            🏪 店铺管理
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a href="/static/book_admin.html" class="nav-link">
                             📚 书籍管理
                         </a>
                     </li>
                     <li class="nav-item">
                         <a href="/static/sales_data_admin.html" class="nav-link">
-                            💰 销售管理
+                            🏪 店铺管理
                         </a>
                     </li>
                     <li class="nav-item">
@@ -710,10 +690,6 @@
                     </div>
                 </div>
 
-                <div class="isbn-chart-container">
-                    <h3>📈 销售趋势</h3>
-                    <canvas id="isbnSalesChart"></canvas>
-                </div>
 
                 <div class="isbn-quality-container">
                     <h3>📚 品相分布</h3>
@@ -845,97 +821,11 @@
             </div>
         </div>
 
-        <!-- 本地库书籍查询标题 -->
-        <div class="section-header">
-            <h2>本地库书籍查询</h2>
-        </div>
-
-        <!-- 搜索框 -->
-        <div id="book-search" class="search-box">
-            <input type="text" id="searchInput" placeholder="搜索书籍名称...">
-            <button onclick="searchBooks()">搜索</button>
-        </div>
-
-        <!-- 仪表板统计卡片 -->
-        <div class="dashboard" id="dashboard">
-            <div class="card">
-                <h2>📊 销量统计</h2>
-                <div class="stat-value" id="totalSales">加载中...</div>
-                <div class="stat-label">总销售记录</div>
-                <div class="stat-grid">
-                    <div class="stat-item">
-                        <div>今日</div>
-                        <div style="font-weight: bold;" id="todaySales">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>本周</div>
-                        <div style="font-weight: bold;" id="weekSales">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>本月</div>
-                        <div style="font-weight: bold;" id="monthSales">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>增长率</div>
-                        <div style="font-weight: bold; color: #28a745;" id="growthRate">-</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>💰 价格分析</h2>
-                <div class="stat-value" id="avgPrice">¥0</div>
-                <div class="stat-label">平均售价</div>
-                <div class="stat-grid">
-                    <div class="stat-item">
-                        <div>最高价</div>
-                        <div style="font-weight: bold;" id="maxPrice">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>最低价</div>
-                        <div style="font-weight: bold;" id="minPrice">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>中位数</div>
-                        <div style="font-weight: bold;" id="medianPrice">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>价格区间</div>
-                        <div style="font-weight: bold;" id="priceRange">-</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>🎯 商机分析</h2>
-                <div class="stat-value" id="totalInventory">0</div>
-                <div class="stat-label">监控书籍数</div>
-                <div class="stat-grid">
-                    <div class="stat-item">
-                        <div>盈利机会</div>
-                        <div style="font-weight: bold; color: #28a745;" id="activeItems">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>发现率</div>
-                        <div style="font-weight: bold; color: #dc3545;" id="outOfStock">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>监控店铺</div>
-                        <div style="font-weight: bold; color: #007bff;" id="newItems">-</div>
-                    </div>
-                    <div class="stat-item">
-                        <div>平均收益率</div>
-                        <div style="font-weight: bold;" id="turnoverRate">-</div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script>
         let currentDays = 3;
         let charts = {};
-        let isbnSalesChart = null;
         let priceDistributionChart = null;
         let currentSalesPage = 1;
         let currentDiffPage = 1;
@@ -981,7 +871,21 @@
                     // 刷新封控状态
                     refreshRateLimitStatus();
                 } else {
-                    showISBNError(data.message || '分析失败，请稍后重试');
+                    // 根据错误类型显示不同的错误信息
+                    const errorType = data.error_type || 'UNKNOWN_ERROR';
+                    let errorMessage = data.message || '分析失败，请稍后重试';
+                    
+                    if (errorType === 'LOGIN_REQUIRED') {
+                        errorMessage = `⚠️ ${errorMessage}\n\n解决方案：\n1. 在Chrome浏览器中访问 https://www.kongfz.com\n2. 登录您的孔夫子旧书网账号\n3. 登录成功后重新点击"🔍 分析"按钮`;
+                    } else if (errorType === 'RATE_LIMITED') {
+                        errorMessage = `🚫 ${errorMessage}\n\n解决方案：\n1. 等待一段时间后重试\n2. 或在浏览器中登录真实账号`;
+                        // 刷新封控状态以显示等待时间
+                        refreshRateLimitStatus();
+                    } else if (errorType === 'CRAWLER_SERVICE_UNAVAILABLE') {
+                        errorMessage = `🔧 ${errorMessage}\n\n解决方案：\n1. 请确保Chrome浏览器已启动\n2. 启动命令: chrome --remote-debugging-port=9222`;
+                    }
+                    
+                    showISBNError(errorMessage);
                 }
             } catch (error) {
                 console.error('分析失败:', error);
@@ -1030,97 +934,12 @@
                 document.getElementById('isbnLatestSale').textContent = '-';
             }
 
-            // 绘制趋势图
-            drawISBNSalesChart(stats);
             // 更新品相分布
             updateQualityDistribution(stats);
             // 绘制价格分布饼状图
             drawPriceDistributionChart(stats);
         }
 
-        function drawISBNSalesChart(stats) {
-            const ctx = document.getElementById('isbnSalesChart').getContext('2d');
-
-            // 销毁旧图表
-            if (isbnSalesChart) {
-                isbnSalesChart.destroy();
-            }
-
-            // 使用真实销售记录数据
-            const labels = [];
-            const data = [];
-            const today = new Date();
-            
-            // 统计每天的销售数量
-            const salesByDate = {};
-            
-            // 如果有销售记录，按日期统计
-            if (stats.sales_records && stats.sales_records.length > 0) {
-                stats.sales_records.forEach(record => {
-                    if (record.sale_date) {
-                        const saleDate = new Date(record.sale_date);
-                        const dateKey = saleDate.getMonth() + 1 + '/' + saleDate.getDate();
-                        salesByDate[dateKey] = (salesByDate[dateKey] || 0) + 1;
-                    }
-                });
-            }
-            
-            // 创建最近30天的标签和数据
-            for (let i = 29; i >= 0; i--) {
-                const date = new Date(today);
-                date.setDate(date.getDate() - i);
-                const dateKey = date.getMonth() + 1 + '/' + date.getDate();
-                labels.push(dateKey);
-                data.push(salesByDate[dateKey] || 0);
-            }
-
-            // 计算y轴的最大值
-            const maxValue = Math.max(...data);
-            const yMax = maxValue > 0 ? Math.ceil(maxValue * 1.2) : 10;
-
-            isbnSalesChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: '日销量',
-                        data: data,
-                        backgroundColor: 'rgba(76, 175, 80, 0.6)',
-                        borderColor: '#4CAF50',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    aspectRatio: 3,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: yMax,
-                            ticks: {
-                                stepSize: Math.ceil(yMax / 10),
-                                callback: function(value) {
-                                    if (Math.floor(value) === value) {
-                                        return value;
-                                    }
-                                }
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
-                }
-            });
-        }
 
         function updateQualityDistribution(stats) {
             // 重置所有品相计数
@@ -1250,7 +1069,8 @@
 
         function showISBNError(message) {
             const errorDiv = document.getElementById('isbnError');
-            errorDiv.textContent = message;
+            // 将换行符转换为<br>标签以支持多行显示
+            errorDiv.innerHTML = message.replace(/\n/g, '<br>');
             errorDiv.style.display = 'block';
             document.getElementById('isbnResults').style.display = 'none';
         }
@@ -1468,29 +1288,77 @@
             }
         }
 
-        async function searchBooks() {
-            const query = document.getElementById('searchInput').value.trim();
-            if (!query) return;
-
-            try {
-                const response = await fetch(`/api/book/search?q=${encodeURIComponent(query)}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    console.log('搜索结果:', data.data);
-                    // 可以在这里添加搜索结果的显示逻辑
-                }
-            } catch (error) {
-                console.error('搜索失败:', error);
-            }
-        }
 
 
         // 页面加载时初始化
         window.onload = function() {
-            loadDashboardData();
-            loadSalesRank(1);  // 默认加载销量排行
+            // 优化：异步并行加载，提高响应速度
+            Promise.allSettled([
+                loadDashboardDataOptimized(),
+                loadSalesRank(1)
+            ]).then(results => {
+                console.log('页面数据加载完成');
+                // 可以在这里处理加载结果
+                results.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        console.error(`加载任务 ${index} 失败:`, result.reason);
+                    }
+                });
+            });
         };
+
+        // 优化的仪表板数据加载
+        async function loadDashboardDataOptimized() {
+            try {
+                // 显示加载状态
+                showDashboardLoading();
+                
+                // 优先加载简单的统计数据
+                const quickStatsPromise = loadQuickStats();
+                
+                // 异步加载复杂数据，不阻塞页面
+                setTimeout(() => {
+                    loadDashboardData();
+                }, 100);
+                
+                await quickStatsPromise;
+            } catch (error) {
+                console.error('快速统计加载失败:', error);
+                // 降级到完整加载
+                loadDashboardData();
+            }
+        }
+
+        // 快速统计数据加载
+        async function loadQuickStats() {
+            try {
+                // 使用缓存的统计数据或简化查询
+                const response = await fetch('/api/sales/statistics?days=1');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 更新基础统计显示
+                    updateBasicStats(data.data);
+                }
+            } catch (error) {
+                console.error('快速统计加载失败:', error);
+            }
+        }
+
+        // 显示仪表板加载状态
+        function showDashboardLoading() {
+            // 可以添加加载动画或占位符
+            console.log('仪表板数据加载中...');
+        }
+
+        // 更新基础统计数据
+        function updateBasicStats(stats) {
+            // 更新简单的统计显示，避免复杂数据阻塞
+            if (stats.total_sales !== undefined) {
+                const element = document.getElementById('totalSales');
+                if (element) element.textContent = stats.total_sales.toLocaleString();
+            }
+        }
     </script>
 </body>
 </html>

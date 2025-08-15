@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>销售数据管理</title>
+    <title>店铺管理</title>
     <script src="/static/common-components.js"></script>
     <style>
         * {
@@ -396,11 +396,61 @@
         .close:hover {
             color: #000;
         }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
+
+        .progress-bar {
+            width: 100px;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>💰 销售数据管理</h1>
+        <h1>🏪 店铺管理</h1>
 
         <!-- 导航栏 -->
         <nav class="navbar">
@@ -414,18 +464,13 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="/static/shop_admin.html" class="nav-link">
-                            🏪 店铺管理
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a href="/static/book_admin.html" class="nav-link">
                             📚 书籍管理
                         </a>
                     </li>
                     <li class="nav-item">
                         <a href="/static/sales_data_admin.html" class="nav-link active">
-                            💰 销售管理
+                            🏪 店铺管理
                         </a>
                     </li>
                     <li class="nav-item">
@@ -437,66 +482,58 @@
             </div>
         </nav>
 
-        <!-- 统计概览 -->
-        <div class="section">
-            <h2>数据概览</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="totalShops">-</div>
-                    <div class="stat-label">店铺总数</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="totalBooks">-</div>
-                    <div class="stat-label">书籍总数</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="crawledBooks">-</div>
-                    <div class="stat-label">已爬取书籍</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="crawlRate">-</div>
-                    <div class="stat-label">爬取率</div>
-                </div>
-            </div>
-        </div>
-
         <!-- 店铺管理 -->
         <div class="section">
             <h2>店铺列表</h2>
+            
             <div class="controls">
-                <div class="input-group">
-                    <input type="text" id="shopSearch" placeholder="搜索店铺ID或名称...">
-                    <button class="btn" onclick="searchShops()">搜索</button>
-                </div>
-                <button class="btn btn-success" onclick="crawlAllShops()">
-                    🚀 一键爬取所有店铺
-                </button>
-                <button class="btn" onclick="refreshShopList()">
-                    🔄 刷新列表
-                </button>
+                <input type="text" id="searchInput" placeholder="搜索店铺ID或名称...">
+                <button class="btn" onclick="searchShops()">🔍 搜索</button>
+                <button class="btn btn-success" onclick="showAddShopModal()">➕ 添加店铺</button>
+                <button class="btn btn-info" onclick="batchCrawlAllShopsSales()">🚀 批量爬取销售数据</button>
+                <button class="btn btn-warning" onclick="batchUpdateAllShops()">📈 批量更新书籍数据</button>
+                <button class="btn" onclick="refreshShopList()">🔄 刷新</button>
             </div>
 
             <div id="alertContainer"></div>
 
-            <div id="shopListContainer">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>加载中...</p>
-                </div>
+            <div id="shopTableContainer">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                            <th>店铺ID</th>
+                            <th>店铺名称</th>
+                            <th>平台</th>
+                            <th>状态</th>
+                            <th>书籍总数</th>
+                            <th>已爬取销售</th>
+                            <th>未爬取销售</th>
+                            <th>销售爬取进度</th>
+                            <th>最后更新</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shopTableBody">
+                        <tr><td colspan="11" style="text-align: center;">加载中...</td></tr>
+                    </tbody>
+                </table>
             </div>
 
             <div class="pagination" id="shopPagination"></div>
         </div>
 
-        <!-- 书籍爬取状态 -->
+        <!-- 书店书籍销售记录爬取列表 -->
         <div class="section">
-            <h2>书籍爬取状态</h2>
+            <h2>书店维度销售记录爬取状态</h2>
             <div class="controls">
+                <input type="text" id="shopSearchInput" placeholder="搜索店铺名称或店铺ID...">
                 <select id="crawlStatusFilter" onchange="loadBooksCrawlStatus()">
                     <option value="all">全部</option>
                     <option value="crawled">已爬取</option>
                     <option value="not_crawled">未爬取</option>
                 </select>
+                <button class="btn" onclick="searchBooksByShop()">🔍 搜索</button>
                 <button class="btn" onclick="loadBooksCrawlStatus()">
                     🔄 刷新
                 </button>
@@ -513,258 +550,424 @@
         </div>
     </div>
 
-    <!-- 店铺详情模态框 -->
+    <!-- 添加/编辑店铺模态框 -->
     <div id="shopModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
-            <h2 id="modalTitle">店铺详情</h2>
-            <div id="modalContent"></div>
+            <h2 id="modalTitle">添加店铺</h2>
+            <form id="shopForm" onsubmit="saveShop(event)">
+                <div class="form-group">
+                    <label for="shopId">店铺ID *</label>
+                    <input type="text" id="shopId" required>
+                </div>
+                <div class="form-group">
+                    <label for="shopName">店铺名称 *</label>
+                    <input type="text" id="shopName" required>
+                </div>
+                <div class="form-group">
+                    <label for="platform">平台</label>
+                    <select id="platform">
+                        <option value="kongfuzi">孔夫子</option>
+                        <option value="duozhuayu">多抓鱼</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="shopUrl">店铺URL</label>
+                    <input type="url" id="shopUrl">
+                </div>
+                <div class="form-group">
+                    <label for="shopType">店铺类型</label>
+                    <input type="text" id="shopType">
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-success">保存</button>
+                    <button type="button" class="btn" onclick="closeModal()">取消</button>
+                </div>
+            </form>
         </div>
     </div>
 
     <script>
-        let currentShopPage = 1;
         let currentBooksPage = 1;
+        let currentShopPage = 1;
+        let selectedShops = new Set();
+        let editingShopId = null;
+        let shopsData = [];
         const pageSize = 20;
 
         // 页面加载时初始化
         window.onload = () => {
-            loadStatistics();
-            loadShopList();
+            loadShops();
             loadBooksCrawlStatus();
+            updateBatchButtonsState();
         };
 
-        // 加载统计数据
-        async function loadStatistics() {
-            try {
-                // 获取店铺统计
-                const shopsResponse = await fetch('/sales-data/shops?page=1&page_size=1');
-                const shopsData = await shopsResponse.json();
-                document.getElementById('totalShops').textContent = shopsData.data.pagination.total || 0;
-
-                // 获取书籍统计
-                const booksResponse = await fetch('/sales-data/books/crawl-status?status=all&page=1&page_size=1');
-                const booksData = await booksResponse.json();
-                
-                if (booksData.success && booksData.data.statistics) {
-                    const stats = booksData.data.statistics;
-                    document.getElementById('totalBooks').textContent = stats.total_books || 0;
-                    document.getElementById('crawledBooks').textContent = stats.crawled_count || 0;
-                    
-                    const rate = stats.total_books > 0 
-                        ? Math.round((stats.crawled_count / stats.total_books) * 100) 
-                        : 0;
-                    document.getElementById('crawlRate').textContent = rate + '%';
-                }
-            } catch (error) {
-                console.error('加载统计数据失败:', error);
-            }
-        }
-
         // 加载店铺列表
-        async function loadShopList(page = 1) {
+        async function loadShops(page = 1) {
             currentShopPage = page;
-            const container = document.getElementById('shopListContainer');
-            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
-
             try {
-                const response = await fetch(`/sales-data/shops?page=${page}&page_size=${pageSize}`);
+                const search = document.getElementById('searchInput').value;
+                let url = `/sales-data/shops?page=${page}&page_size=20`;
+                if (search) {
+                    url += `&search=${encodeURIComponent(search)}`;
+                }
+
+                const response = await fetch(url);
                 const data = await response.json();
 
                 if (data.success) {
+                    shopsData = data.data.shops;
                     displayShops(data.data.shops);
-                    updatePagination('shopPagination', data.data.pagination, loadShopList);
-                } else {
-                    container.innerHTML = '<p>加载失败</p>';
+                    updateShopPagination(data.data.pagination);
                 }
             } catch (error) {
-                console.error('加载店铺列表失败:', error);
-                container.innerHTML = '<p>加载失败: ' + error.message + '</p>';
+                showAlert('error', '加载店铺列表失败: ' + error.message);
             }
         }
 
         // 显示店铺列表
         function displayShops(shops) {
-            const container = document.getElementById('shopListContainer');
+            const tbody = document.getElementById('shopTableBody');
             
             if (!shops || shops.length === 0) {
-                container.innerHTML = '<p>暂无店铺数据</p>';
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">暂无数据</td></tr>';
                 return;
             }
 
-            let html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>店铺ID</th>
-                            <th>店铺名称</th>
-                            <th>平台</th>
-                            <th>状态</th>
-                            <th>创建时间</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
+            let html = '';
             shops.forEach(shop => {
-                const statusClass = shop.status === 'active' ? 'status-active' : 'status-inactive';
-                const statusText = shop.status === 'active' ? '活跃' : '未激活';
-                const createTime = new Date(shop.created_at).toLocaleString('zh-CN');
-
+                const lastUpdate = shop.last_update ? new Date(shop.last_update).toLocaleString('zh-CN') : '-';
+                
                 html += `
                     <tr>
+                        <td><input type="checkbox" value="${shop.shop_id}" onchange="toggleShopSelection('${shop.shop_id}')"></td>
                         <td>${shop.shop_id}</td>
                         <td>${shop.shop_name}</td>
                         <td>${shop.platform || 'kongfuzi'}</td>
-                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                        <td>${createTime}</td>
+                        <td>${shop.status === 'active' ? '活跃' : '未激活'}</td>
+                        <td>${shop.total_books || 0}</td>
+                        <td>${shop.crawled_books || 0}</td>
+                        <td>${shop.uncrawled_books || 0}</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${shop.crawl_progress || 0}%"></div>
+                            </div>
+                            ${shop.crawl_progress || 0}%
+                        </td>
+                        <td>${lastUpdate}</td>
                         <td class="action-buttons">
-                            <button class="btn btn-sm" onclick="crawlShopSales('${shop.shop_id}')">
-                                爬取销售数据
-                            </button>
-                            <button class="btn btn-sm" onclick="viewShopStats('${shop.shop_id}')">
-                                查看统计
-                            </button>
+                            <button class="btn btn-sm btn-info" onclick="editShop('${shop.shop_id}', event)">编辑</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteShop('${shop.shop_id}')">删除</button>
                         </td>
                     </tr>
                 `;
             });
+            
+            tbody.innerHTML = html;
+            updateBatchButtonsState();
+            updateSelectAllState();
+        }
 
-            html += '</tbody></table>';
+        // 更新店铺分页
+        function updateShopPagination(pagination) {
+            const container = document.getElementById('shopPagination');
+            const { page, total_pages } = pagination;
+
+            let html = '';
+            html += `<button ${page <= 1 ? 'disabled' : ''} onclick="loadShops(${page - 1})">上一页</button>`;
+            html += `<span>第 ${page} / ${total_pages} 页</span>`;
+            html += `<button ${page >= total_pages ? 'disabled' : ''} onclick="loadShops(${page + 1})">下一页</button>`;
+
             container.innerHTML = html;
         }
 
-        // 爬取单个店铺的销售数据
-        async function crawlShopSales(shopId) {
-            if (!confirm(`确定要爬取店铺 ${shopId} 的销售数据吗？`)) {
+        // 搜索店铺
+        function searchShops() {
+            loadShops(1);
+        }
+
+        // 刷新店铺列表
+        function refreshShopList() {
+            loadShops(currentShopPage);
+        }
+
+        // 显示添加店铺模态框
+        function showAddShopModal() {
+            editingShopId = null;
+            document.getElementById('modalTitle').textContent = '添加店铺';
+            document.getElementById('shopForm').reset();
+            document.getElementById('shopId').disabled = false;
+            document.getElementById('shopModal').style.display = 'block';
+        }
+
+        // 编辑店铺
+        function editShop(shopId, event) {
+            try {
+                const shop = shopsData.find(s => s.shop_id === shopId);
+                
+                if (!shop) {
+                    showAlert('error', '未找到店铺信息，请刷新页面后重试');
+                    return;
+                }
+                
+                editingShopId = shopId;
+                
+                document.getElementById('modalTitle').textContent = '编辑店铺';
+                document.getElementById('shopId').value = shop.shop_id;
+                document.getElementById('shopId').disabled = true;
+                document.getElementById('shopName').value = shop.shop_name || '';
+                document.getElementById('platform').value = shop.platform || 'kongfuzi';
+                document.getElementById('shopUrl').value = shop.shop_url || '';
+                document.getElementById('shopType').value = shop.shop_type || '';
+                
+                document.getElementById('shopModal').style.display = 'block';
+            } catch (error) {
+                showAlert('error', '打开编辑窗口失败: ' + error.message);
+            }
+        }
+
+        // 保存店铺
+        async function saveShop(event) {
+            event.preventDefault();
+            
+            const shopData = {
+                shop_id: document.getElementById('shopId').value,
+                shop_name: document.getElementById('shopName').value,
+                platform: document.getElementById('platform').value,
+                shop_url: document.getElementById('shopUrl').value || null,
+                shop_type: document.getElementById('shopType').value || null
+            };
+
+            try {
+                let response;
+                if (editingShopId) {
+                    response = await fetch(`/sales-data/shops/${editingShopId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(shopData)
+                    });
+                } else {
+                    response = await fetch('/sales-data/shops', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(shopData)
+                    });
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    showAlert('success', data.message);
+                    closeModal();
+                    refreshShopList();
+                } else {
+                    showAlert('error', data.detail || '保存失败');
+                }
+            } catch (error) {
+                showAlert('error', '保存失败: ' + error.message);
+            }
+        }
+
+        // 删除店铺
+        async function deleteShop(shopId) {
+            if (!confirm(`确定要删除店铺 ${shopId} 吗？这将同时删除相关的销售记录。`)) {
                 return;
             }
 
-            showAlert('info', `正在爬取店铺 ${shopId} 的销售数据，请稍候...`);
-
             try {
-                const response = await fetch(`/sales-data/shop/${shopId}/crawl-sales`, {
-                    method: 'POST'
+                const response = await fetch(`/sales-data/shops/${shopId}`, {
+                    method: 'DELETE'
                 });
                 const data = await response.json();
 
                 if (data.success) {
                     showAlert('success', data.message);
-                    loadStatistics(); // 刷新统计数据
+                    refreshShopList();
                 } else {
-                    showAlert('error', '爬取失败: ' + (data.detail || data.message));
+                    showAlert('error', data.detail || '删除失败');
                 }
             } catch (error) {
-                showAlert('error', '爬取失败: ' + error.message);
+                showAlert('error', '删除失败: ' + error.message);
             }
         }
 
-        // 一键爬取所有店铺
-        async function crawlAllShops() {
-            if (!confirm('确定要爬取所有店铺的销售数据吗？这可能需要较长时间。')) {
+        // 批量爬取销售数据
+        async function batchCrawlAllShopsSales() {
+            const selectedShops = getSelectedShops();
+            
+            if (selectedShops.length === 0) {
+                showAlert('error', '请先选择要爬取的店铺');
                 return;
             }
 
-            showAlert('info', '正在创建爬取任务，请稍候...');
+            if (!confirm(`确定要为选中的 ${selectedShops.length} 个店铺创建销售爬取任务吗？`)) {
+                return;
+            }
+
+            showAlert('info', `正在为 ${selectedShops.length} 个店铺创建销售爬取任务...`);
 
             try {
-                const response = await fetch('/sales-data/crawl-all-shops', {
-                    method: 'POST'
+                const response = await fetch('/sales-data/batch-crawl-sales', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shop_ids: selectedShops })
                 });
                 const data = await response.json();
 
                 if (data.success) {
                     showAlert('success', data.message);
+                    refreshShopList();
                 } else {
-                    showAlert('error', '创建任务失败: ' + (data.detail || data.message));
+                    showAlert('error', data.detail || '批量爬取失败');
                 }
             } catch (error) {
-                showAlert('error', '创建任务失败: ' + error.message);
+                showAlert('error', '批量爬取失败: ' + error.message);
             }
         }
 
-        // 查看店铺统计
-        async function viewShopStats(shopId) {
+        // 批量更新书籍数据
+        async function batchUpdateAllShops() {
+            const selectedShops = getSelectedShops();
+            
+            if (selectedShops.length === 0) {
+                showAlert('error', '请先选择要更新的店铺');
+                return;
+            }
+
+            if (!confirm(`确定要为选中的 ${selectedShops.length} 个店铺创建书籍更新任务吗？`)) {
+                return;
+            }
+
+            showAlert('info', `正在为 ${selectedShops.length} 个店铺创建书籍更新任务...`);
+
             try {
-                const response = await fetch(`/sales-data/shop/${shopId}/sales-stats`);
+                const response = await fetch('/sales-data/batch-update-books', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shop_ids: selectedShops })
+                });
                 const data = await response.json();
 
                 if (data.success) {
-                    showShopStatsModal(data.data);
+                    showAlert('success', data.message);
+                    refreshShopList();
                 } else {
-                    showAlert('error', '获取统计失败');
+                    showAlert('error', data.detail || '批量更新失败');
                 }
             } catch (error) {
-                showAlert('error', '获取统计失败: ' + error.message);
+                showAlert('error', '批量更新失败: ' + error.message);
             }
         }
 
-        // 显示店铺统计模态框
-        function showShopStatsModal(data) {
-            const modal = document.getElementById('shopModal');
-            const modalTitle = document.getElementById('modalTitle');
-            const modalContent = document.getElementById('modalContent');
+        // 获取选中的店铺
+        function getSelectedShops() {
+            const checkboxes = document.querySelectorAll('#shopTableBody input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
 
-            const shop = data.shop_info;
-            const stats = data.statistics || {};
-            const books = data.recent_books || [];
+        // 切换全选状态
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('#shopTableBody input[type="checkbox"]');
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            
+            updateBatchButtonsState();
+        }
 
-            modalTitle.textContent = `店铺统计 - ${shop.shop_name}`;
+        // 切换单个店铺选择状态
+        function toggleShopSelection(shopId) {
+            updateBatchButtonsState();
+            updateSelectAllState();
+        }
 
-            let html = `
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">${stats.total_sales || 0}</div>
-                        <div class="stat-label">总销售记录</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${stats.unique_books || 0}</div>
-                        <div class="stat-label">不同书籍</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">¥${(stats.avg_price || 0).toFixed(2)}</div>
-                        <div class="stat-label">平均价格</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">¥${(stats.total_revenue || 0).toFixed(2)}</div>
-                        <div class="stat-label">总销售额</div>
-                    </div>
-                </div>
-
-                <h3>价格区间</h3>
-                <p>最低价: ¥${(stats.min_price || 0).toFixed(2)} | 最高价: ¥${(stats.max_price || 0).toFixed(2)}</p>
-
-                <h3>最近爬取的书籍</h3>
-            `;
-
-            if (books.length > 0) {
-                html += '<ul>';
-                books.forEach(book => {
-                    const updateTime = book.last_sales_update 
-                        ? new Date(book.last_sales_update).toLocaleString('zh-CN')
-                        : '未更新';
-                    const crawledStatus = book.is_crawled ? '已爬取' : '未爬取';
-                    html += `<li>${book.title} (ISBN: ${book.isbn}) - ${crawledStatus} - 更新时间: ${updateTime}</li>`;
-                });
-                html += '</ul>';
+        // 更新全选复选框状态
+        function updateSelectAllState() {
+            const checkboxes = document.querySelectorAll('#shopTableBody input[type="checkbox"]');
+            const checkedCheckboxes = document.querySelectorAll('#shopTableBody input[type="checkbox"]:checked');
+            const selectAllCheckbox = document.getElementById('selectAll');
+            
+            if (checkboxes.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (checkedCheckboxes.length === checkboxes.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else if (checkedCheckboxes.length > 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
             } else {
-                html += '<p>暂无数据</p>';
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
             }
+        }
 
-            modalContent.innerHTML = html;
-            modal.style.display = 'block';
+        // 更新批量操作按钮状态
+        function updateBatchButtonsState() {
+            const selectedCount = getSelectedShops().length;
+            const batchButtons = document.querySelectorAll('button[onclick*="batch"]');
+            
+            batchButtons.forEach(button => {
+                if (selectedCount > 0) {
+                    button.disabled = false;
+                    button.style.opacity = '1';
+                } else {
+                    button.disabled = true;
+                    button.style.opacity = '0.6';
+                }
+            });
+            
+            const batchSalesBtn = document.querySelector('button[onclick="batchCrawlAllShopsSales()"]');
+            const batchBooksBtn = document.querySelector('button[onclick="batchUpdateAllShops()"]');
+            
+            if (batchSalesBtn) {
+                batchSalesBtn.innerHTML = selectedCount > 0 ? 
+                    `🚀 批量爬取销售数据 (${selectedCount})` : 
+                    '🚀 批量爬取销售数据';
+            }
+            
+            if (batchBooksBtn) {
+                batchBooksBtn.innerHTML = selectedCount > 0 ? 
+                    `📈 批量更新书籍数据 (${selectedCount})` : 
+                    '📈 批量更新书籍数据';
+            }
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('shopModal').style.display = 'none';
+            editingShopId = null;
+        }
+
+        // 显示提示信息
+        function showAlert(type, message) {
+            const container = document.getElementById('alertContainer');
+            const alertClass = type === 'success' ? 'alert-success' : 
+                              type === 'error' ? 'alert-error' : 'alert-info';
+            
+            container.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+            
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
         }
 
         // 加载书籍爬取状态
         async function loadBooksCrawlStatus(page = 1) {
             currentBooksPage = page;
             const status = document.getElementById('crawlStatusFilter').value;
+            const shopSearch = document.getElementById('shopSearchInput').value;
             const container = document.getElementById('booksStatusContainer');
             container.innerHTML = '<div class="loading"><div class="spinner"></div><p>加载中...</p></div>';
 
             try {
-                const response = await fetch(`/sales-data/books/crawl-status?status=${status}&page=${page}&page_size=${pageSize}`);
+                let url = `/sales-data/books/crawl-status?status=${status}&page=${page}&page_size=${pageSize}`;
+                if (shopSearch) {
+                    url += `&shop_search=${encodeURIComponent(shopSearch)}`;
+                }
+                
+                const response = await fetch(url);
                 const data = await response.json();
 
                 if (data.success) {
@@ -777,6 +980,11 @@
                 console.error('加载书籍状态失败:', error);
                 container.innerHTML = '<p>加载失败: ' + error.message + '</p>';
             }
+        }
+        
+        // 按店铺搜索书籍
+        function searchBooksByShop() {
+            loadBooksCrawlStatus(1);
         }
 
         // 显示书籍爬取状态
@@ -792,6 +1000,8 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>店铺名称</th>
+                            <th>店铺ID</th>
                             <th>ISBN</th>
                             <th>书名</th>
                             <th>作者</th>
@@ -812,6 +1022,8 @@
 
                 html += `
                     <tr>
+                        <td>${book.shop_name || '-'}</td>
+                        <td>${book.shop_id || '-'}</td>
                         <td>${book.isbn || '-'}</td>
                         <td>${book.title}</td>
                         <td>${book.author || '-'}</td>
@@ -845,42 +1057,6 @@
             container.innerHTML = html;
         }
 
-        // 搜索店铺
-        function searchShops() {
-            const keyword = document.getElementById('shopSearch').value.trim();
-            if (!keyword) {
-                loadShopList();
-                return;
-            }
-            // TODO: 实现搜索功能
-            showAlert('info', '搜索功能开发中...');
-        }
-
-        // 刷新店铺列表
-        function refreshShopList() {
-            loadShopList(currentShopPage);
-            loadStatistics();
-        }
-
-        // 显示提示信息
-        function showAlert(type, message) {
-            const container = document.getElementById('alertContainer');
-            const alertClass = type === 'success' ? 'alert-success' : 
-                              type === 'error' ? 'alert-error' : 'alert-info';
-            
-            container.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
-            
-            // 3秒后自动消失
-            setTimeout(() => {
-                container.innerHTML = '';
-            }, 3000);
-        }
-
-        // 关闭模态框
-        function closeModal() {
-            document.getElementById('shopModal').style.display = 'none';
-        }
-
         // 点击模态框外部关闭
         window.onclick = function(event) {
             const modal = document.getElementById('shopModal');
@@ -888,6 +1064,7 @@
                 modal.style.display = 'none';
             }
         }
+
     </script>
 </body>
 </html>

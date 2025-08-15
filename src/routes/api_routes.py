@@ -31,6 +31,308 @@ inventory_repo = BookInventoryRepository()
 sales_repo = SalesRepository()
 task_repo = CrawlTaskRepository()
 
+@api_router.get("/books")
+async def get_books_list(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="搜索ISBN、书名、作者或出版社"),
+    crawl_status: Optional[str] = Query(None, description="爬取状态过滤")
+):
+    """获取书籍列表（分页）"""
+    try:
+        offset = (page - 1) * page_size
+        
+        # 构建查询条件
+        conditions = []
+        params = []
+        
+        if search:
+            search_term = f"%{search}%"
+            conditions.append("(isbn LIKE ? OR title LIKE ? OR author LIKE ? OR publisher LIKE ?)")
+            params.extend([search_term, search_term, search_term, search_term])
+        
+        if crawl_status == "crawled":
+            conditions.append("last_sales_update IS NOT NULL")
+        elif crawl_status == "uncrawled":
+            conditions.append("last_sales_update IS NULL")
+        
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
+        
+        # 获取书籍列表
+        from ..models.database import db
+        books_query = f"""
+            SELECT 
+                isbn, title, author, publisher, last_sales_update, created_at,
+                (CASE WHEN last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as is_crawled,
+                (SELECT COUNT(*) FROM sales_records sr WHERE sr.isbn = b.isbn) as sales_count,
+                (SELECT AVG(sale_price) FROM sales_records sr WHERE sr.isbn = b.isbn) as avg_price
+            FROM books b
+            {where_clause}
+            ORDER BY last_sales_update DESC NULLS LAST, created_at DESC
+            LIMIT ? OFFSET ?
+        """
+        books = db.execute_query(books_query, params + [page_size, offset])
+        
+        # 获取总数
+        count_query = f"SELECT COUNT(*) FROM books b {where_clause}"
+        total_result = db.execute_query(count_query, params)
+        total = total_result[0]['COUNT(*)'] if total_result else 0
+        
+        return {
+            "success": True,
+            "data": {
+                "books": books,
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total": total,
+                    "total_pages": (total + page_size - 1) // page_size
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取书籍列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/books/{isbn}")
+async def get_book_detail(isbn: str):
+    """获取书籍详情"""
+    try:
+        from ..models.database import db
+        
+        # 获取书籍基本信息
+        book_query = """
+            SELECT isbn, title, author, publisher, publish_date, category, 
+                   subcategory, description, cover_image_url, last_sales_update, 
+                   created_at, updated_at
+            FROM books WHERE isbn = ?
+        """
+        books = db.execute_query(book_query, (isbn,))
+        if not books:
+            raise HTTPException(status_code=404, detail="书籍不存在")
+        
+        book = books[0]
+        
+        # 获取销售统计
+        stats_query = """
+            SELECT 
+                COUNT(*) as total_sales,
+                COUNT(DISTINCT shop_id) as shop_count,
+                AVG(sale_price) as avg_price,
+                MIN(sale_price) as min_price,
+                MAX(sale_price) as max_price
+            FROM sales_records WHERE isbn = ?
+        """
+        stats_result = db.execute_query(stats_query, (isbn,))
+        statistics = stats_result[0] if stats_result else {}
+        
+        # 获取在售店铺
+        shops_query = """
+            SELECT s.shop_id, s.shop_name, COUNT(*) as sale_count, AVG(sr.sale_price) as avg_price
+            FROM sales_records sr
+            JOIN shops s ON sr.shop_id = s.id
+            WHERE sr.isbn = ?
+            GROUP BY s.shop_id, s.shop_name
+            ORDER BY sale_count DESC
+        """
+        shops = db.execute_query(shops_query, (isbn,))
+        
+        return {
+            "success": True,
+            "data": {
+                **book,
+                "statistics": statistics,
+                "shops": shops
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取书籍详情失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/books")
+async def create_book(book_data: dict):
+    """创建新书籍"""
+    try:
+        # 检查ISBN是否已存在
+        from ..models.database import db
+        existing = db.execute_query("SELECT isbn FROM books WHERE isbn = ?", (book_data["isbn"],))
+        if existing:
+            raise HTTPException(status_code=400, detail="该ISBN已存在")
+        
+        # 创建书籍记录
+        insert_query = """
+            INSERT INTO books (isbn, title, author, publisher, publish_date, 
+                             category, subcategory, description, cover_image_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(insert_query, (
+                book_data["isbn"],
+                book_data["title"],
+                book_data.get("author"),
+                book_data.get("publisher"),
+                book_data.get("publish_date"),
+                book_data.get("category"),
+                book_data.get("subcategory"),
+                book_data.get("description"),
+                book_data.get("cover_image_url")
+            ))
+            conn.commit()
+        
+        return {
+            "success": True,
+            "message": f"书籍 {book_data['title']} 创建成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"创建书籍失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.put("/books/{isbn}")
+async def update_book(isbn: str, book_data: dict):
+    """更新书籍信息"""
+    try:
+        from ..models.database import db
+        
+        # 检查书籍是否存在
+        existing = db.execute_query("SELECT isbn FROM books WHERE isbn = ?", (isbn,))
+        if not existing:
+            raise HTTPException(status_code=404, detail="书籍不存在")
+        
+        # 更新书籍记录
+        update_query = """
+            UPDATE books SET 
+                title = ?, author = ?, publisher = ?, publish_date = ?,
+                category = ?, subcategory = ?, description = ?, cover_image_url = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE isbn = ?
+        """
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(update_query, (
+                book_data["title"],
+                book_data.get("author"),
+                book_data.get("publisher"),
+                book_data.get("publish_date"),
+                book_data.get("category"),
+                book_data.get("subcategory"),
+                book_data.get("description"),
+                book_data.get("cover_image_url"),
+                isbn
+            ))
+            conn.commit()
+        
+        return {
+            "success": True,
+            "message": f"书籍 {book_data['title']} 更新成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新书籍失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.delete("/books/{isbn}")
+async def delete_book(isbn: str):
+    """删除书籍及相关数据"""
+    try:
+        from ..models.database import db
+        
+        # 检查书籍是否存在
+        existing = db.execute_query("SELECT isbn FROM books WHERE isbn = ?", (isbn,))
+        if not existing:
+            raise HTTPException(status_code=404, detail="书籍不存在")
+        
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 删除相关的销售记录
+            cursor.execute("DELETE FROM sales_records WHERE isbn = ?", (isbn,))
+            
+            # 删除相关的库存记录
+            cursor.execute("DELETE FROM book_inventory WHERE isbn = ?", (isbn,))
+            
+            # 删除书籍记录
+            cursor.execute("DELETE FROM books WHERE isbn = ?", (isbn,))
+            
+            conn.commit()
+        
+        return {
+            "success": True,
+            "message": f"书籍 {isbn} 及相关数据删除成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除书籍失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/books/{isbn}/crawl")
+async def crawl_book_sales(isbn: str):
+    """爬取单本书籍的销售数据"""
+    try:
+        from ..models.database import db
+        
+        # 检查书籍是否存在
+        existing = db.execute_query("SELECT isbn FROM books WHERE isbn = ?", (isbn,))
+        if not existing:
+            raise HTTPException(status_code=404, detail="书籍不存在")
+        
+        # 创建爬虫任务
+        task = CrawlTask(
+            task_name=f"爬取书籍 {isbn} 的销售数据",
+            task_type="book_sales_crawl",
+            target_platform="kongfuzi",
+            target_isbn=isbn
+        )
+        task_id = task_repo.create(task)
+        
+        return {
+            "success": True,
+            "message": f"已创建书籍 {isbn} 的销售数据爬取任务",
+            "task_id": task_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"创建爬虫任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/books/batch-crawl")
+async def batch_crawl_books(isbn_list: List[str]):
+    """批量爬取书籍销售数据"""
+    try:
+        if not isbn_list:
+            raise HTTPException(status_code=400, detail="ISBN列表不能为空")
+        
+        task_ids = []
+        for isbn in isbn_list:
+            task = CrawlTask(
+                task_name=f"爬取书籍 {isbn} 的销售数据",
+                task_type="book_sales_crawl",
+                target_platform="kongfuzi",
+                target_isbn=isbn
+            )
+            task_id = task_repo.create(task)
+            task_ids.append(task_id)
+        
+        return {
+            "success": True,
+            "message": f"已创建 {len(task_ids)} 个书籍销售数据爬取任务",
+            "task_ids": task_ids
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"批量创建爬虫任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.get("/dashboard")
 async def get_dashboard_data():
     """获取仪表板数据"""
@@ -1101,45 +1403,70 @@ async def get_rate_limit_status():
 async def get_books_crawl_status(
     status: str = Query("all", regex="^(all|crawled|not_crawled)$"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100)
+    page_size: int = Query(20, ge=1, le=100),
+    shop_search: Optional[str] = Query(None, description="搜索店铺名称或店铺ID")
 ):
-    """获取书籍爬取状态"""
+    """获取书店书籍销售记录爬取列表"""
     try:
         from ..models.database import db
         
         # 构建查询条件
-        where_clause = ""
+        conditions = []
+        params = []
+        
+        # 爬取状态筛选
         if status == "crawled":
-            where_clause = "WHERE last_sales_update IS NOT NULL"
+            conditions.append("b.last_sales_update IS NOT NULL")
         elif status == "not_crawled":
-            where_clause = "WHERE last_sales_update IS NULL"
+            conditions.append("b.last_sales_update IS NULL")
+        
+        # 店铺搜索筛选
+        if shop_search:
+            search_term = f"%{shop_search}%"
+            conditions.append("(s.shop_name LIKE ? OR s.shop_id LIKE ?)")
+            params.extend([search_term, search_term])
+        
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
         
         # 获取总数
-        total_query = f"SELECT COUNT(*) as total FROM books {where_clause}"
-        total_result = db.execute_query(total_query)
+        total_query = f"""
+            SELECT COUNT(DISTINCT bi.isbn) as total 
+            FROM book_inventory bi
+            JOIN books b ON bi.isbn = b.isbn
+            LEFT JOIN shops s ON bi.shop_id = s.id
+            {where_clause}
+        """
+        total_result = db.execute_query(total_query, params)
         total = total_result[0]['total'] if total_result else 0
         
         # 获取分页数据
         offset = (page - 1) * page_size
         books_query = f"""
-            SELECT 
-                isbn, title, author, publisher,
-                last_sales_update,
-                created_at, updated_at
-            FROM books
+            SELECT DISTINCT
+                b.isbn, b.title, b.author, b.publisher,
+                b.last_sales_update, b.created_at, b.updated_at,
+                s.shop_name, s.shop_id,
+                (CASE WHEN b.last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as is_crawled
+            FROM book_inventory bi
+            JOIN books b ON bi.isbn = b.isbn
+            LEFT JOIN shops s ON bi.shop_id = s.id
             {where_clause}
-            ORDER BY last_sales_update DESC NULLS LAST
+            ORDER BY b.last_sales_update DESC NULLS LAST, s.shop_name ASC
             LIMIT ? OFFSET ?
         """
-        books = db.execute_query(books_query, (page_size, offset))
+        books = db.execute_query(books_query, params + [page_size, offset])
         
         # 统计信息
         stats = db.execute_query("""
             SELECT 
-                COUNT(*) as total_books,
-                SUM(CASE WHEN last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as crawled_count,
-                SUM(CASE WHEN last_sales_update IS NULL THEN 1 ELSE 0 END) as not_crawled_count
-            FROM books
+                COUNT(DISTINCT b.isbn) as total_books,
+                SUM(CASE WHEN b.last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as crawled_count,
+                SUM(CASE WHEN b.last_sales_update IS NULL THEN 1 ELSE 0 END) as not_crawled_count
+            FROM book_inventory bi
+            JOIN books b ON bi.isbn = b.isbn
+            LEFT JOIN shops s ON bi.shop_id = s.id
         """)[0]
         
         return {
@@ -1156,7 +1483,7 @@ async def get_books_crawl_status(
             }
         }
     except Exception as e:
-        logger.error(f"获取书籍爬取状态失败: {e}")
+        logger.error(f"获取书店书籍销售记录爬取列表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # 新增批量操作API
