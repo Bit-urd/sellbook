@@ -57,14 +57,49 @@ class ShopRepository:
         ]
         return db.execute_many(query, params_list)
     
-    def get_paginated(self, offset: int, limit: int) -> List[Dict]:
-        """获取分页的店铺列表"""
-        query = """
-            SELECT * FROM shops 
-            ORDER BY created_at DESC 
+    def get_paginated(self, offset: int, limit: int, search: Optional[str] = None) -> List[Dict]:
+        """获取分页的店铺列表（包含统计信息）"""
+        where_clause = ""
+        params = []
+        
+        if search:
+            where_clause = "WHERE s.shop_id LIKE ? OR s.shop_name LIKE ?"
+            params.extend([f"%{search}%", f"%{search}%"])
+        
+        query = f"""
+            SELECT s.*,
+                   COALESCE(shop_stats.total_books, 0) as total_books,
+                   COALESCE(shop_stats.crawled_books, 0) as crawled_books,
+                   COALESCE(shop_stats.uncrawled_books, 0) as uncrawled_books,
+                   COALESCE(shop_stats.crawl_progress, 0) as crawl_progress,
+                   COALESCE(shop_stats.total_sales, 0) as total_sales,
+                   shop_stats.last_update
+            FROM shops s
+            LEFT JOIN (
+                SELECT 
+                    s2.id as shop_db_id,
+                    COUNT(DISTINCT bi.isbn) as total_books,
+                    COUNT(DISTINCT CASE WHEN b.is_crawled = 1 THEN b.isbn END) as crawled_books,
+                    COUNT(DISTINCT CASE WHEN b.is_crawled = 0 OR b.is_crawled IS NULL THEN b.isbn END) as uncrawled_books,
+                    CASE 
+                        WHEN COUNT(DISTINCT bi.isbn) = 0 THEN 0
+                        ELSE ROUND((COUNT(DISTINCT CASE WHEN b.is_crawled = 1 THEN b.isbn END) * 100.0 / 
+                                  COUNT(DISTINCT bi.isbn)), 2)
+                    END as crawl_progress,
+                    COUNT(DISTINCT sr.item_id) as total_sales,
+                    MAX(sr.created_at) as last_update
+                FROM shops s2
+                LEFT JOIN book_inventory bi ON s2.id = bi.shop_id
+                LEFT JOIN books b ON bi.isbn = b.isbn
+                LEFT JOIN sales_records sr ON s2.id = sr.shop_id
+                GROUP BY s2.id
+            ) shop_stats ON s.id = shop_stats.shop_db_id
+            {where_clause}
+            ORDER BY s.created_at DESC 
             LIMIT ? OFFSET ?
         """
-        return db.execute_query(query, (limit, offset))
+        params.extend([limit, offset])
+        return db.execute_query(query, tuple(params))
     
     def get_total_count(self) -> int:
         """获取店铺总数"""
@@ -76,6 +111,66 @@ class ShopRepository:
         """根据shop_id获取店铺"""
         query = "SELECT * FROM shops WHERE shop_id = ?"
         results = db.execute_query(query, (shop_id,))
+        return results[0] if results else None
+    
+    def update(self, shop_id: str, shop: Shop) -> bool:
+        """更新店铺信息"""
+        query = """
+            UPDATE shops 
+            SET shop_name = ?, platform = ?, shop_url = ?, shop_type = ?, 
+                status = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE shop_id = ?
+        """
+        params = (shop.shop_name, shop.platform, shop.shop_url, 
+                 shop.shop_type, shop.status, shop_id)
+        return db.execute_update(query, params) > 0
+    
+    def delete(self, shop_id: str) -> bool:
+        """删除店铺（级联删除相关数据）"""
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                # 删除相关的书籍库存
+                cursor.execute("DELETE FROM book_inventory WHERE shop_id = (SELECT id FROM shops WHERE shop_id = ?)", (shop_id,))
+                # 删除相关的销售记录
+                cursor.execute("DELETE FROM sales_records WHERE shop_id = (SELECT id FROM shops WHERE shop_id = ?)", (shop_id,))
+                # 删除店铺
+                cursor.execute("DELETE FROM shops WHERE shop_id = ?", (shop_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+            except Exception as e:
+                logger.error(f"删除店铺失败: {e}")
+                conn.rollback()
+                return False
+    
+    def get_shop_with_stats(self, shop_id: str) -> Optional[Dict]:
+        """获取店铺详情及统计信息"""
+        query = """
+            SELECT s.*,
+                   COUNT(DISTINCT bi.isbn) as total_books_inventory,
+                   COUNT(DISTINCT sr.item_id) as total_sales_records,
+                   COUNT(DISTINCT b_all.isbn) as total_books_in_shop,
+                   COUNT(DISTINCT CASE WHEN b_all.is_crawled = 1 THEN b_all.isbn END) as crawled_books,
+                   COUNT(DISTINCT CASE WHEN b_all.is_crawled = 0 OR b_all.is_crawled IS NULL THEN b_all.isbn END) as uncrawled_books,
+                   CASE 
+                       WHEN COUNT(DISTINCT b_all.isbn) = 0 THEN 0
+                       ELSE ROUND((COUNT(DISTINCT CASE WHEN b_all.is_crawled = 1 THEN b_all.isbn END) * 100.0 / 
+                                 COUNT(DISTINCT b_all.isbn)), 2)
+                   END as crawl_progress,
+                   MAX(sr.created_at) as last_sales_update
+            FROM shops s
+            LEFT JOIN book_inventory bi ON s.id = bi.shop_id
+            LEFT JOIN sales_records sr ON s.id = sr.shop_id
+            LEFT JOIN (
+                SELECT DISTINCT bi2.isbn, b.is_crawled
+                FROM book_inventory bi2
+                LEFT JOIN books b ON bi2.isbn = b.isbn
+                WHERE bi2.shop_id = (SELECT id FROM shops WHERE shop_id = ?)
+            ) b_all ON 1=1
+            WHERE s.shop_id = ?
+            GROUP BY s.id
+        """
+        results = db.execute_query(query, (shop_id, shop_id))
         return results[0] if results else None
 
 class BookRepository:
