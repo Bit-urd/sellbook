@@ -274,14 +274,91 @@ class AnalysisService:
             self.stats_repo.calculate_and_save_statistics('sales', period)
             logger.info(f"完成 {period} 销售统计计算")
     
+    def get_business_opportunity_statistics(self) -> Dict:
+        """获取商机分析统计数据"""
+        from ..models.database import db
+        
+        # 获取商机分析统计
+        opportunity_stats = db.execute_query("""
+            SELECT 
+                COUNT(DISTINCT bi.isbn) as total_books_monitored,
+                AVG(bi.kongfuzi_price) as avg_market_price,
+                MIN(bi.kongfuzi_price) as min_price,
+                MAX(bi.kongfuzi_price) as max_price,
+                COUNT(DISTINCT bi.shop_id) as monitored_shops,
+                COUNT(CASE WHEN bi.duozhuayu_second_hand_price > 0 AND bi.kongfuzi_price > 0 
+                          AND bi.duozhuayu_second_hand_price > bi.kongfuzi_price 
+                          THEN 1 END) as profitable_opportunities,
+                AVG(CASE WHEN bi.duozhuayu_second_hand_price > bi.kongfuzi_price 
+                         THEN ((bi.duozhuayu_second_hand_price - bi.kongfuzi_price) / bi.kongfuzi_price * 100) 
+                         ELSE 0 END) as avg_profit_margin
+            FROM book_inventory bi
+            WHERE bi.kongfuzi_price > 0
+        """)
+        
+        # 获取书籍统计
+        book_stats = db.execute_query("""
+            SELECT 
+                COUNT(*) as total_books,
+                SUM(CASE WHEN is_crawled = 1 THEN 1 ELSE 0 END) as crawled_books
+            FROM books
+        """)
+        
+        # 获取店铺统计
+        shop_stats = db.execute_query("""
+            SELECT 
+                COUNT(*) as total_shops,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_shops
+            FROM shops
+        """)
+        
+        opportunity_data = opportunity_stats[0] if opportunity_stats else {}
+        book_data = book_stats[0] if book_stats else {}
+        shop_data = shop_stats[0] if shop_stats else {}
+        
+        # 计算商机分析指标
+        total_monitored = opportunity_data.get('total_books_monitored', 0)
+        profitable_count = opportunity_data.get('profitable_opportunities', 0)
+        profit_rate = (profitable_count / total_monitored * 100) if total_monitored > 0 else 0
+        
+        return {
+            'total_books_monitored': total_monitored,
+            'profitable_opportunities': profitable_count,
+            'profit_discovery_rate': round(profit_rate, 1),
+            'avg_profit_margin': round(opportunity_data.get('avg_profit_margin', 0), 2),
+            'monitored_shops': opportunity_data.get('monitored_shops', 0),
+            'active_shops': shop_data.get('active_shops', 0),
+            'avg_market_price': round(opportunity_data.get('avg_market_price', 0), 2),
+            'min_price': round(opportunity_data.get('min_price', 0), 2),
+            'max_price': round(opportunity_data.get('max_price', 0), 2),
+            'price_range': f"{opportunity_data.get('min_price', 0):.2f}-{opportunity_data.get('max_price', 0):.2f}"
+        }
+
     def get_dashboard_data(self) -> Dict:
         """获取仪表板数据"""
-        return {
+        # 获取销售统计
+        sales_data = {
             'today_stats': self.get_sales_statistics(1),
             'week_stats': self.get_sales_statistics(7),
             'month_stats': self.get_sales_statistics(30),
+        }
+        
+        # 获取商机分析统计
+        business_data = self.get_business_opportunity_statistics()
+        
+        # 合并数据，优先显示商机分析数据
+        dashboard_data = {
+            'today_stats': {
+                **sales_data['today_stats'],
+                'books_monitored': business_data['total_books_monitored'],
+                'profitable_opportunities': business_data['profitable_opportunities'],
+                'shops_count': business_data['active_shops']
+            },
+            'business_opportunity_stats': business_data,
             'hot_sales': self.get_hot_sales_ranking(7, 10),
             'profitable_items': self.get_profitable_items(20)[:10],
             'sales_trend': self.get_sales_trend(7),
             'shop_performance': self.get_shop_performance()[:5]
         }
+        
+        return dashboard_data

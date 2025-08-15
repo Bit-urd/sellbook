@@ -327,7 +327,12 @@ async def crawler_admin():
 @app.get("/health")
 async def health_check():
     """健康检查接口"""
-    return {"status": "healthy", "database": "connected"}
+    from datetime import datetime
+    return {
+        "status": "healthy", 
+        "database": "connected",
+        "timestamp": datetime.now().isoformat()
+    }
 
 def run_server(host: str = "127.0.0.1", port: int = 8000):
     """运行服务器"""

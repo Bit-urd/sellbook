@@ -121,6 +121,87 @@ async def get_books(
         logger.error(f"获取书籍列表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@book_router.get("/search")
+async def search_books(
+    title: Optional[str] = Query(None),
+    author: Optional[str] = Query(None),
+    publisher: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
+):
+    """搜索书籍（支持标题、作者、出版社、分类搜索）"""
+    try:
+        # 构建搜索条件
+        where_clauses = []
+        params = []
+        
+        if title:
+            where_clauses.append("title LIKE ?")
+            params.append(f"%{title}%")
+        
+        if author:
+            where_clauses.append("author LIKE ?")
+            params.append(f"%{author}%")
+        
+        if publisher:
+            where_clauses.append("publisher LIKE ?")
+            params.append(f"%{publisher}%")
+        
+        if category:
+            where_clauses.append("category LIKE ?")
+            params.append(f"%{category}%")
+        
+        if not where_clauses:
+            # 如果没有搜索条件，返回空结果
+            return []
+        
+        # 分页参数
+        offset = (page - 1) * page_size
+        
+        # 构建查询
+        query = "SELECT * FROM books"
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+        query += " ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+        params.extend([page_size, offset])
+        
+        books = db.execute_query(query, tuple(params))
+        
+        # 根据测试期望，直接返回书籍列表
+        return books
+        
+    except Exception as e:
+        logger.error(f"搜索书籍失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@book_router.get("/low-stock")
+async def get_low_stock_books(threshold: int = Query(10, ge=0)):
+    """获取低库存书籍"""
+    try:
+        # 查询库存低于阈值的书籍
+        query = """
+            SELECT 
+                b.*,
+                SUM(bi.kongfuzi_stock) as stock_quantity,
+                COUNT(DISTINCT bi.shop_id) as shop_count
+            FROM books b
+            LEFT JOIN book_inventory bi ON b.isbn = bi.isbn
+            WHERE bi.kongfuzi_stock IS NOT NULL
+            GROUP BY b.isbn
+            HAVING stock_quantity <= ?
+            ORDER BY stock_quantity ASC
+        """
+        
+        books = db.execute_query(query, (threshold,))
+        
+        # 根据测试期望，直接返回书籍列表
+        return books
+        
+    except Exception as e:
+        logger.error(f"获取低库存书籍失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @book_router.get("/{isbn}")
 async def get_book(isbn: str):
     """获取单本书籍详情"""

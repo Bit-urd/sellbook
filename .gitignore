@@ -42,8 +42,23 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+
+# Project specific data files
+data/sellbook.db
+*.csv
+shop_list.txt
+migrate_data.py
+
+# Browser automation
+playwright-report/
+test-results/
 
 # Temporary files
 *.tmp
 *.bak
 *.orig
+*.temp

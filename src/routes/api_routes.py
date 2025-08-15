@@ -161,6 +161,22 @@ async def analyze_book_sales(isbn: str):
         raise
     except Exception as e:
         logger.error(f"分析书籍销售数据失败: {e}")
+        
+        # 根据不同错误类型返回用户友好的错误信息
+        error_message = "分析失败"
+        error_str = str(e)
+        
+        if "Cannot connect to host localhost:9222" in error_str:
+            error_message = "爬虫服务暂时不可用，请稍后再试"
+        elif "Chrome" in error_str or "browser" in error_str.lower():
+            error_message = "数据抓取服务暂时不可用"
+        elif "timeout" in error_str.lower():
+            error_message = "请求超时，请稍后再试"
+        elif "network" in error_str.lower() or "connection" in error_str.lower():
+            error_message = "网络连接异常，请检查网络后重试"
+        else:
+            error_message = f"分析失败: {error_str}"
+        
         return {
             "isbn": isbn,
             "stats": {
@@ -172,7 +188,7 @@ async def analyze_book_sales(isbn: str):
                 "average_price": None,
                 "price_range": None
             },
-            "message": f"分析失败: {str(e)}",
+            "message": error_message,
             "success": False
         }
 

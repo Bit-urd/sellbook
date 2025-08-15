@@ -190,7 +190,7 @@ class Database:
                     
                     calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     
-                    UNIQUE(stat_type, stat_period, stat_date, book_id, shop_id)
+                    UNIQUE(stat_type, stat_period, stat_date, isbn, shop_id)
                 )
             """)
             
