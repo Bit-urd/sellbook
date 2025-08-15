@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>卖书网站价差数据分析系统</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/common-components.js"></script>
     <style>
         * {
             margin: 0;
@@ -977,12 +978,16 @@
 
                 if (data.success) {
                     displayISBNResults(data);
+                    // 刷新封控状态
+                    refreshRateLimitStatus();
                 } else {
                     showISBNError(data.message || '分析失败，请稍后重试');
                 }
             } catch (error) {
                 console.error('分析失败:', error);
                 showISBNError('网络错误，请检查连接后重试');
+                // 请求失败也刷新一下状态
+                refreshRateLimitStatus();
             } finally {
                 document.getElementById('isbnLoading').style.display = 'none';
                 document.getElementById('isbnSearchBtn').disabled = false;

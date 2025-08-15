@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 class KongfuziCrawler:
     """孔夫子网爬虫"""
     
+    # 全局封控等待时间（秒），使用类变量在所有实例间共享
+    _rate_limit_wait_time = 0
+    _max_wait_time = 16 * 60  # 最大等待时间：16分钟
+    
     def __init__(self):
         self.browser = None
         self.page = None
@@ -32,6 +36,54 @@ class KongfuziCrawler:
         self.inventory_repo = BookInventoryRepository()
         self.sales_repo = SalesRepository()
         self.task_repo = CrawlTaskRepository()
+    
+    @classmethod
+    def _update_rate_limit_wait_time(cls, success: bool = False):
+        """更新全局封控等待时间
+        
+        Args:
+            success: True表示请求成功，False表示遇到封控
+        """
+        if success:
+            # 成功时重置等待时间为0
+            cls._rate_limit_wait_time = 0
+            logger.info("请求成功，重置封控等待时间为0")
+        else:
+            # 失败时使用指数退避：2分钟 -> 4分钟 -> 8分钟 -> 16分钟
+            if cls._rate_limit_wait_time == 0:
+                cls._rate_limit_wait_time = 2 * 60  # 首次封控：2分钟
+            else:
+                cls._rate_limit_wait_time = min(cls._rate_limit_wait_time * 2, cls._max_wait_time)
+            
+            logger.warning(f"遇到封控，更新等待时间为 {cls._rate_limit_wait_time // 60} 分钟")
+    
+    @classmethod
+    def _get_current_wait_time(cls) -> int:
+        """获取当前封控等待时间（秒）"""
+        return cls._rate_limit_wait_time
+    
+    async def _safe_page_goto(self, url: str, **kwargs):
+        """安全的页面跳转，成功时重置封控时间"""
+        try:
+            result = await self.page.goto(url, **kwargs)
+            # 页面加载成功，重置封控等待时间
+            self._update_rate_limit_wait_time(success=True)
+            return result
+        except Exception as e:
+            # 如果是封控错误，会在上层处理
+            raise e
+    
+    @classmethod
+    def get_rate_limit_status(cls) -> dict:
+        """获取当前封控状态信息"""
+        wait_time = cls._rate_limit_wait_time
+        return {
+            "is_rate_limited": wait_time > 0,
+            "current_wait_time_seconds": wait_time,
+            "current_wait_time_minutes": wait_time // 60,
+            "max_wait_time_minutes": cls._max_wait_time // 60,
+            "next_wait_time_minutes": min(wait_time * 2, cls._max_wait_time) // 60 if wait_time > 0 else 2
+        }
     
     async def connect_browser(self):
         """连接到Chrome浏览器"""
@@ -165,8 +217,11 @@ class KongfuziCrawler:
         search_url = f"https://search.kongfz.com/product/?dataType=1&keyword={isbn}&page=1&sortType=10&actionPath=sortType"
         
         try:
-            await self.page.goto(search_url, wait_until='networkidle')
+            await self._safe_page_goto(search_url, wait_until='networkidle')
             await asyncio.sleep(2)
+            
+            # 检查页面是否出现频率限制
+            await self._check_page_for_rate_limit()
             
             page_num = 1
             max_pages = 10
@@ -221,6 +276,23 @@ class KongfuziCrawler:
                 await asyncio.sleep(2)
             
             logger.info(f"成功保存 {total_saved} 条销售记录")
+            
+            # 更新书籍的销售记录爬取时间和状态
+            from ..models.database import db
+            update_query = """
+                UPDATE books 
+                SET is_crawled = 1,
+                    last_sales_update = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE isbn = ?
+            """
+            rows_updated = db.execute_update(update_query, (isbn,))
+            
+            if rows_updated > 0:
+                logger.info(f"已更新ISBN {isbn} 的销售记录爬取状态和时间")
+            else:
+                logger.warning(f"未找到ISBN {isbn} 的书籍记录，无法更新爬取状态")
+            
             return total_saved
             
         except Exception as e:
@@ -492,7 +564,7 @@ class KongfuziCrawler:
         try:
             # 搜索书籍
             search_url = f"https://search.kongfz.com/product/?keyword={isbn}&dataType=1&sortType=10&page=1"
-            await self.page.goto(search_url, wait_until='networkidle')
+            await self._safe_page_goto(search_url, wait_until='networkidle')
             await asyncio.sleep(2)
             
             sales_records = []
@@ -548,44 +620,136 @@ class KongfuziCrawler:
             raise
     
     async def crawl_shop_sales(self, shop_id: str) -> int:
-        """爬取热门书籍销售数据并入库"""
+        """爬取店铺所有书籍的销售数据，基于数据库中该店铺的书籍库存记录"""
         try:
+            logger.info(f"开始爬取店铺 {shop_id} 的销售数据")
+            
+            # 检查当前封控状态
+            rate_limit_status = self.get_rate_limit_status()
+            if rate_limit_status["is_rate_limited"]:
+                logger.info(f"当前处于封控状态，等待时间: {rate_limit_status['current_wait_time_minutes']} 分钟")
+            
             # 获取店铺信息
             shop = self.shop_repo.get_by_shop_id(shop_id)
             if not shop:
                 raise Exception(f"店铺 {shop_id} 不存在")
             
-            # 使用几本热门书籍来测试和填充数据
-            test_isbns = [
-                '9787020165704',  # 阳光下的葡萄干
-                '9787010257440',  # 网络空间意识形态话语权提升研究
-                '9787541164866',  # 365日兔兔治愈手帐
-                '9787543340503',  # 糖尿病足综合征
-                '9787101080650',  # 宅经
-            ]
+            # 从数据库查询该店铺的所有书籍ISBN
+            from ..models.database import db
+            query = """
+                SELECT DISTINCT bi.isbn, b.title
+                FROM book_inventory bi
+                LEFT JOIN books b ON bi.isbn = b.isbn
+                WHERE bi.shop_id = ? AND bi.isbn IS NOT NULL
+                ORDER BY bi.crawled_at DESC
+            """
+            shop_books = db.execute_query(query, (shop['id'],))
             
+            if not shop_books:
+                logger.warning(f"店铺 {shop_id} 没有书籍库存记录，请先爬取书籍信息")
+                return 0
+            
+            logger.info(f"店铺 {shop_id} 共有 {len(shop_books)} 本书，开始爬取销售数据")
             total_sales = 0
+            success_count = 0
+            error_count = 0
             
-            for isbn in test_isbns:
+            for i, book in enumerate(shop_books, 1):
+                isbn = book['isbn']
+                title = book.get('title', '未知书名')
+                
                 try:
-                    logger.info(f"正在爬取ISBN {isbn} 的销售数据")
+                    logger.info(f"[{i}/{len(shop_books)}] 正在爬取《{title}》(ISBN: {isbn}) 的销售数据")
                     sales_count = await self.analyze_and_save_book_sales(isbn, shop['id'], days_limit=30)
                     total_sales += sales_count
-                    logger.info(f"ISBN {isbn} 爬取完成，保存了 {sales_count} 条记录")
+                    success_count += 1
+                    
+                    # 成功时重置封控等待时间
+                    self._update_rate_limit_wait_time(success=True)
+                    
+                    if sales_count > 0:
+                        logger.info(f"ISBN {isbn} 爬取完成，保存了 {sales_count} 条记录，已更新爬取时间")
+                    else:
+                        logger.info(f"ISBN {isbn} 爬取完成，暂无销售记录，已更新爬取时间")
                     
                     # 间隔避免过于频繁的请求
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(1)
                     
                 except Exception as e:
+                    error_count += 1
+                    error_msg = str(e)
+                    
+                    # 检查是否遇到频率限制
+                    if self._is_rate_limit_error(error_msg):
+                        # 更新封控等待时间（指数退避）
+                        self._update_rate_limit_wait_time(success=False)
+                        wait_time = self._get_current_wait_time()
+                        
+                        logger.warning(f"遇到访问频率限制，等待 {wait_time // 60} 分钟后继续: {error_msg}")
+                        await asyncio.sleep(wait_time)
+                        continue  # 继续处理下一本书
+                    
                     logger.error(f"爬取ISBN {isbn} 失败: {e}")
                     continue
             
-            logger.info(f"店铺 {shop_id} 总共爬取 {total_sales} 条销售记录")
-            return total_sales
+            logger.info(f"店铺 {shop_id} 销售数据爬取完成: 成功 {success_count} 本，失败 {error_count} 本，总共保存 {total_sales} 条销售记录")
+            
+        # 显示最终封控状态
+        final_status = self.get_rate_limit_status()
+        if final_status["is_rate_limited"]:
+            logger.warning(f"爬取结束时仍处于封控状态，当前等待时间: {final_status['current_wait_time_minutes']} 分钟")
+        else:
+            logger.info("爬取结束时封控状态已重置")
+            
+        return total_sales
             
         except Exception as e:
             logger.error(f"爬取店铺 {shop_id} 销售数据失败: {e}")
             raise
+    
+    def _is_rate_limit_error(self, error_message: str) -> bool:
+        """检测是否为访问频率限制错误"""
+        rate_limit_keywords = [
+            "搜索次数已达到上限",
+            "请求错误，请降低访问频次",
+            "更换真实账号使用",
+            "访问频率过高",
+            "rate limit",
+            "too many requests",
+            "请稍后访问",
+            "访问受限"
+        ]
+        
+        error_lower = error_message.lower()
+        return any(keyword.lower() in error_lower for keyword in rate_limit_keywords)
+    
+    async def _check_page_for_rate_limit(self) -> None:
+        """检查页面内容是否包含频率限制信息"""
+        if not self.page:
+            return
+        
+        try:
+            # 检查页面标题和内容
+            page_content = await self.page.evaluate("""
+                () => {
+                    return {
+                        title: document.title,
+                        body: document.body.innerText || '',
+                        html: document.documentElement.innerHTML || ''
+                    };
+                }
+            """)
+            
+            # 检查所有内容
+            all_content = f"{page_content.get('title', '')} {page_content.get('body', '')} {page_content.get('html', '')}"
+            
+            if self._is_rate_limit_error(all_content):
+                raise Exception("很抱歉，您当前的搜索次数已达到上限，请稍后访问！请求错误，请降低访问频次或更换真实账号使用。")
+                
+        except Exception as e:
+            if self._is_rate_limit_error(str(e)):
+                raise
+            # 其他异常不处理，继续执行
     
     async def extract_book_info_from_current_page(self) -> Dict:
         """从当前页面提取书籍信息"""
@@ -761,7 +925,7 @@ class KongfuziCrawler:
             
             # 访问店铺首页
             url = f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/"
-            await self.page.goto(url, wait_until='networkidle')
+            await self._safe_page_goto(url, wait_until='networkidle')
             await asyncio.sleep(2)  # 等待页面加载
             
             while current_page <= max_pages:
@@ -983,7 +1147,7 @@ class KongfuziCrawler:
         all_sales = []
         
         try:
-            await self.page.goto(url, wait_until='networkidle')
+            await self._safe_page_goto(url, wait_until='networkidle')
             await asyncio.sleep(2)
             
             # 提取已售记录

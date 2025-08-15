@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>店铺管理</title>
+    <script src="/static/common-components.js"></script>
     <style>
         * {
             margin: 0;
@@ -459,8 +460,8 @@
                 <input type="text" id="searchInput" placeholder="搜索店铺ID或名称...">
                 <button class="btn" onclick="searchShops()">🔍 搜索</button>
                 <button class="btn btn-success" onclick="showAddShopModal()">➕ 添加店铺</button>
-                <button class="btn btn-info" onclick="batchCrawlShops(false)">🚀 批量全量爬取</button>
-                <button class="btn btn-warning" onclick="batchCrawlShops(true)">📈 批量增量爬取</button>
+                <button class="btn btn-info" onclick="batchCrawlAllShopsSales()">🚀 批量爬取销售数据</button>
+                <button class="btn btn-warning" onclick="batchUpdateAllShops()">📈 批量更新书籍数据</button>
                 <button class="btn" onclick="refreshShopList()">🔄 刷新</button>
             </div>
 
@@ -476,14 +477,15 @@
                             <th>平台</th>
                             <th>状态</th>
                             <th>书籍总数</th>
-                            <th>未爬取数</th>
-                            <th>爬取进度</th>
+                            <th>已爬取销售</th>
+                            <th>未爬取销售</th>
+                            <th>销售爬取进度</th>
                             <th>最后更新</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody id="shopTableBody">
-                        <tr><td colspan="10" style="text-align: center;">加载中...</td></tr>
+                        <tr><td colspan="11" style="text-align: center;">加载中...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -544,7 +546,7 @@
             currentPage = page;
             try {
                 const search = document.getElementById('searchInput').value;
-                let url = `/api/shops?page=${page}&page_size=20`;
+                let url = `/sales-data/shops?page=${page}&page_size=20`;
                 if (search) {
                     url += `&search=${encodeURIComponent(search)}`;
                 }
@@ -566,14 +568,12 @@
             const tbody = document.getElementById('shopTableBody');
             
             if (!shops || shops.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">暂无数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">暂无数据</td></tr>';
                 return;
             }
 
             let html = '';
             shops.forEach(shop => {
-                const crawlStatus = getCrawlStatusText(shop.crawl_status);
-                const crawlStatusClass = `status-${shop.crawl_status || 'not-started'}`;
                 const lastUpdate = shop.last_update ? new Date(shop.last_update).toLocaleString('zh-CN') : '-';
                 
                 html += `
@@ -584,6 +584,7 @@
                         <td>${shop.platform || 'kongfuzi'}</td>
                         <td>${shop.status === 'active' ? '活跃' : '未激活'}</td>
                         <td>${shop.total_books || 0}</td>
+                        <td>${shop.crawled_books || 0}</td>
                         <td>${shop.uncrawled_books || 0}</td>
                         <td>
                             <div class="progress-bar">
@@ -593,8 +594,8 @@
                         </td>
                         <td>${lastUpdate}</td>
                         <td class="action-buttons">
-                            <button class="btn btn-sm btn-success" onclick="crawlShop('${shop.shop_id}', false)">全量爬取</button>
-                            <button class="btn btn-sm btn-warning" onclick="crawlShop('${shop.shop_id}', true)">增量爬取</button>
+                            <button class="btn btn-sm btn-success" onclick="crawlShopBooks('${shop.shop_id}')">爬取书籍</button>
+                            <button class="btn btn-sm btn-warning" onclick="crawlShopSales('${shop.shop_id}')">爬取销售</button>
                             <button class="btn btn-sm btn-info" onclick="editShop('${shop.shop_id}')">编辑</button>
                             <button class="btn btn-sm btn-danger" onclick="deleteShop('${shop.shop_id}')">删除</button>
                         </td>
@@ -650,7 +651,7 @@
         // 编辑店铺
         async function editShop(shopId) {
             try {
-                const response = await fetch(`/api/shops/${shopId}`);
+                const response = await fetch(`/sales-data/shops/${shopId}`);
                 const data = await response.json();
 
                 if (data.success) {
@@ -688,14 +689,14 @@
                 let response;
                 if (editingShopId) {
                     // 更新店铺
-                    response = await fetch(`/api/shops/${editingShopId}`, {
+                    response = await fetch(`/sales-data/shops/${editingShopId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(shopData)
                     });
                 } else {
                     // 创建店铺
-                    response = await fetch('/api/shops', {
+                    response = await fetch('/sales-data/shops', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(shopData)
@@ -722,7 +723,7 @@
             }
 
             try {
-                const response = await fetch(`/api/shops/${shopId}`, {
+                const response = await fetch(`/sales-data/shops/${shopId}`, {
                     method: 'DELETE'
                 });
                 const data = await response.json();
@@ -738,13 +739,114 @@
             }
         }
 
-        // 爬取单个店铺
-        async function crawlShop(shopId, incremental) {
-            const mode = incremental ? '增量' : '全量';
-            showAlert('info', `正在${mode}爬取店铺 ${shopId}，请稍候...`);
+        // 爬取店铺书籍信息
+        async function crawlShopBooks(shopId) {
+            if (!confirm(`确定要爬取店铺 ${shopId} 的书籍信息吗？这会获取该店铺的所有在售书籍。`)) {
+                return;
+            }
+
+            showAlert('info', `正在爬取店铺 ${shopId} 的书籍信息，请稍候...`);
 
             try {
-                const response = await fetch(`/api/shops/${shopId}/crawl?incremental=${incremental}`, {
+                const response = await fetch(`/crawler/shop/${shopId}/crawl`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    
+                    if (response.status === 429) {
+                        showAlert('error', `🚫 访问频率过高！\n\n${errorData.detail || '请降低爬取频率，等待一段时间后重试。'}\n\n建议：\n• 等待 10-30 分钟后重试\n• 减少并发爬取任务`);
+                    } else {
+                        showAlert('error', errorData.detail || `请求失败 (${response.status})`);
+                    }
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    refreshShopList();
+                    // 刷新封控状态
+                    refreshRateLimitStatus();
+                } else {
+                    showAlert('error', data.detail || '爬取书籍失败');
+                }
+            } catch (error) {
+                showAlert('error', '网络请求失败: ' + error.message);
+                // 请求失败也刷新一下状态
+                refreshRateLimitStatus();
+            }
+        }
+
+        // 爬取店铺销售数据
+        async function crawlShopSales(shopId) {
+            // 先获取店铺信息，显示要爬取的书籍数量
+            let shopInfo;
+            try {
+                const shopResponse = await fetch(`/sales-data/shops/${shopId}`);
+                const shopData = await shopResponse.json();
+                if (shopData.success) {
+                    shopInfo = shopData.data;
+                }
+            } catch (error) {
+                console.warn('获取店铺信息失败:', error);
+            }
+
+            const bookCount = shopInfo ? shopInfo.total_books_inventory || shopInfo.total_books : '未知';
+            
+            if (!confirm(`确定要爬取店铺 ${shopId} 的销售数据吗？\n\n这将爬取该店铺 ${bookCount} 本书的历史销售记录，可能需要较长时间。`)) {
+                return;
+            }
+
+            showAlert('info', `正在爬取店铺 ${shopId} 的销售数据（${bookCount} 本书），请稍候...这可能需要几分钟到几十分钟不等`);
+
+            try {
+                const response = await fetch(`/sales-data/shop/${shopId}/crawl-sales`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    // 处理HTTP错误状态
+                    const errorData = await response.json().catch(() => ({}));
+                    
+                    if (response.status === 429) {
+                        // 频率限制错误
+                        showAlert('error', `🚫 访问频率过高！\n\n${errorData.detail || '请降低爬取频率，等待一段时间后重试。'}\n\n建议：\n• 等待 10-30 分钟后重试\n• 减少并发爬取任务\n• 考虑分批次进行爬取`);
+                    } else {
+                        showAlert('error', errorData.detail || `请求失败 (${response.status})`);
+                    }
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('success', data.message);
+                    refreshShopList();
+                    // 刷新封控状态
+                    refreshRateLimitStatus();
+                } else {
+                    showAlert('error', data.detail || '爬取销售数据失败');
+                }
+            } catch (error) {
+                showAlert('error', '网络请求失败: ' + error.message);
+                // 请求失败也刷新一下状态
+                refreshRateLimitStatus();
+            }
+        }
+
+        // 批量爬取所有店铺销售数据
+        async function batchCrawlAllShopsSales() {
+            if (!confirm('确定要爬取所有活跃店铺的销售数据吗？这可能需要较长时间。')) {
+                return;
+            }
+
+            showAlert('info', '正在批量爬取所有店铺的销售数据，请稍候...');
+
+            try {
+                const response = await fetch('/sales-data/crawl-all-shops', {
                     method: 'POST'
                 });
                 const data = await response.json();
@@ -753,44 +855,35 @@
                     showAlert('success', data.message);
                     refreshShopList();
                 } else {
-                    showAlert('error', data.detail || '爬取失败');
+                    showAlert('error', data.detail || '批量爬取销售数据失败');
                 }
             } catch (error) {
-                showAlert('error', '爬取失败: ' + error.message);
+                showAlert('error', '批量爬取销售数据失败: ' + error.message);
             }
         }
 
-        // 批量爬取选中的店铺
-        async function batchCrawlShops(incremental) {
-            if (selectedShops.size === 0) {
-                showAlert('error', '请先选择要爬取的店铺');
+        // 批量更新所有店铺书籍数据
+        async function batchUpdateAllShops() {
+            if (!confirm('确定要更新所有店铺的书籍数据吗？这会创建多个更新任务。')) {
                 return;
             }
 
-            const mode = incremental ? '增量' : '全量';
-            if (!confirm(`确定要${mode}爬取选中的 ${selectedShops.size} 个店铺吗？`)) {
-                return;
-            }
-
-            showAlert('info', `正在${mode}爬取 ${selectedShops.size} 个店铺，请稍候...`);
+            showAlert('info', '正在创建批量更新任务，请稍候...');
 
             try {
-                const response = await fetch(`/api/shops/batch-crawl?incremental=${incremental}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(Array.from(selectedShops))
+                const response = await fetch('/crawler/update/all-shops', {
+                    method: 'POST'
                 });
                 const data = await response.json();
 
                 if (data.success) {
                     showAlert('success', data.message);
-                    selectedShops.clear();
                     refreshShopList();
                 } else {
-                    showAlert('error', data.detail || '批量爬取失败');
+                    showAlert('error', data.detail || '批量更新失败');
                 }
             } catch (error) {
-                showAlert('error', '批量爬取失败: ' + error.message);
+                showAlert('error', '批量更新失败: ' + error.message);
             }
         }
 

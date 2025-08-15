@@ -416,12 +416,13 @@ sales_data_router = APIRouter(prefix="/sales-data", tags=["sales-data"])
 @sales_data_router.get("/shops")
 async def get_shops_list(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100)
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="搜索店铺ID或名称")
 ):
     """获取店铺列表（分页）"""
     try:
         offset = (page - 1) * page_size
-        shops = shop_repo.get_paginated(offset, page_size)
+        shops = shop_repo.get_paginated(offset, page_size, search)
         total = shop_repo.get_total_count()
         
         return {
@@ -438,6 +439,107 @@ async def get_shops_list(
         }
     except Exception as e:
         logger.error(f"获取店铺列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.get("/shops/{shop_id}")
+async def get_shop_detail(shop_id: str):
+    """获取店铺详情及统计信息"""
+    try:
+        shop = shop_repo.get_shop_with_stats(shop_id)
+        if not shop:
+            raise HTTPException(status_code=404, detail="店铺不存在")
+        
+        return {
+            "success": True,
+            "data": shop
+        }
+    except Exception as e:
+        logger.error(f"获取店铺详情失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.post("/shops")
+async def create_shop(shop_data: dict):
+    """创建新店铺"""
+    try:
+        # 检查店铺是否已存在
+        existing_shop = shop_repo.get_by_shop_id(shop_data.get("shop_id"))
+        if existing_shop:
+            raise HTTPException(status_code=400, detail="店铺ID已存在")
+        
+        shop = Shop(
+            shop_id=shop_data["shop_id"],
+            shop_name=shop_data["shop_name"],
+            platform=shop_data.get("platform", "kongfuzi"),
+            shop_url=shop_data.get("shop_url"),
+            shop_type=shop_data.get("shop_type"),
+            status=shop_data.get("status", "active")
+        )
+        
+        shop_repo.create(shop)
+        
+        return {
+            "success": True,
+            "message": f"店铺 {shop.shop_id} 创建成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"创建店铺失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.put("/shops/{shop_id}")
+async def update_shop(shop_id: str, shop_data: dict):
+    """更新店铺信息"""
+    try:
+        # 检查店铺是否存在
+        existing_shop = shop_repo.get_by_shop_id(shop_id)
+        if not existing_shop:
+            raise HTTPException(status_code=404, detail="店铺不存在")
+        
+        shop = Shop(
+            shop_id=shop_id,
+            shop_name=shop_data["shop_name"],
+            platform=shop_data.get("platform", "kongfuzi"),
+            shop_url=shop_data.get("shop_url"),
+            shop_type=shop_data.get("shop_type"),
+            status=shop_data.get("status", "active")
+        )
+        
+        success = shop_repo.update(shop_id, shop)
+        if not success:
+            raise HTTPException(status_code=500, detail="更新失败")
+        
+        return {
+            "success": True,
+            "message": f"店铺 {shop_id} 更新成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新店铺失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.delete("/shops/{shop_id}")
+async def delete_shop(shop_id: str):
+    """删除店铺"""
+    try:
+        # 检查店铺是否存在
+        existing_shop = shop_repo.get_by_shop_id(shop_id)
+        if not existing_shop:
+            raise HTTPException(status_code=404, detail="店铺不存在")
+        
+        success = shop_repo.delete(shop_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="删除失败")
+        
+        return {
+            "success": True,
+            "message": f"店铺 {shop_id} 及相关数据删除成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除店铺失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @sales_data_router.post("/shop/{shop_id}/crawl-sales")
@@ -462,20 +564,6 @@ async def crawl_shop_sales(shop_id: str):
         crawler = KongfuziCrawler()
         sales_count = await crawler.crawl_shop_sales(shop_id)
         
-        # 更新书籍的爬取状态
-        from ..models.database import db
-        db.execute_update("""
-            UPDATE books 
-            SET is_crawled = 1, 
-                last_sales_update = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE isbn IN (
-                SELECT DISTINCT isbn 
-                FROM sales_records 
-                WHERE shop_id = ?
-            )
-        """, (shop['id'],))
-        
         return {
             "success": True,
             "message": f"成功爬取 {sales_count} 条销售记录",
@@ -485,8 +573,25 @@ async def crawl_shop_sales(shop_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"爬取店铺销售数据失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_message = str(e)
+        logger.error(f"爬取店铺销售数据失败: {error_message}")
+        
+        # 检查是否为频率限制错误
+        rate_limit_keywords = [
+            "搜索次数已达到上限", "请求错误，请降低访问频次",
+            "更换真实账号使用", "访问频率过高"
+        ]
+        
+        is_rate_limit = any(keyword in error_message for keyword in rate_limit_keywords)
+        
+        if is_rate_limit:
+            # 使用 429 状态码表示频率限制
+            raise HTTPException(
+                status_code=429, 
+                detail="访问频率过高，请稍后再试。建议等待一段时间后重新尝试，或降低爬取频率。"
+            )
+        else:
+            raise HTTPException(status_code=500, detail=error_message)
 
 @sales_data_router.post("/crawl-all-shops")
 async def crawl_all_shops_sales():
@@ -565,6 +670,19 @@ async def get_shop_sales_stats(shop_id: str):
         raise
     except Exception as e:
         logger.error(f"获取店铺销售统计失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@sales_data_router.get("/crawler/rate-limit-status")
+async def get_rate_limit_status():
+    """获取当前封控状态"""
+    try:
+        status = KongfuziCrawler.get_rate_limit_status()
+        return {
+            "success": True,
+            "data": status
+        }
+    except Exception as e:
+        logger.error(f"获取封控状态失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @sales_data_router.get("/books/crawl-status")
