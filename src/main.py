@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -50,6 +51,11 @@ static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+# 模板目录
+template_dir = Path(__file__).parent.parent / "templates"
+template_dir.mkdir(exist_ok=True)
+templates = Jinja2Templates(directory=str(template_dir))
+
 @app.on_event("startup")
 async def startup_event():
     """应用启动事件"""
@@ -63,25 +69,9 @@ async def shutdown_event():
     logger.info("应用关闭中...")
 
 @app.get("/", response_class=HTMLResponse)
-async def root():
+async def root(request: Request):
     """主页 - 数据展示页面"""
-    index_file = static_dir / "index.html"
-    if index_file.exists():
-        return FileResponse(index_file)
-    else:
-        return HTMLResponse("""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>卖书网站价差数据分析系统</title>
-            <meta charset="utf-8">
-        </head>
-        <body>
-            <h1>系统正在初始化...</h1>
-            <p>请稍后刷新页面</p>
-        </body>
-        </html>
-        """)
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/isbn-search", response_class=HTMLResponse)
 async def isbn_search():
