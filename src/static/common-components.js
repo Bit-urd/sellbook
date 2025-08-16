@@ -7,12 +7,17 @@ class RateLimitStatusComponent {
         this.containerId = containerId;
         this.updateInterval = null;
         this.isVisible = false;
+        this.isDragging = false;
+        this.dragOffset = { x: 0, y: 0 };
+        this.position = { x: 20, y: 120 }; // 默认位置 (left: 20px, top: 120px)
     }
 
     /**
      * 初始化组件
      */
     init() {
+        // 加载保存的位置
+        this.loadPosition();
         this.createStatusContainer();
         this.startPeriodicUpdate();
         
@@ -34,11 +39,11 @@ class RateLimitStatusComponent {
             document.body.appendChild(container);
         }
 
-        // 设置容器样式
+        // 设置容器样式 - 常驻浮动可拖拽
         container.style.cssText = `
             position: fixed;
-            top: 20px;
-            right: 20px;
+            top: 120px;
+            left: ${this.position.x}px;
             z-index: 9999;
             padding: 12px 16px;
             border-radius: 8px;
@@ -46,11 +51,139 @@ class RateLimitStatusComponent {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             font-size: 14px;
             min-width: 200px;
-            transition: all 0.3s ease;
-            display: none;
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+            display: block;
+            cursor: move;
+            user-select: none;
+            opacity: 0.9;
         `;
 
+        // 添加拖拽功能
+        this.addDragFunctionality(container);
+
         this.container = container;
+    }
+
+    /**
+     * 添加拖拽功能
+     */
+    addDragFunctionality(container) {
+        let startX, startY, initialLeft, initialTop;
+        let isDragging = false;
+
+        const startDrag = (e) => {
+            isDragging = true;
+            
+            // 支持鼠标和触摸事件
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            startX = clientX;
+            startY = clientY;
+            
+            // 获取当前位置 - 改用left和top，更直观
+            const rect = container.getBoundingClientRect();
+            initialLeft = rect.left;
+            initialTop = rect.top;
+            
+            // 改变样式表示正在拖拽
+            container.style.opacity = '1';
+            container.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.3)';
+            container.style.transform = 'scale(1.05)';
+            container.style.zIndex = '10000';
+            
+            e.preventDefault();
+        };
+
+        const doDrag = (e) => {
+            if (!isDragging) return;
+            
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            const deltaX = clientX - startX;
+            const deltaY = clientY - startY;
+            
+            let newLeft = initialLeft + deltaX;
+            let newTop = initialTop + deltaY;
+            
+            // 边界限制
+            const maxLeft = window.innerWidth - container.offsetWidth - 10;
+            const maxTop = window.innerHeight - container.offsetHeight - 10;
+            
+            newLeft = Math.max(10, Math.min(newLeft, maxLeft));
+            newTop = Math.max(10, Math.min(newTop, maxTop));
+            
+            // 使用left和top定位，清除right定位
+            container.style.left = newLeft + 'px';
+            container.style.top = newTop + 'px';
+            container.style.right = 'auto';
+            
+            e.preventDefault();
+        };
+
+        const endDrag = () => {
+            if (isDragging) {
+                isDragging = false;
+                
+                // 恢复样式
+                container.style.opacity = '0.9';
+                container.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                container.style.transform = 'scale(1)';
+                container.style.zIndex = '9999';
+                
+                // 保存位置
+                this.position.x = parseInt(container.style.left);
+                this.position.y = parseInt(container.style.top);
+                this.savePosition();
+            }
+        };
+
+        // 鼠标事件
+        container.addEventListener('mousedown', startDrag);
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('mouseup', endDrag);
+        
+        // 触摸事件（移动端支持）
+        container.addEventListener('touchstart', startDrag, { passive: false });
+        document.addEventListener('touchmove', doDrag, { passive: false });
+        document.addEventListener('touchend', endDrag);
+        
+        // 鼠标悬停效果
+        container.addEventListener('mouseenter', () => {
+            if (!isDragging) {
+                container.style.opacity = '1';
+                container.style.transform = 'scale(1.02)';
+            }
+        });
+        
+        container.addEventListener('mouseleave', () => {
+            if (!isDragging) {
+                container.style.opacity = '0.9';
+                container.style.transform = 'scale(1)';
+            }
+        });
+    }
+
+    /**
+     * 保存位置到本地存储
+     */
+    savePosition() {
+        localStorage.setItem('crawlerStatusPosition', JSON.stringify(this.position));
+    }
+
+    /**
+     * 从本地存储加载位置
+     */
+    loadPosition() {
+        const saved = localStorage.getItem('crawlerStatusPosition');
+        if (saved) {
+            try {
+                this.position = JSON.parse(saved);
+            } catch (e) {
+                console.warn('加载位置信息失败:', e);
+            }
+        }
     }
 
     /**
@@ -84,12 +217,10 @@ class RateLimitStatusComponent {
 
         if (is_rate_limited) {
             // 显示封控状态
-            this.container.style.cssText += `
-                background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-                color: white;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                display: block;
-            `;
+            this.container.style.background = 'linear-gradient(135deg, #ff6b6b, #ee5a24)';
+            this.container.style.color = 'white';
+            this.container.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+            this.container.style.display = 'block';
 
             this.container.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 12px;">
@@ -108,11 +239,26 @@ class RateLimitStatusComponent {
                             剩余等待时间: ${currentTimeText}
                         </div>
                     </div>
+                    <div style="
+                        position: absolute; 
+                        top: -2px; 
+                        right: -2px; 
+                        width: 8px; 
+                        height: 8px; 
+                        background: #ff4444; 
+                        border-radius: 50%; 
+                        border: 2px solid white;
+                        animation: blink 1s infinite;
+                    "></div>
                 </div>
                 <style>
                     @keyframes pulse {
                         0%, 100% { opacity: 1; }
                         50% { opacity: 0.4; }
+                    }
+                    @keyframes blink {
+                        0%, 50% { opacity: 1; }
+                        51%, 100% { opacity: 0; }
                     }
                 </style>
             `;
@@ -123,12 +269,10 @@ class RateLimitStatusComponent {
             const nextWaitMinutes = next_wait_time?.minutes || status.next_wait_time_minutes || 0;
             
             // 显示正常状态
-            this.container.style.cssText += `
-                background: linear-gradient(135deg, #00b894, #00a085);
-                color: white;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                display: block;
-            `;
+            this.container.style.background = 'linear-gradient(135deg, #00b894, #00a085)';
+            this.container.style.color = 'white';
+            this.container.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+            this.container.style.display = 'block';
 
             if (nextWaitMinutes > 0) {
                 // 有策略等待时间的正常状态
@@ -149,36 +293,65 @@ class RateLimitStatusComponent {
                                 异常等待时间: ${nextTimeText}
                             </div>
                         </div>
+                        <div style="
+                            position: absolute; 
+                            top: -2px; 
+                            right: -2px; 
+                            width: 8px; 
+                            height: 8px; 
+                            background: #00d2ff; 
+                            border-radius: 50%; 
+                            border: 2px solid white;
+                            animation: pulse 2s infinite;
+                        "></div>
                     </div>
+                    <style>
+                        @keyframes pulse {
+                            0%, 100% { opacity: 1; }
+                            50% { opacity: 0.4; }
+                        }
+                    </style>
                 `;
                 this.isVisible = true;
             } else {
-                // 完全正常状态（短暂显示后隐藏）
-                if (this.isVisible) {
-                    this.container.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="
-                                width: 10px; 
-                                height: 10px; 
-                                background: white; 
-                                border-radius: 50%;
-                            "></div>
-                            <div>
-                                <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">
-                                    ✅ 系统正常
-                                </div>
-                                <div style="font-size: 12px; opacity: 0.9;">
-                                    爬虫服务运行正常
-                                </div>
+                // 完全正常状态（常驻显示）
+                this.container.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="
+                            width: 10px; 
+                            height: 10px; 
+                            background: white; 
+                            border-radius: 50%;
+                            animation: pulse 2s infinite;
+                        "></div>
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">
+                                ✅ 爬虫正常运行
+                            </div>
+                            <div style="font-size: 12px; opacity: 0.9;">
+                                系统运行正常
                             </div>
                         </div>
-                    `;
-
-                    // 3秒后隐藏正常状态
-                    setTimeout(() => {
-                        this.hideStatus();
-                    }, 3000);
-                }
+                        <div style="
+                            position: absolute; 
+                            top: -2px; 
+                            right: -2px; 
+                            width: 8px; 
+                            height: 8px; 
+                            background: #00ff88; 
+                            border-radius: 50%; 
+                            border: 2px solid white;
+                            animation: pulse 2s infinite;
+                        "></div>
+                    </div>
+                    <style>
+                        @keyframes pulse {
+                            0%, 100% { opacity: 1; }
+                            50% { opacity: 0.4; }
+                        }
+                    </style>
+                `;
+                this.isVisible = true;
             }
         }
     }
@@ -189,11 +362,10 @@ class RateLimitStatusComponent {
     showOfflineStatus() {
         if (!this.container) return;
         
-        this.container.style.cssText += `
-            background: #6c757d;
-            color: white;
-            display: block;
-        `;
+        this.container.style.background = '#6c757d';
+        this.container.style.color = 'white';
+        this.container.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+        this.container.style.display = 'block';
         
         this.container.innerHTML = `
             <div style="display: flex; align-items: center; gap: 12px;">
@@ -203,16 +375,38 @@ class RateLimitStatusComponent {
                     background: white; 
                     border-radius: 50%;
                     opacity: 0.7;
+                    animation: pulse 3s infinite;
                 "></div>
                 <div>
-                    <div style="font-weight: 600; margin-bottom: 4px;">
+                    <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">
                         🔌 连接中断
                     </div>
                     <div style="font-size: 12px; opacity: 0.9;">
                         无法获取封控状态
                     </div>
                 </div>
+                <div style="
+                    position: absolute; 
+                    top: -2px; 
+                    right: -2px; 
+                    width: 8px; 
+                    height: 8px; 
+                    background: #ffa500; 
+                    border-radius: 50%; 
+                    border: 2px solid white;
+                    animation: blink 2s infinite;
+                "></div>
             </div>
+            <style>
+                @keyframes pulse {
+                    0%, 100% { opacity: 0.7; }
+                    50% { opacity: 0.3; }
+                }
+                @keyframes blink {
+                    0%, 50% { opacity: 1; }
+                    51%, 100% { opacity: 0; }
+                }
+            </style>
         `;
         
         this.isVisible = true;
