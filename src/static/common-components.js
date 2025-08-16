@@ -9,7 +9,7 @@ class RateLimitStatusComponent {
         this.isVisible = false;
         this.isDragging = false;
         this.dragOffset = { x: 0, y: 0 };
-        this.position = { x: 20, y: 120 }; // 默认位置 (left: 20px, top: 120px)
+        this.position = { x: 20, y: 20 }; // 默认位置 (right: 20px, top: 20px)
     }
 
     /**
@@ -42,8 +42,8 @@ class RateLimitStatusComponent {
         // 设置容器样式 - 常驻浮动可拖拽
         container.style.cssText = `
             position: fixed;
-            top: 120px;
-            left: ${this.position.x}px;
+            top: ${this.position.y}px;
+            right: ${this.position.x}px;
             z-index: 9999;
             padding: 12px 16px;
             border-radius: 8px;
