@@ -492,6 +492,7 @@ class CrawlTaskRepository:
         query = "SELECT * FROM crawl_tasks WHERE status = 'running'"
         return db.execute_query(query)
     
+    
     def get_pending_tasks_by_platform(self, platform: str) -> List[Dict]:
         """获取指定平台的待执行任务"""
         query = """
@@ -677,3 +678,28 @@ class StatisticsRepository:
         """
         results = db.execute_query(query, (stat_type, stat_period))
         return results[0] if results else None
+    
+    def get_task_statistics(self) -> Dict[str, int]:
+        """获取任务状态统计"""
+        query = """
+            SELECT status, COUNT(*) as count
+            FROM crawl_tasks
+            GROUP BY status
+        """
+        results = db.execute_query(query)
+        
+        # 转换为字典格式
+        stats = {"pending": 0, "running": 0, "completed": 0, "failed": 0}
+        for row in results:
+            status = row["status"]
+            count = row["count"]
+            if status == "pending":
+                stats["pending"] = count
+            elif status in ["running", "in_progress"]:
+                stats["running"] = count
+            elif status == "completed":
+                stats["completed"] = count
+            elif status == "failed":
+                stats["failed"] = count
+        
+        return stats

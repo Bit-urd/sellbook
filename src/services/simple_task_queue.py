@@ -175,6 +175,7 @@ class SimpleTaskQueue:
         else:
             return self.task_repo.get_pending_tasks()
     
+    
     def get_task_by_id(self, task_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取任务"""
         return self.task_repo.get_by_id(task_id)
@@ -191,8 +192,8 @@ class SimpleTaskQueue:
         
         return self.task_repo.update_status(task_id, 'cancelled')
     
-    def retry_failed_tasks(self, platform: str = None) -> int:
-        """重试失败的任务"""
+    def retry_failed_tasks_by_platform(self, platform: str = None) -> int:
+        """重试失败的任务（按平台筛选）"""
         try:
             from ..models.database import db
             
@@ -272,6 +273,51 @@ class SimpleTaskQueue:
     def cleanup_old_tasks(self, days_old: int = 7) -> int:
         """清理旧的已完成任务"""
         return self.task_repo.cleanup_old_completed_tasks(days_old)
+    
+    # === 从TaskQueue迁移的方法 ===
+    
+    def add_pending_tasks_to_queue(self) -> int:
+        """获取待执行任务数量（内存队列由autonomous_session_manager管理）"""
+        pending_tasks = self.get_pending_tasks()
+        count = len(pending_tasks)
+        
+        # SimpleTaskQueue不维护独立的内存队列
+        # autonomous_session_manager直接从数据库读取pending任务并管理内存队列
+        logger.info(f"发现 {count} 个待执行任务，将由autonomous_session_manager自动处理")
+        return count
+    
+    def clear_queue(self) -> int:
+        """清空队列（在SimpleTaskQueue中这是一个无操作，因为我们直接操作数据库）"""
+        # autonomous_session_manager直接从数据库读取，不维护独立的内存队列
+        # 这个方法主要是为了API兼容性
+        logger.info("SimpleTaskQueue不维护独立内存队列，任务由autonomous_session_manager管理")
+        return 0
+    
+    def clear_all_tasks(self) -> Dict[str, int]:
+        """删除所有pending状态的任务"""
+        try:
+            pending_tasks = self.get_pending_tasks()
+            deleted_count = 0
+            
+            for task in pending_tasks:
+                task_id = task['id']
+                self.task_repo.delete_task(task_id)
+                deleted_count += 1
+            
+            return {
+                "deleted_pending": deleted_count,
+                "cleared_queue": 0,  # SimpleTaskQueue不维护内存队列
+                "queue_cleared": 0,  # API兼容性
+                "tasks_deleted": deleted_count  # API兼容性
+            }
+        except Exception as e:
+            logger.error(f"清空所有任务失败: {e}")
+            return {"deleted_pending": 0, "cleared_queue": 0, "queue_cleared": 0, "tasks_deleted": 0}
+    
+    def retry_failed_tasks(self) -> int:
+        """重试所有失败的任务（兼容TaskQueue接口）"""
+        return self.retry_failed_tasks_by_platform()
+    
 
 
 # 全局实例

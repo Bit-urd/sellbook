@@ -4,9 +4,9 @@
 使用SQLite作为持久化存储
 """
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from contextlib import contextmanager
 import logging
 
@@ -15,10 +15,40 @@ logger = logging.getLogger(__name__)
 class Database:
     """数据库连接管理器"""
     
+    # 北京时区 (UTC+8)
+    BEIJING_TZ = timezone(timedelta(hours=8))
+    
     def __init__(self, db_path: str = "data/sellbook.db"):
         self.db_path = db_path
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.init_database()
+    
+    def format_time_for_db(self, dt: Optional[datetime] = None) -> str:
+        """格式化时间用于数据库存储（统一存储北京时间）"""
+        if dt is None:
+            dt = datetime.now(self.BEIJING_TZ)
+        
+        if dt.tzinfo is None:
+            # 假设是北京时间
+            dt = dt.replace(tzinfo=self.BEIJING_TZ)
+        elif dt.tzinfo != self.BEIJING_TZ:
+            # 转换为北京时间
+            dt = dt.astimezone(self.BEIJING_TZ)
+        
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+    
+    def parse_time_from_db(self, time_str: Optional[str]) -> Optional[str]:
+        """解析数据库时间字符串，转换为北京时间并格式化为前端需要的格式"""
+        if not time_str:
+            return None
+        
+        try:
+            # 数据库存储的时间假设是北京时间
+            dt = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+            dt = dt.replace(tzinfo=self.BEIJING_TZ)
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            return time_str
     
     @contextmanager
     def get_connection(self):
@@ -223,11 +253,20 @@ class Database:
             logger.info(f"数据库初始化完成: {self.db_path}")
 
     def execute_query(self, query: str, params: tuple = ()) -> List[Dict]:
-        """执行查询并返回结果"""
+        """执行查询并返回结果，自动处理时间字段的时区"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
-            return [dict(row) for row in cursor.fetchall()]
+            results = [dict(row) for row in cursor.fetchall()]
+            
+            # 自动处理时间字段
+            time_fields = ['created_at', 'updated_at', 'start_time', 'end_time', 'sale_date', 'sale_time', 'crawled_at']
+            for result in results:
+                for field in time_fields:
+                    if field in result and result[field]:
+                        result[field] = self.parse_time_from_db(result[field])
+            
+            return results
     
     def execute_update(self, query: str, params: tuple = ()) -> int:
         """执行更新操作并返回影响的行数"""

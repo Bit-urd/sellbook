@@ -17,7 +17,60 @@ from ..models.repositories import (
     ShopRepository, BookRepository, BookInventoryRepository, 
     SalesRepository, CrawlTaskRepository
 )
-from .window_pool import chrome_pool, WindowPoolManager
+# from .window_pool import chrome_pool, WindowPoolManager  # 已合并到autonomous_session_manager
+from .autonomous_session_manager import autonomous_session_manager
+# 兼容性别名
+chrome_pool = autonomous_session_manager
+
+# 兼容WindowPoolManager装饰器
+class WindowPoolManager:
+    """窗口池管理器装饰器 - 自动管理窗口获取和归还"""
+    
+    def __init__(self, pool=None, keep_window_alive: bool = True):
+        """
+        Args:
+            pool: 窗口池实例，默认使用全局池
+            keep_window_alive: 任务完成后是否保持窗口存活（保持登录状态）
+        """
+        self.pool = pool or autonomous_session_manager
+        self.keep_window_alive = keep_window_alive
+    
+    def __call__(self, func):
+        """装饰器：自动管理窗口生命周期"""
+        async def wrapper(*args, **kwargs):
+            # 获取窗口
+            page = await self.pool.get_window()
+            if not page:
+                raise Exception("无法获取可用的浏览器窗口，请稍后重试")
+            
+            try:
+                # 将page注入到函数参数中
+                kwargs['page'] = page
+                result = await func(*args, **kwargs)
+                
+                # 成功完成，标记窗口为成功状态
+                self.pool.mark_window_success(page)
+                return result
+                
+            except Exception as e:
+                error_msg = str(e)
+                
+                # 区分处理不同类型的错误
+                if "LOGIN_REQUIRED:" in error_msg:
+                    # 登录错误：标记窗口为需要登录状态
+                    self.pool.mark_window_login_required(page)
+                
+                elif "RATE_LIMITED:" in error_msg:
+                    # 频率限制错误：标记窗口为频率限制状态
+                    self.pool.mark_window_rate_limited(page, duration_minutes=6)
+                
+                raise  # 重新抛出异常
+                
+            finally:
+                # 归还窗口，默认保持存活状态
+                await self.pool.return_window(page, keep_alive=self.keep_window_alive)
+        
+        return wrapper
 # from .simple_session_manager import SimpleSessionManager  # V2架构，已被V3替代
 
 logger = logging.getLogger(__name__)
@@ -74,7 +127,8 @@ class KongfuziCrawler:
         Args:
             success: True表示请求成功，False表示遇到封控
         """
-        from .window_pool import chrome_pool
+        # from .window_pool import chrome_pool  # 已合并到autonomous_session_manager
+        # 使用autonomous_session_manager作为chrome_pool
         
         if success:
             # 成功时重置等待时间为0
@@ -157,9 +211,10 @@ class KongfuziCrawler:
     async def connect_browser(self):
         """连接到Chrome浏览器（从窗口池获取页面）"""
         try:
-            # 确保窗口池已初始化
+            # 检查窗口池是否已初始化，但不自动初始化
             if not chrome_pool._initialized:
-                await chrome_pool.initialize()
+                logger.warning("窗口池未初始化，无法连接浏览器。请先在窗口池管理页面初始化")
+                return False
             return chrome_pool.connected
         except Exception as e:
             logger.error(f"Chrome连接失败: {e}")
@@ -249,6 +304,9 @@ class KongfuziCrawler:
         except Exception as e:
             logger.error(f"爬取ISBN {isbn} 销售数据失败: {e}")
             raise
+        finally:
+            # 归还窗口
+            await session_manager.release_window(window_session)
     
     def check_isbn_crawled_recently(self, isbn: str, days_threshold: int = 7) -> bool:
         """检查ISBN是否在最近几天内已被爬取过
@@ -272,7 +330,7 @@ class KongfuziCrawler:
         return len(results) > 0
     
     async def crawl_single_book_sales(self, isbn: str, shop_id: int, days_limit: int = 30, 
-                                    skip_if_recent: bool = True) -> Dict:
+                                    skip_if_recent: bool = True, session_manager=None) -> Dict:
         """爬取单本书的销售记录（用于任务执行）
         
         Args:
@@ -302,7 +360,11 @@ class KongfuziCrawler:
                 return result
             
             # 执行爬取
-            records_saved = await self.analyze_and_save_book_sales(isbn, shop_id, days_limit)
+            if session_manager:
+                records_saved = await self.analyze_and_save_book_sales_with_session(isbn, shop_id, days_limit, session_manager)
+            else:
+                # 兼容旧的调用方式（用于直接API调用）
+                records_saved = await self.analyze_and_save_book_sales(isbn, shop_id, days_limit)
             
             result['status'] = 'completed'
             result['records_saved'] = records_saved
@@ -316,15 +378,38 @@ class KongfuziCrawler:
         
         return result
 
-    @WindowPoolManager()
-    async def analyze_and_save_book_sales(self, isbn: str, shop_id: int, days_limit: int = 30, page: Page = None) -> int:
-        """分析并保存单本书的销售记录到数据库
+    async def analyze_and_save_book_sales_with_session(self, isbn: str, shop_id: int, days_limit: int, session_manager) -> int:
+        """使用session_manager分析并保存单本书的销售记录到数据库
         
         Args:
             isbn: 书籍ISBN
             shop_id: 店铺ID
             days_limit: 天数限制
-            page: 浏览器页面（由装饰器自动注入）
+            session_manager: 会话管理器
+        """
+        if not session_manager:
+            raise ValueError("session_manager is required")
+            
+        # 从session_manager获取窗口
+        window_session = await session_manager.acquire_window('kongfz')
+        if not window_session:
+            raise RuntimeError("无法获取可用窗口")
+        
+        try:
+            page = window_session.page
+            return await self._analyze_and_save_book_sales_impl(isbn, shop_id, days_limit, page)
+        finally:
+            # 归还窗口
+            await session_manager.release_window(window_session)
+
+    async def _analyze_and_save_book_sales_impl(self, isbn: str, shop_id: int, days_limit: int, page) -> int:
+        """分析并保存单本书的销售记录到数据库的具体实现
+        
+        Args:
+            isbn: 书籍ISBN
+            shop_id: 店铺ID
+            days_limit: 天数限制
+            page: 浏览器页面对象
         """
         cutoff_date = datetime.now() - timedelta(days=days_limit)
         total_saved = 0
@@ -413,6 +498,18 @@ class KongfuziCrawler:
         except Exception as e:
             logger.error(f"分析并保存ISBN {isbn} 销售数据失败: {e}")
             raise
+
+    @WindowPoolManager()
+    async def analyze_and_save_book_sales(self, isbn: str, shop_id: int, days_limit: int = 30, page: Page = None) -> int:
+        """分析并保存单本书的销售记录到数据库（装饰器版本，用于向后兼容）
+        
+        Args:
+            isbn: 书籍ISBN
+            shop_id: 店铺ID
+            days_limit: 天数限制
+            page: 浏览器页面（由装饰器自动注入）
+        """
+        return await self._analyze_and_save_book_sales_impl(isbn, shop_id, days_limit, page)
     
     async def extract_sales_records(self, page: Page):
         """提取当前页面的销售记录
@@ -1667,60 +1764,31 @@ class CrawlerTaskExecutor:
             if not method:
                 raise AttributeError(f"爬虫实例没有方法: {method_name}")
             
-            # 如果有session_manager，则使用会话管理版本的方法执行
-            if session_manager:
-                # 执行方法并注入session_manager
-                if task_type == 'book_sales_crawl':
-                    result = await method(
-                        params['target_isbn'], 
-                        params['shop_id'],
-                        params.get('days_limit', 30),
-                        params.get('skip_if_recent', True),
-                        session_manager=session_manager
-                    )
-                elif task_type == 'shop_books_crawl':
-                    # 从target_url提取shop_id
-                    shop_id = self._extract_shop_id_from_url(params['target_url'])
-                    result = await method(shop_id, params.get('max_pages', 50), session_manager=session_manager)
-                    result = {'books_crawled': result, 'status': 'completed'}
-                elif task_type == 'duozhuayu_price':
-                    result = await method(params['target_isbn'], params['shop_id'], session_manager=session_manager)
-                    result = {'updated': result, 'status': 'completed' if result else 'failed'}
-                elif task_type == 'isbn_analysis':
-                    result = await method(
-                        params['target_isbn'],
-                        params.get('days_limit', 30),
-                        params.get('quality_filter', '九品以上'),
-                        session_manager=session_manager
-                    )
-                else:
-                    raise ValueError(f"不支持的任务类型: {task_type}")
+            # 执行对应的方法，传递session_manager用于窗口管理
+            if task_type == 'book_sales_crawl':
+                result = await method(
+                    params['target_isbn'], 
+                    params['shop_id'],
+                    params.get('days_limit', 30),
+                    params.get('skip_if_recent', True),
+                    session_manager=session_manager
+                )
+            elif task_type == 'shop_books_crawl':
+                # 从target_url提取shop_id
+                shop_id = self._extract_shop_id_from_url(params['target_url'])
+                result = await method(shop_id, params.get('max_pages', 50), session_manager=session_manager)
+                result = {'books_crawled': result, 'status': 'completed'}
+            elif task_type == 'duozhuayu_price':
+                result = await method(params['target_isbn'], params['shop_id'], session_manager=session_manager)
+                result = {'updated': result, 'status': 'completed' if result else 'failed'}
+            elif task_type == 'isbn_analysis':
+                result = await method(
+                    params['target_isbn'],
+                    params.get('days_limit', 30),
+                    params.get('quality_filter', '九品以上')
+                )
             else:
-                # 执行原有方法（不使用会话管理）
-                if task_type == 'book_sales_crawl':
-                    result = await method(
-                        params['target_isbn'], 
-                        params['shop_id'],
-                        params.get('days_limit', 30),
-                        params.get('skip_if_recent', True)
-                    )
-                elif task_type == 'shop_books_crawl':
-                    # 从target_url提取shop_id
-                    shop_id = self._extract_shop_id_from_url(params['target_url'])
-                    result = await method(shop_id, params.get('max_pages', 50))
-                    result = {'books_crawled': result, 'status': 'completed'}
-                elif task_type == 'duozhuayu_price':
-                    result = await method(params['target_isbn'], params['shop_id'])
-                    result = {'updated': result, 'status': 'completed' if result else 'failed'}
-                elif task_type == 'isbn_analysis':
-                    result = await method(
-                        params['target_isbn'],
-                        params.get('days_limit', 30),
-                        params.get('quality_filter', '九品以上')
-                    )
-                    result = {'analysis_data': result, 'status': 'completed'}
-                else:
-                    raise ValueError(f"未实现的任务类型执行逻辑: {task_type}")
+                raise ValueError(f"不支持的任务类型: {task_type}")
             
             return result
             
@@ -1930,30 +1998,7 @@ class CrawlerManager:
         await self.kongfuzi.disconnect_browser()
 
 
-class TaskQueue:
-    """内存任务队列管理器（单例模式）"""
-    _instance = None
-    _initialized = False
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-    
-    def __init__(self):
-        if not self._initialized:
-            self.queue = deque()
-            self.running_tasks = set()
-            self.task_executor = CrawlerTaskExecutor()
-            self.task_repo = CrawlTaskRepository()
-            self._lock = asyncio.Lock()
-            self._processing = False
-            
-            # V3架构：使用AutonomousSessionManager
-            from .autonomous_session_manager import autonomous_session_manager
-            self.session_manager = autonomous_session_manager
-            
-            TaskQueue._initialized = True
+# TaskQueue 已移除，使用 SimpleTaskQueue 统一管理任务
     
     async def add_tasks(self, task_ids: List[int]) -> int:
         """将任务添加到队列"""
@@ -2004,7 +2049,7 @@ class TaskQueue:
             from ..models.database import db
             with db.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM crawl_tasks WHERE status IN ('pending', 'queued')")
+                cursor.execute("DELETE FROM crawl_tasks WHERE status = 'pending'")
                 deleted_count = cursor.rowcount
                 conn.commit()
             
@@ -2050,8 +2095,8 @@ class TaskQueue:
     
     def get_queue_status(self) -> Dict[str, Any]:
         """获取队列状态"""
-        # 获取会话管理器状态
-        session_status = self.session_manager.get_status() if self.session_manager else {}
+        # 获取会话管理器状态（简化版，避免异步调用）
+        session_status = {"note": "使用V2接口获取完整状态"} if self.session_manager else {}
         
         return {
             "queue_length": len(self.queue),
@@ -2083,7 +2128,8 @@ class TaskQueue:
                         platform = task.get('target_platform', 'unknown')
                         
                         # 检查是否有可用窗口处理这个网站
-                        if self.session_manager.can_handle_site(platform):
+                        # 简化检查：如果有任务就尝试执行，让session_manager处理可用性
+                        if True:  # 总是尝试执行，session_manager会处理调度
                             task_to_execute = (task_id, task)
                             # 从队列中移除这个任务
                             del self.queue[i]
@@ -2151,5 +2197,243 @@ class TaskQueue:
             logger.info("任务队列处理完成")
 
 
-# 全局任务队列实例
-task_queue = TaskQueue()
+# 旧的TaskQueue已移除，使用SimpleTaskQueue
+
+
+# ==================== V2 统一业务接口层 ====================
+
+class CrawlerServiceV2:
+    """爬虫服务 V2 - 统一业务接口，整合了原有功能和新架构"""
+    
+    def __init__(self):
+        # 兼容V1的组件
+        self.crawler_manager = CrawlerManager()
+        self.kongfuzi = KongfuziCrawler()
+        self.duozhuayu = DuozhuayuCrawler()
+        self.task_executor = CrawlerTaskExecutor()
+        
+        # V2新架构组件
+        from .autonomous_session_manager import autonomous_session_manager
+        from .simple_task_queue import simple_task_queue
+        self.session_manager = autonomous_session_manager
+        self.simple_queue = simple_task_queue
+        
+        # 仓库
+        from ..models.repositories import (
+            ShopRepository, BookRepository, BookInventoryRepository,
+            SalesRepository, CrawlTaskRepository
+        )
+        self.shop_repo = ShopRepository()
+        self.book_repo = BookRepository()
+        self.inventory_repo = BookInventoryRepository()
+        self.sales_repo = SalesRepository()
+        self.task_repo = CrawlTaskRepository()
+    
+    # === V1兼容方法 ===
+    
+    async def analyze_book_sales(self, isbn: str, days_limit: int = 30, quality_filter: str = "九品以上"):
+        """分析书籍销售数据（V1兼容）"""
+        return await self.kongfuzi.analyze_book_sales(isbn, days_limit, quality_filter)
+    
+    async def crawl_shop_books(self, shop_id: str, max_pages: int = 50):
+        """爬取店铺书籍（V1兼容）"""
+        return await self.kongfuzi.crawl_shop_books(shop_id, max_pages)
+    
+    async def crawl_shop_sales(self, shop_id: str):
+        """爬取店铺销售数据（V1兼容）"""
+        return await self.kongfuzi.crawl_shop_sales(shop_id)
+    
+    async def update_book_price(self, isbn: str, shop_id: int = 1):
+        """更新书籍价格（V1兼容）"""
+        return await self.duozhuayu.update_book_price(isbn, shop_id)
+    
+    @classmethod
+    def get_rate_limit_status(cls):
+        """获取封控状态（V1兼容）"""
+        return KongfuziCrawler.get_rate_limit_status()
+    
+    # === V2简化任务管理接口 ===
+    
+    def add_book_sales_task(self, isbn: str, shop_id: int = 1, book_title: str = None, priority: int = 5) -> int:
+        """添加书籍销售记录爬取任务"""
+        return self.simple_queue.add_book_sales_task(isbn, shop_id, book_title, priority)
+    
+    def add_shop_books_task(self, shop_url: str, shop_id: int = 1, max_pages: int = 50, priority: int = 5) -> int:
+        """添加店铺书籍列表爬取任务"""
+        return self.simple_queue.add_shop_books_task(shop_url, shop_id, max_pages, priority)
+    
+    def add_price_update_task(self, isbn: str, shop_id: int = 1, priority: int = 3) -> int:
+        """添加价格更新任务"""
+        return self.simple_queue.add_price_update_task(isbn, shop_id, priority)
+    
+    def add_isbn_analysis_task(self, isbn: str, priority: int = 7) -> int:
+        """添加ISBN分析任务"""
+        return self.simple_queue.add_isbn_analysis_task(isbn, priority)
+    
+    def batch_add_isbn_tasks(self, isbn_list: List[str], priority: int = 5) -> List[int]:
+        """批量添加ISBN相关任务"""
+        return self.simple_queue.batch_add_isbn_tasks(isbn_list, priority)
+    
+    # === 统一队列管理接口 ===
+    async def get_queue_status(self) -> Dict[str, Any]:
+        """获取队列状态（使用SimpleTaskQueue）"""
+        # 简单队列状态
+        queue_status = self.simple_queue.get_queue_status()
+        
+        # 会话管理器状态
+        session_status = await self.session_manager.get_status()
+        
+        return {
+            "simple_queue": queue_status,
+            "session_manager": session_status,
+            "unified_status": {
+                "total_pending": queue_status.get("total_pending", 0),
+                "total_running": queue_status.get("total_running", 0),
+                "available_windows": session_status.get("available_windows", 0),
+                "total_windows": session_status.get("total_windows", 0)
+            }
+        }
+    
+    def get_recent_tasks(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """获取最近的任务"""
+        return self.simple_queue.get_recent_tasks(limit)
+    
+    def get_pending_tasks(self, platform: str = None) -> List[Dict[str, Any]]:
+        """获取待处理任务"""
+        return self.simple_queue.get_pending_tasks(platform)
+    
+    def cancel_task(self, task_id: int) -> bool:
+        """取消任务"""
+        return self.simple_queue.cancel_task(task_id)
+    
+    def retry_failed_tasks(self, platform: str = None) -> int:
+        """重试失败的任务"""
+        return self.simple_queue.retry_failed_tasks(platform)
+    
+    def clear_pending_tasks(self, platform: str = None) -> int:
+        """清空待处理任务"""
+        return self.simple_queue.clear_pending_tasks(platform)
+    
+    # === 队列管理方法（统一使用SimpleTaskQueue） ===
+    
+    def add_pending_tasks_to_queue(self) -> int:
+        """将所有待执行任务加载到队列"""
+        return self.simple_queue.add_pending_tasks_to_queue()
+    
+    def clear_queue(self) -> int:
+        """清空任务队列"""
+        return self.simple_queue.clear_queue()
+    
+    def clear_all_tasks(self) -> Dict[str, int]:
+        """清空队列并删除所有待执行任务"""
+        return self.simple_queue.clear_all_tasks()
+    
+    def retry_failed_tasks(self) -> int:
+        """重试失败的任务"""
+        return self.simple_queue.retry_failed_tasks()
+    
+    # === 状态监控接口 ===
+    
+    async def get_window_status(self) -> Dict[str, Any]:
+        """获取窗口状态"""
+        session_status = await self.session_manager.get_status()
+        return {
+            "total_windows": session_status["total_windows"],
+            "available_windows": session_status["available_windows"],
+            "busy_windows": session_status["busy_windows"],
+            "available_by_platform": session_status.get("available_by_platform", {}),
+            "sessions": session_status.get("sessions", [])
+        }
+    
+    async def get_platform_status(self, platform: str) -> Dict[str, Any]:
+        """获取特定平台状态"""
+        session_status = await self.session_manager.get_status()
+        v2_status = self.simple_queue.get_queue_status()
+        
+        return {
+            "platform": platform,
+            "available_windows": session_status.get("available_by_platform", {}).get(platform, 0),
+            "pending_tasks": v2_status.get("platform_stats", {}).get(platform, {}).get("pending", 0),
+            "running_tasks": v2_status.get("platform_stats", {}).get(platform, {}).get("running", 0),
+            "completed_today": v2_status.get("platform_stats", {}).get(platform, {}).get("completed_today", 0),
+            "failed_today": v2_status.get("platform_stats", {}).get(platform, {}).get("failed_today", 0)
+        }
+    
+    async def get_statistics(self) -> Dict[str, Any]:
+        """获取统计信息"""
+        session_status = await self.session_manager.get_status()
+        return session_status.get("statistics", {})
+    
+    # === 便捷方法 ===
+    
+    def quick_crawl_isbn(self, isbn: str, include_analysis: bool = True) -> List[int]:
+        """快速爬取ISBN相关数据"""
+        task_ids = []
+        
+        # 添加销售记录爬取
+        sales_task = self.add_book_sales_task(isbn, priority=8)
+        task_ids.append(sales_task)
+        
+        # 添加价格更新
+        price_task = self.add_price_update_task(isbn, priority=6)
+        task_ids.append(price_task)
+        
+        # 可选添加分析任务
+        if include_analysis:
+            analysis_task = self.add_isbn_analysis_task(isbn, priority=9)
+            task_ids.append(analysis_task)
+        
+        logger.info(f"为ISBN {isbn} 添加了 {len(task_ids)} 个任务")
+        return task_ids
+    
+    def emergency_stop_platform(self, platform: str) -> Dict[str, int]:
+        """紧急停止特定平台的所有任务"""
+        # 清空该平台的待处理任务
+        cleared = self.clear_pending_tasks(platform)
+        
+        logger.warning(f"紧急停止平台 {platform}，清空了 {cleared} 个待处理任务")
+        return {
+            "platform": platform,
+            "cleared_tasks": cleared
+        }
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """健康检查"""
+        session_status = await self.session_manager.get_status()
+        
+        # 检查各种健康指标
+        health = {
+            "session_manager_running": session_status.get("running", False),
+            "browser_connected": session_status.get("connected", False),
+            "total_windows": session_status.get("total_windows", 0),
+            "available_windows": session_status.get("available_windows", 0),
+            "healthy": True,
+            "issues": []
+        }
+        
+        # 检查问题
+        if not session_status.get("running", False):
+            health["healthy"] = False
+            health["issues"].append("会话管理器未运行")
+        
+        if not session_status.get("connected", False):
+            health["healthy"] = False
+            health["issues"].append("浏览器未连接")
+        
+        if session_status.get("available_windows", 0) == 0:
+            health["healthy"] = False
+            health["issues"].append("没有可用窗口")
+        
+        return health
+    
+    async def stop(self):
+        """停止爬虫服务"""
+        if hasattr(self, 'session_manager'):
+            await self.session_manager.stop()
+        if hasattr(self, 'kongfuzi'):
+            await self.kongfuzi.disconnect_browser()
+        logger.info("爬虫服务已停止")
+
+
+# 全局统一服务实例
+crawler_service_v2 = CrawlerServiceV2()

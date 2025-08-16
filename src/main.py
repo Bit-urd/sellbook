@@ -101,17 +101,17 @@ async def shutdown_event():
     """应用关闭事件"""
     logger.info("应用关闭中...")
     
-    # 断开窗口池连接，但保留窗口
-    from .services.window_pool import chrome_pool
-    if chrome_pool.connected:
-        logger.info("断开窗口池连接（保留Chrome窗口）...")
+    # 断开会话管理器连接，但保留窗口
+    from .services.autonomous_session_manager import autonomous_session_manager
+    if autonomous_session_manager.connected:
+        logger.info("断开会话管理器连接（保留Chrome窗口）...")
         # 只断开patchright连接，不关闭窗口
-        if chrome_pool.patchright:
-            await chrome_pool.patchright.stop()
-            chrome_pool.patchright = None
-            chrome_pool.browser = None
-            chrome_pool.connected = False
-        logger.info("窗口池已断开，Chrome窗口保持打开状态")
+        if autonomous_session_manager.patchright:
+            await autonomous_session_manager.patchright.stop()
+            autonomous_session_manager.patchright = None
+            autonomous_session_manager.browser = None
+            autonomous_session_manager.connected = False
+        logger.info("会话管理器已断开，Chrome窗口保持打开状态")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():

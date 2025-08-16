@@ -336,6 +336,82 @@
             pointer-events: none;
             opacity: 0.6;
         }
+
+        /* 频率标签样式 */
+        .freq-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .freq-badge.high {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .freq-badge.medium {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .freq-badge.low {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        /* 网站状态标签样式 */
+        .site-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            min-width: 60px;
+            display: inline-block;
+        }
+
+        .site-status.available {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .site-status.rate-limited {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .site-status.login-required {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .site-status.blocked {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .site-status.unknown {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+        
+        /* 可点击状态样式 */
+        .site-status.clickable {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .site-status.clickable:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .site-status.available.clickable:hover {
+            background: #bbf7d0;
+            color: #15803d;
+        }
     </style>
 </head>
 <body>
@@ -430,7 +506,53 @@
                     </thead>
                     <tbody id="windowTableBody">
                         <tr>
-                            <td colspan="4" style="text-align: center;">暂无窗口数据</td>
+                            <td colspan="6" style="text-align: center;">暂无窗口数据</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 网站封控状态列表 -->
+            <div class="window-details">
+                <h2>各窗口网站封控状态</h2>
+                <div class="spinner" id="siteStatusSpinner"></div>
+                <table class="window-table" id="siteStatusTable">
+                    <thead>
+                        <tr>
+                            <th>窗口ID</th>
+                            <th>孔夫子网</th>
+                            <th>多抓鱼</th>
+                            <th>当当网</th>
+                            <th>其他网站</th>
+                            <th>最后更新</th>
+                        </tr>
+                    </thead>
+                    <tbody id="siteStatusTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center;">暂无数据</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 任务类型与网站对应关系 -->
+            <div class="window-details">
+                <h2>任务类型与网站对应关系</h2>
+                <div class="spinner" id="taskTypeSpinner"></div>
+                <table class="window-table" id="taskTypeTable">
+                    <thead>
+                        <tr>
+                            <th>任务类型</th>
+                            <th>任务名称</th>
+                            <th>目标网站</th>
+                            <th>网站域名</th>
+                            <th>当前状态</th>
+                            <th>使用频率</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskTypeTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center;">加载中...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -480,6 +602,8 @@
         function showAdminPanel() {
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('adminContainer').style.display = 'block';
+            // 加载任务类型数据
+            loadTaskTypesAndSites();
         }
         
         // 退出登录
@@ -506,14 +630,28 @@
         async function refreshStatus() {
             try {
                 addLog('正在获取窗口池状态...', 'info');
-                const response = await fetch('/window-pool/status');
-                const result = await response.json();
                 
-                if (result.success) {
-                    updateStatus(result.data);
-                    addLog('状态更新成功', 'success');
+                // 并行获取窗口池状态和网站状态
+                const [poolResponse, siteResponse] = await Promise.all([
+                    fetch('/window-pool/status'),
+                    fetch('/window-pool/site-status')
+                ]);
+                
+                const poolResult = await poolResponse.json();
+                const siteResult = await siteResponse.json();
+                
+                if (poolResult.success) {
+                    updateStatus(poolResult.data);
+                    addLog('窗口池状态更新成功', 'success');
                 } else {
-                    addLog('获取状态失败', 'error');
+                    addLog('获取窗口池状态失败', 'error');
+                }
+                
+                if (siteResult.success) {
+                    updateSiteStatusFromAPI(siteResult.data);
+                    addLog('网站状态更新成功', 'success');
+                } else {
+                    addLog('获取网站状态失败', 'error');
                 }
             } catch (error) {
                 addLog(`错误: ${error.message}`, 'error');
@@ -561,6 +699,9 @@
             
             // 更新窗口表格
             updateWindowTable(data.window_details);
+            
+            // 更新网站封控状态表格
+            updateSiteStatusTable(data.window_details);
         }
         
         // 更新窗口表格
@@ -588,6 +729,210 @@
                     <td>${window.last_success || '从未成功'}</td>
                 `;
             });
+        }
+
+        // 全局变量存储网站状态数据
+        let globalSiteStatusData = null;
+
+        // 从API更新网站状态数据
+        function updateSiteStatusFromAPI(data) {
+            globalSiteStatusData = data;
+            updateSiteStatusTable(data.windows);
+        }
+
+        // 更新网站封控状态表格
+        function updateSiteStatusTable(windows) {
+            const tbody = document.getElementById('siteStatusTableBody');
+            
+            if (!windows || windows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无数据</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            windows.forEach(window => {
+                const row = tbody.insertRow();
+                
+                // 获取各网站状态，默认为正常状态
+                const siteStates = window.site_states || {};
+                const kongfzStatus = siteStates.kongfz?.status || 'available';
+                const duozhuayuStatus = siteStates.duozhuayu?.status || 'available';
+                const dangdangStatus = siteStates.dangdang?.status || 'available';
+                
+                // 统计其他网站状态
+                const otherSites = Object.keys(siteStates).filter(site => 
+                    !['kongfz', 'duozhuayu', 'dangdang'].includes(site)
+                );
+                const otherStatus = otherSites.length > 0 ? 
+                    (otherSites.some(site => siteStates[site]?.status === 'rate_limited') ? 'rate_limited' : 'available') : 
+                    'available';
+                
+                row.innerHTML = `
+                    <td>${window.window_id}</td>
+                    <td><span class="site-status ${kongfzStatus} clickable" onclick="openSiteInWindow('${window.window_id}', 'https://www.kongfz.com', '${kongfzStatus}')" title="${getSiteStatusDetail(siteStates.kongfz)}">${getSiteStatusText(kongfzStatus)}</span></td>
+                    <td><span class="site-status ${duozhuayuStatus} clickable" onclick="openSiteInWindow('${window.window_id}', 'https://www.duozhuayu.com', '${duozhuayuStatus}')" title="${getSiteStatusDetail(siteStates.duozhuayu)}">${getSiteStatusText(duozhuayuStatus)}</span></td>
+                    <td><span class="site-status ${dangdangStatus} clickable" onclick="openSiteInWindow('${window.window_id}', 'http://www.dangdang.com', '${dangdangStatus}')" title="${getSiteStatusDetail(siteStates.dangdang)}">${getSiteStatusText(dangdangStatus)}</span></td>
+                    <td><span class="site-status ${otherStatus} clickable" onclick="showOtherSites('${window.window_id}', '${JSON.stringify(otherSites)}')" title="其他${otherSites.length}个网站">${getSiteStatusText(otherStatus)}</span></td>
+                    <td>${window.last_updated ? new Date(window.last_updated).toLocaleString() : '未更新'}</td>
+                `;
+            });
+        }
+
+        // 获取网站状态详情（用于tooltip）
+        function getSiteStatusDetail(siteState) {
+            if (!siteState) return '无状态信息';
+            
+            let detail = `状态: ${getSiteStatusText(siteState.status)}`;
+            if (siteState.error_count > 0) {
+                detail += `\n错误次数: ${siteState.error_count}`;
+            }
+            if (siteState.blocked_until > 0) {
+                const blockedUntil = new Date(siteState.blocked_until * 1000);
+                detail += `\n封控至: ${blockedUntil.toLocaleString()}`;
+            }
+            if (siteState.last_success) {
+                detail += `\n最后成功: ${new Date(siteState.last_success).toLocaleString()}`;
+            }
+            return detail;
+        }
+
+        // 获取网站状态显示文本
+        function getSiteStatusText(status) {
+            switch (status) {
+                case 'available': return '正常';
+                case 'rate_limited': return '封控';
+                case 'login_required': return '需登录';
+                case 'blocked': return '阻塞';
+                case 'unknown': 
+                default: return '未知';
+            }
+        }
+
+        // 加载任务类型和网站对应关系
+        async function loadTaskTypesAndSites() {
+            try {
+                const spinner = document.getElementById('taskTypeSpinner');
+                spinner.style.display = 'block';
+                
+                // 获取任务类型列表
+                const response = await fetch('/task-executor/task-types/list');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayTaskTypes(data.data);
+                } else {
+                    addLog('获取任务类型失败: ' + data.message, 'error');
+                }
+            } catch (error) {
+                addLog(`获取任务类型失败: ${error.message}`, 'error');
+            } finally {
+                const spinner = document.getElementById('taskTypeSpinner');
+                spinner.style.display = 'none';
+            }
+        }
+
+        // 显示任务类型列表
+        function displayTaskTypes(taskTypes) {
+            const tbody = document.getElementById('taskTypeTableBody');
+            
+            if (!taskTypes || taskTypes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无任务类型</td></tr>';
+                return;
+            }
+            
+            // 任务类型到网站的映射
+            const taskToSite = {
+                'book_sales_crawl': { name: '孔夫子旧书网', domain: 'kongfz.com', platform: 'kongfz' },
+                'shop_books_crawl': { name: '孔夫子旧书网', domain: 'kongfz.com', platform: 'kongfz' },
+                'duozhuayu_price': { name: '多抓鱼', domain: 'duozhuayu.com', platform: 'duozhuayu' },
+                'isbn_analysis': { name: '孔夫子旧书网', domain: 'kongfz.com', platform: 'kongfz' }
+            };
+            
+            tbody.innerHTML = '';
+            taskTypes.forEach(taskType => {
+                const row = tbody.insertRow();
+                const siteInfo = taskToSite[taskType.value] || { name: '未知', domain: '未知', platform: 'unknown' };
+                
+                // 获取该平台的当前状态（从窗口池状态获取）
+                const platformStatus = getPlatformStatus(siteInfo.platform);
+                
+                row.innerHTML = `
+                    <td>${taskType.value}</td>
+                    <td>${taskType.label}</td>
+                    <td>${siteInfo.name}</td>
+                    <td>${siteInfo.domain}</td>
+                    <td><span class="site-status ${platformStatus.status}">${platformStatus.text}</span></td>
+                    <td><span class="freq-badge ${getFrequencyClass(taskType.value)}">${getFrequencyText(taskType.value)}</span></td>
+                `;
+            });
+        }
+
+        // 获取平台状态
+        function getPlatformStatus(platform) {
+            if (!globalSiteStatusData || !globalSiteStatusData.windows) {
+                return { status: 'unknown', text: '未知' };
+            }
+            
+            // 统计该平台在所有窗口中的状态
+            let totalWindows = 0;
+            let rateLimitedCount = 0;
+            let availableCount = 0;
+            let errorCount = 0;
+            
+            globalSiteStatusData.windows.forEach(window => {
+                const siteState = window.site_states[platform];
+                if (siteState) {
+                    totalWindows++;
+                    switch (siteState.status) {
+                        case 'rate_limited':
+                            rateLimitedCount++;
+                            break;
+                        case 'available':
+                            availableCount++;
+                            break;
+                        default:
+                            errorCount++;
+                    }
+                }
+            });
+            
+            if (totalWindows === 0) {
+                return { status: 'unknown', text: '未知' };
+            }
+            
+            // 根据统计结果确定整体状态
+            if (rateLimitedCount === totalWindows) {
+                return { status: 'rate_limited', text: '全部封控' };
+            } else if (rateLimitedCount > totalWindows / 2) {
+                return { status: 'rate_limited', text: `部分封控(${rateLimitedCount}/${totalWindows})` };
+            } else if (availableCount > 0) {
+                return { status: 'available', text: '正常' };
+            } else {
+                return { status: 'unknown', text: '状态异常' };
+            }
+        }
+
+        // 获取频率分类
+        function getFrequencyClass(taskType) {
+            const highFreq = ['book_sales_crawl'];
+            const mediumFreq = ['shop_books_crawl', 'duozhuayu_price'];
+            const lowFreq = ['isbn_analysis'];
+            
+            if (highFreq.includes(taskType)) return 'high';
+            if (mediumFreq.includes(taskType)) return 'medium';
+            if (lowFreq.includes(taskType)) return 'low';
+            return 'medium';
+        }
+
+        // 获取频率文本
+        function getFrequencyText(taskType) {
+            const cls = getFrequencyClass(taskType);
+            switch (cls) {
+                case 'high': return '高频';
+                case 'medium': return '中频';
+                case 'low': return '低频';
+                default: return '中频';
+            }
         }
         
         // 初始化窗口池
@@ -689,8 +1034,62 @@
         window.onload = function() {
             checkAuth();
             startAutoRefresh();
+            // 如果已经登录，加载任务类型数据
+            if (sessionStorage.getItem(AUTH_KEY) === 'true') {
+                loadTaskTypesAndSites();
+            }
         };
         
+        // 在指定窗口中打开网站
+        async function openSiteInWindow(windowId, url, status) {
+            // 只允许在状态为正常时跳转
+            if (status !== 'available') {
+                addLog(`窗口 ${windowId} 当前状态为 ${getSiteStatusText(status)}，无法跳转`, 'warning');
+                return;
+            }
+            
+            try {
+                addLog(`正在控制Chrome窗口 ${windowId} 导航到 ${url}...`, 'info');
+                
+                // 调用后端API控制Chrome窗口导航
+                const response = await fetch(`/window-pool/navigate?window_id=${encodeURIComponent(windowId)}&url=${encodeURIComponent(url)}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(`Chrome窗口 ${windowId} 成功导航到 ${url}`, 'success');
+                    // 刷新状态以反映最新的网站状态
+                    setTimeout(refreshStatus, 1000);
+                } else {
+                    addLog(`窗口导航失败: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`控制窗口导航失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 显示其他网站列表
+        function showOtherSites(windowId, otherSitesJson) {
+            try {
+                const otherSites = JSON.parse(otherSitesJson);
+                if (otherSites.length === 0) {
+                    addLog(`窗口 ${windowId} 暂无其他网站记录`, 'info');
+                    return;
+                }
+                
+                let message = `窗口 ${windowId} 的其他网站:\n`;
+                otherSites.forEach(site => {
+                    message += `- ${site}\n`;
+                });
+                
+                alert(message);
+            } catch (error) {
+                addLog(`显示其他网站失败: ${error.message}`, 'error');
+            }
+        }
+
         // 页面卸载时停止自动刷新
         window.onbeforeunload = function() {
             stopAutoRefresh();

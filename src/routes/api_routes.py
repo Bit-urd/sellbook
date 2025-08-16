@@ -9,8 +9,12 @@ import logging
 import json
 
 from ..services.analysis_service import AnalysisService
-from ..services.crawler_service import CrawlerManager, KongfuziCrawler, DuozhuayuCrawler, CrawlerTaskExecutor, task_queue
-from ..services.window_pool import chrome_pool
+from ..services.crawler_service import CrawlerManager, KongfuziCrawler, DuozhuayuCrawler, CrawlerTaskExecutor, crawler_service_v2
+from ..services.simple_task_queue import simple_task_queue
+# from ..services.window_pool import chrome_pool  # 已合并到autonomous_session_manager
+from ..services.autonomous_session_manager import autonomous_session_manager
+# 为了兼容性，使用autonomous_session_manager作为chrome_pool
+chrome_pool = autonomous_session_manager
 from ..models.repositories import (
     ShopRepository, BookRepository, BookInventoryRepository,
     SalesRepository, CrawlTaskRepository
@@ -539,25 +543,28 @@ async def analyze_book_sales(isbn: str, quality: str = Query("high", regex="^(hi
         if not isbn or len(isbn) < 10:
             raise HTTPException(status_code=400, detail="请输入有效的ISBN号码")
         
-        # 使用爬虫实时获取销售数据
-        crawler = KongfuziCrawler()
-        stats = await crawler.analyze_book_sales(isbn, days_limit=30, quality_filter=quality)
+        # 转换品相参数
+        quality_filter = "九品以上" if quality == "high" else "全部品相"
         
-        # 构建响应
+        # 只添加任务到队列，不直接执行爬取
+        task_id = crawler_service_v2.add_isbn_analysis_task(isbn, priority=8)
+        
+        # 同时添加销售数据爬取任务（如果需要最新数据）
+        sales_task_id = crawler_service_v2.add_book_sales_task(
+            isbn=isbn, 
+            book_title=f"ISBN分析_{isbn}",
+            priority=7
+        )
+        
+        # 构建响应 - 返回任务信息而不是爬取结果
         response = {
             "isbn": isbn,
-            "stats": {
-                "sales_3_days": stats.get("sales_3_days", 0),
-                "sales_7_days": stats.get("sales_7_days", 0),
-                "sales_30_days": stats.get("sales_30_days", 0),
-                "total_records": stats.get("total_records", 0),
-                "latest_sale_date": stats.get("latest_sale_date"),
-                "average_price": stats.get("average_price"),
-                "price_range": stats.get("price_range"),
-                "sales_records": stats.get("sales_records", []),
-            },
-            "message": "分析完成",
-            "success": True
+            "task_ids": [task_id, sales_task_id],
+            "status": "queued",
+            "quality_filter": quality_filter,
+            "message": f"已创建分析任务，任务ID: {task_id}, 销售数据任务ID: {sales_task_id}",
+            "success": True,
+            "note": "请使用 /api/task/{task_id}/status 查询任务状态，/api/isbn/{isbn}/analysis 获取分析结果"
         }
         
         return response
@@ -658,14 +665,21 @@ async def crawl_shop_books(shop_id: str, max_pages: int = Query(50, ge=1, le=100
         )
         task_id = task_repo.create(task)
         
-        # 异步执行爬虫
-        crawler = KongfuziCrawler()
-        books_count = await crawler.crawl_shop_books(shop_id, max_pages)
+        # 将任务添加到V2队列系统，而不是直接执行
+        v2_task_id = crawler_service_v2.add_shop_books_task(
+            shop_url=shop_id, 
+            shop_id=1,  # 默认shop_id
+            max_pages=max_pages,
+            priority=6
+        )
         
         return {
             "success": True,
-            "message": f"成功爬取 {books_count} 本书籍",
-            "task_id": task_id
+            "message": f"已创建店铺爬取任务，将爬取最多 {max_pages} 页",
+            "task_id": task_id,  # V1任务ID（用于兼容）
+            "v2_task_id": v2_task_id,  # V2任务ID（实际执行）
+            "status": "queued",
+            "note": "任务已加入队列，请使用任务状态接口查询进度"
         }
     except HTTPException:
         raise
@@ -761,8 +775,15 @@ async def get_task_status(status: Optional[str] = None):
 async def run_pending_tasks():
     """运行待执行的任务"""
     try:
-        await crawler_manager.run_pending_tasks()
-        return {"success": True, "message": "任务执行已启动"}
+        # 使用V2任务队列系统，而不是直接运行
+        # 将待处理任务加载到内存队列中
+        added_count = await crawler_service_v2.add_pending_tasks_to_v1_queue()
+        return {
+            "success": True, 
+            "message": f"已将 {added_count} 个待处理任务加载到执行队列",
+            "added_tasks": added_count,
+            "note": "任务将由autonomous_session_manager自动执行"
+        }
     except Exception as e:
         logger.error(f"运行任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1079,8 +1100,8 @@ async def list_crawler_tasks(
     """分页查询爬虫任务列表"""
     try:
         # 获取队列状态
-        queue_status = task_queue.get_queue_status()
-        queued_task_ids = set(queue_status.get("next_tasks", []) + list(task_queue.queue))
+        queue_status = simple_task_queue.get_queue_status()
+        queued_task_ids = set(queue_status.get("next_tasks", []) + queue_status.get("queue", []))
         running_task_ids = queue_status.get("running_count", 0)
         
         # 构建查询条件
@@ -1088,9 +1109,9 @@ async def list_crawler_tasks(
         params = []
         
         if status == "queued":
-            # 特殊处理队列中状态：只显示在内存队列中的任务
+            # 队列中的任务：显示在内存队列中的任务
             if not queued_task_ids:
-                # 如果队列为空，返回空结果
+                # 如果内存队列为空，返回空结果
                 return {
                     "success": True,
                     "data": {
@@ -1107,7 +1128,7 @@ async def list_crawler_tasks(
                 placeholders = ",".join(["?"] * len(queued_task_ids))
                 conditions.append(f"id IN ({placeholders})")
                 params.extend(list(queued_task_ids))
-        elif status and status != "queued":
+        elif status:
             conditions.append("status = ?")
             params.append(status)
         
@@ -1185,7 +1206,9 @@ async def list_crawler_tasks(
                 actual_status = row[3]
                 if task_id in queued_task_ids:
                     actual_status = "queued"
-                elif task_id in task_queue.running_tasks:
+                # SimpleTaskQueue不维护running_tasks集合，通过数据库状态检查
+                task_data = task_repo.get_by_id(task_id)
+                if task_data and task_data.get('status') == 'running':
                     actual_status = "running"
                 
                 task = {
@@ -1249,84 +1272,45 @@ async def delete_batch_tasks(request: dict):
 
 @task_executor_router.post("/tasks/execute-batch")
 async def execute_batch_tasks(request: dict):
-    """批量执行选中任务"""
+    """批量将选中任务加入执行队列（状态从pending变为queued）"""
     try:
         task_ids = request.get("task_ids", [])
         if not task_ids:
             raise HTTPException(status_code=400, detail="未选择任务")
         
-        # 获取任务信息
+        # 验证任务状态，确保都是pending或failed状态
         with db.get_connection() as conn:
             cursor = conn.cursor()
             placeholders = ",".join(["?"] * len(task_ids))
+            
+            # 查询符合条件的任务数量
             cursor.execute(f"""
-                SELECT id, task_type, task_params, target_isbn, shop_id, target_url, book_title, status
-                FROM crawl_tasks 
+                SELECT COUNT(*) FROM crawl_tasks 
                 WHERE id IN ({placeholders}) AND status IN ('pending', 'failed')
             """, task_ids)
-            tasks = cursor.fetchall()
-        
-        if not tasks:
-            raise HTTPException(status_code=400, detail="没有可执行的任务（任务需要是pending或failed状态）")
-        
-        # 执行任务
-        success_count = 0
-        error_count = 0
-        
-        for row in tasks:
-            task_id, task_type, params_json, target_isbn, shop_id, target_url, book_title, status = row
-            try:
-                # 首先尝试从task_params JSON中获取参数
-                params = json.loads(params_json) if params_json else {}
-                
-                # 如果JSON参数为空，则从数据库列中构造参数
-                if not params:
-                    if task_type == 'book_sales_crawl':
-                        params = {
-                            'target_isbn': target_isbn,
-                            'shop_id': shop_id or 1,  # 默认shop_id为1
-                            'book_title': book_title
-                        }
-                    elif task_type == 'shop_books_crawl':
-                        params = {
-                            'target_url': target_url,
-                            'shop_id': shop_id or 1
-                        }
-                    elif task_type == 'duozhuayu_price':
-                        params = {
-                            'target_isbn': target_isbn,
-                            'shop_id': shop_id or 1
-                        }
-                    elif task_type == 'isbn_analysis':
-                        params = {
-                            'target_isbn': target_isbn
-                        }
-                
-                # 构造任务对象
-                task_obj = {
-                    'id': task_id,
-                    'task_type': task_type,
-                    **params  # 解包参数
-                }
-                result = await task_executor.execute_task_by_type(task_obj)
-                
-                # 执行成功后删除任务（因为需求是成功后物理删除）
-                with db.get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM crawl_tasks WHERE id = ?", (task_id,))
-                    conn.commit()
-                
-                success_count += 1
-                logger.info(f"任务 {task_id} 执行成功并已删除")
-            except Exception as e:
-                error_count += 1
-                logger.error(f"执行任务 {task_id} 失败: {str(e)}")
-        
-        message = f"批量执行完成: 成功 {success_count} 个"
-        if error_count > 0:
-            message += f", 失败 {error_count} 个"
+            eligible_count = cursor.fetchone()[0]
             
-        return {"success": True, "message": message}
+            if eligible_count == 0:
+                raise HTTPException(status_code=400, detail="没有可执行的任务（任务需要是pending或failed状态）")
+            
+            # 重置失败任务的错误信息，pending任务保持不变
+            cursor.execute(f"""
+                UPDATE crawl_tasks 
+                SET error_message = NULL
+                WHERE id IN ({placeholders}) AND status = 'failed'
+            """, task_ids)
+            
+            updated_count = cursor.rowcount
+            conn.commit()
+            
+        logger.info(f"已准备 {eligible_count} 个任务供执行")
+        
+        return {
+            "success": True, 
+            "message": f"已准备 {eligible_count} 个任务供执行，autonomous_session_manager将自动处理",
+            "ready_count": eligible_count,
+            "note": "任务保持pending状态，由autonomous_session_manager自动调度"
+        }
         
     except HTTPException:
         raise
@@ -1372,15 +1356,22 @@ async def crawl_shop_sales(shop_id: str):
         )
         task_id = task_repo.create(task)
         
-        # 异步执行爬虫
-        crawler = KongfuziCrawler()
-        sales_count = await crawler.crawl_shop_sales(shop_id)
+        # 将任务添加到V2队列系统，而不是直接执行
+        v2_task_id = crawler_service_v2.add_shop_books_task(
+            shop_url=shop_id,
+            shop_id=shop['id'],
+            max_pages=50,  # 默认页数
+            priority=5
+        )
         
         return {
             "success": True,
-            "message": f"成功爬取 {sales_count} 条销售记录",
-            "task_id": task_id,
-            "shop_id": shop_id
+            "message": f"已创建店铺 {shop_id} 的销售数据爬取任务",
+            "task_id": task_id,  # V1任务ID（用于兼容）
+            "v2_task_id": v2_task_id,  # V2任务ID（实际执行）
+            "shop_id": shop_id,
+            "status": "queued",
+            "note": "任务已加入队列，将异步执行爬取"
         }
     except HTTPException:
         raise
@@ -1423,8 +1414,8 @@ async def crawl_all_shops_sales():
             task_id = task_repo.create(task)
             task_ids.append(task_id)
         
-        # 启动爬虫任务
-        await crawler_manager.run_pending_tasks()
+        # 将任务加载到V2队列系统执行
+        added_count = await crawler_service_v2.add_pending_tasks_to_v1_queue()
         
         return {
             "success": True,
@@ -1501,7 +1492,7 @@ async def get_rate_limit_status():
 async def start_all_tasks():
     """一键启动所有任务（将待执行任务加入队列）"""
     try:
-        added_count = await task_queue.add_pending_tasks()
+        added_count = simple_task_queue.add_pending_tasks_to_queue()
         
         return {
             "success": True,
@@ -1516,7 +1507,7 @@ async def start_all_tasks():
 async def clear_task_queue():
     """一键清空任务队列（绿色按钮）"""
     try:
-        cleared_count = await task_queue.clear_queue()
+        cleared_count = simple_task_queue.clear_queue()
         
         return {
             "success": True,
@@ -1531,7 +1522,7 @@ async def clear_task_queue():
 async def clear_all_tasks():
     """一键清空所有任务（红色按钮）"""
     try:
-        result = await task_queue.clear_all_tasks()
+        result = simple_task_queue.clear_all_tasks()
         
         return {
             "success": True,
@@ -1547,7 +1538,7 @@ async def clear_all_tasks():
 async def retry_failed_tasks():
     """重试所有失败的任务"""
     try:
-        retried_count = await task_queue.retry_failed_tasks()
+        retried_count = simple_task_queue.retry_failed_tasks()
         return {
             "success": True,
             "message": f"已成功重试 {retried_count} 个失败的任务",
@@ -1562,7 +1553,7 @@ async def retry_failed_tasks():
 async def get_queue_status():
     """获取任务队列状态"""
     try:
-        status = task_queue.get_queue_status()
+        status = simple_task_queue.get_queue_status()
         
         return {
             "success": True,
@@ -1792,7 +1783,29 @@ window_pool_router = APIRouter(prefix="/window-pool", tags=["window-pool"])
 async def get_window_pool_status():
     """获取窗口池状态"""
     try:
-        status = chrome_pool.get_pool_status()
+        # 如果窗口池未初始化，返回基本状态信息
+        if not autonomous_session_manager._initialized:
+            return {
+                "success": True,
+                "data": {
+                    "connected": False,
+                    "initialized": False,
+                    "pool_size": autonomous_session_manager.max_windows,
+                    "available_count": 0,
+                    "busy_count": 0,
+                    "total_windows": 0,
+                    "rate_limit_status": {
+                        "rate_limited_count": 0,
+                        "login_required_count": 0,
+                        "percentage_limited": 0,
+                        "percentage_login_required": 0
+                    },
+                    "window_details": [],
+                    "message": "窗口池未初始化，请点击初始化按钮"
+                }
+            }
+        
+        status = autonomous_session_manager.get_pool_status()
         return {
             "success": True,
             "data": status
@@ -1805,29 +1818,54 @@ async def get_window_pool_status():
 async def initialize_window_pool():
     """初始化窗口池"""
     try:
-        if chrome_pool._initialized:
+        if autonomous_session_manager._initialized:
             return {
                 "success": True,
                 "message": "窗口池已经初始化"
             }
         
-        success = await chrome_pool.initialize()
+        success = await autonomous_session_manager.initialize_pool()
         if success:
-            return {
-                "success": True,
-                "message": f"窗口池初始化成功，创建了 {chrome_pool.pool_size} 个窗口"
-            }
+            # 初始化成功后，调用_initialize()启动主循环来处理任务
+            start_success = await autonomous_session_manager._initialize()
+            if start_success:
+                return {
+                    "success": True,
+                    "message": f"窗口池初始化并启动成功，创建了 {autonomous_session_manager.max_windows} 个窗口，主循环已启动"
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": f"窗口池初始化成功，创建了 {autonomous_session_manager.max_windows} 个窗口"
+                }
         else:
-            raise HTTPException(status_code=500, detail="窗口池初始化失败")
+            # 初始化失败，直接提供Chrome启动指导
+            detailed_message = {
+                "error": "窗口池初始化失败",
+                "reason": "Chrome浏览器未以调试模式启动",
+                "solution": "请先启动Chrome浏览器：",
+                "commands": {
+                    "macOS": "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_dev_session",
+                    "Windows": "chrome.exe --remote-debugging-port=9222 --user-data-dir=c:\\temp\\chrome_dev_session",
+                    "Linux": "google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_dev_session"
+                },
+                "note": "启动Chrome后，请重新点击初始化按钮"
+            }
+            raise HTTPException(status_code=500, detail=detailed_message)
+    except HTTPException:
+        raise  # 重新抛出HTTPException
     except Exception as e:
+        error_msg = str(e)
         logger.error(f"初始化窗口池失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"窗口池初始化失败: {error_msg}")
 
 @window_pool_router.post("/close-all")
 async def close_all_windows():
     """关闭所有窗口"""
     try:
-        await chrome_pool.close_all_windows()
+        # 关闭所有窗口（重置窗口池）
+        await autonomous_session_manager.stop()
+        autonomous_session_manager._initialized = False
         return {
             "success": True,
             "message": "所有窗口已关闭"
@@ -1840,7 +1878,8 @@ async def close_all_windows():
 async def disconnect_window_pool():
     """断开窗口池连接"""
     try:
-        await chrome_pool.disconnect()
+        # 断开连接
+        await autonomous_session_manager.stop()
         return {
             "success": True,
             "message": "窗口池已断开连接"
@@ -1853,18 +1892,18 @@ async def disconnect_window_pool():
 async def resize_window_pool(pool_size: int = Query(..., ge=1, le=10)):
     """智能调整窗口池大小"""
     try:
-        old_size = chrome_pool.pool_size
-        current_windows = len(chrome_pool.available_windows) + len(chrome_pool.busy_windows)
+        old_size = autonomous_session_manager.max_windows
+        current_windows = len(autonomous_session_manager.available_windows) + len(autonomous_session_manager.busy_windows)
         
         # 更新目标池大小
-        chrome_pool.pool_size = pool_size
+        autonomous_session_manager.max_windows = pool_size
         
         # 如果已初始化，智能调整窗口数量
-        if chrome_pool._initialized:
-            await chrome_pool._adjust_window_count()
+        if autonomous_session_manager._initialized:
+            await autonomous_session_manager._adjust_window_count()
             
             # 获取调整后的状态
-            new_count = len(chrome_pool.available_windows) + len(chrome_pool.busy_windows)
+            new_count = len(autonomous_session_manager.available_windows) + len(autonomous_session_manager.busy_windows)
             
             return {
                 "success": True,
@@ -1889,4 +1928,217 @@ async def resize_window_pool(pool_size: int = Query(..., ge=1, le=10)):
             }
     except Exception as e:
         logger.error(f"调整窗口池大小失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@window_pool_router.post("/navigate")
+async def navigate_window_to_site(window_id: str, url: str):
+    """控制指定窗口导航到指定网站"""
+    try:
+        if not autonomous_session_manager._initialized:
+            raise HTTPException(status_code=400, detail="窗口池未初始化")
+        
+        success = await autonomous_session_manager.navigate_window_to_url(window_id, url)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"窗口 {window_id} 成功导航到 {url}"
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"窗口 {window_id} 导航失败，可能窗口不存在或被封控"
+            }
+    except Exception as e:
+        logger.error(f"窗口导航失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@window_pool_router.get("/site-status")
+async def get_window_site_status():
+    """获取各窗口的网站封控状态"""
+    try:
+        # 如果窗口池未初始化，返回空状态
+        if not autonomous_session_manager._initialized:
+            return {
+                "success": True,
+                "data": {
+                    "windows": [],
+                    "summary": {
+                        "total_windows": 0,
+                        "active_sessions": 0,
+                        "total_sites_tracked": 0
+                    },
+                    "message": "窗口池未初始化，请先在爬虫管理页面初始化"
+                }
+            }
+        
+        # 获取窗口池状态
+        pool_status = autonomous_session_manager.get_pool_status()
+        
+        # 获取自主会话管理器的状态
+        session_status = await autonomous_session_manager.get_status()
+        
+        # 组合窗口和网站状态信息
+        window_site_status = []
+        
+        for window in pool_status.get('window_details', []):
+            window_id = window.get('window_id')
+            
+            # 查找对应的会话状态
+            session_info = None
+            for session in session_status.get('sessions', []):
+                if session.get('window_id') == window_id:
+                    session_info = session
+                    break
+            
+            # 构建网站状态信息
+            site_states = {}
+            if session_info and 'site_states' in session_info:
+                for site_name, site_state in session_info['site_states'].items():
+                    site_states[site_name] = {
+                        'status': site_state.get('status', 'unknown'),
+                        'blocked_until': site_state.get('blocked_until', 0),
+                        'error_count': site_state.get('error_count', 0),
+                        'last_success': site_state.get('last_success')
+                    }
+            
+            window_site_status.append({
+                'window_id': window_id,
+                'window_status': window.get('status'),
+                'is_rate_limited': window.get('is_rate_limited', False),
+                'site_states': site_states,
+                'last_updated': session_info.get('last_activity') if session_info else None
+            })
+        
+        return {
+            "success": True,
+            "data": {
+                "windows": window_site_status,
+                "summary": {
+                    "total_windows": len(window_site_status),
+                    "active_sessions": len(session_status.get('sessions', [])),
+                    "total_sites_tracked": len(set().union(*[w.get('site_states', {}).keys() for w in window_site_status]))
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取窗口网站状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 任务监控相关路由
+@api_router.get("/crawler/status")
+async def get_crawler_status():
+    """获取爬虫系统状态（包括会话管理器和任务队列）"""
+    try:
+        # 获取会话管理器状态
+        session_manager_status = await autonomous_session_manager.get_status()
+        
+        # 获取数据库中的任务统计
+        from ..models.repositories import CrawlTaskRepository
+        task_repo = CrawlTaskRepository()
+        
+        # 检查方法是否存在（热重载兼容）
+        if hasattr(task_repo, 'get_task_statistics'):
+            db_task_stats = task_repo.get_task_statistics()
+        else:
+            # 降级方案：手动查询统计
+            from ..models.database import db
+            query = """
+                SELECT status, COUNT(*) as count
+                FROM crawl_tasks
+                GROUP BY status
+            """
+            results = db.execute_query(query)
+            
+            # 转换为字典格式
+            db_task_stats = {"pending": 0, "running": 0, "completed": 0, "failed": 0}
+            for row in results:
+                status = row["status"]
+                count = row["count"]
+                if status == "pending":
+                    db_task_stats["pending"] = count
+                elif status in ["running", "in_progress"]:
+                    db_task_stats["running"] = count
+                elif status == "completed":
+                    db_task_stats["completed"] = count
+                elif status == "failed":
+                    db_task_stats["failed"] = count
+        
+        return {
+            "success": True,
+            "data": {
+                "session_manager": session_manager_status,
+                "task_queue": {
+                    # 内存队列状态（来自会话管理器）
+                    "memory_queue_size": session_manager_status.get("queue_size", 0),
+                    "processing_count": session_manager_status.get("processing_tasks", 0),
+                    # 数据库任务统计
+                    "total_pending": db_task_stats.get("pending", 0),
+                    "total_running": db_task_stats.get("running", 0),
+                    "total_completed": db_task_stats.get("completed", 0),
+                    "total_failed": db_task_stats.get("failed", 0)
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取爬虫状态失败: {e}")
+        return {
+            "success": False,
+            "data": {
+                "session_manager": {"running": False, "error": str(e)},
+                "task_queue": {"total_pending": 0, "total_running": 0, "error": str(e)}
+            }
+        }
+
+@api_router.get("/crawler/tasks/recent")
+async def get_recent_tasks(limit: int = Query(20, ge=1, le=100)):
+    """获取最近的任务列表"""
+    try:
+        tasks = task_repo.get_recent_tasks(limit)
+        
+        # 转换为前端需要的格式
+        formatted_tasks = []
+        for task in tasks:
+            formatted_tasks.append({
+                "id": task.get("id"),
+                "task_type": task.get("task_type"),
+                "target_isbn": task.get("target_isbn"),
+                "target_url": task.get("target_url"),
+                "book_title": task.get("book_title"),
+                "status": task.get("status"),
+                "created_at": task.get("created_at"),
+                "updated_at": task.get("updated_at"),
+                "end_time": task.get("end_time"),  # 添加任务完成时间
+                "error_message": task.get("error_message")
+            })
+        
+        return {
+            "success": True,
+            "data": formatted_tasks
+        }
+    except Exception as e:
+        logger.error(f"获取最近任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/crawler/tasks/isbn-analysis")
+async def create_isbn_analysis_task(request_data: dict):
+    """创建ISBN分析任务"""
+    try:
+        isbn = request_data.get("isbn")
+        quality = request_data.get("quality", "high")
+        
+        if not isbn:
+            raise HTTPException(status_code=422, detail="ISBN不能为空")
+        
+        # 创建ISBN分析任务
+        task_id = crawler_service_v2.add_isbn_analysis_task(isbn, priority=9)
+        
+        return {
+            "success": True,
+            "task_id": task_id,
+            "message": f"ISBN分析任务已创建，任务ID: {task_id}"
+        }
+    except Exception as e:
+        logger.error(f"创建ISBN分析任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

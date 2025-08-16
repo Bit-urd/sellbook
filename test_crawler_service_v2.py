@@ -5,7 +5,7 @@
 import asyncio
 import logging
 import time
-from src.services.crawler_service_v2 import crawler_service_v2
+from src.services.crawler_service import crawler_service_v2
 
 # 设置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

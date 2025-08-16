@@ -7,7 +7,7 @@ import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock
 
-from src.services.crawler_service_v2 import CrawlerServiceV2
+from src.services.crawler_service import CrawlerServiceV2
 
 
 class TestCrawlerServiceV2:
@@ -16,8 +16,8 @@ class TestCrawlerServiceV2:
     def setup_method(self):
         """每个测试方法前的设置"""
         # 创建服务实例（Mock掉底层依赖）
-        with patch('src.services.crawler_service_v2.autonomous_session_manager') as mock_session_manager, \
-             patch('src.services.crawler_service_v2.simple_task_queue') as mock_task_queue:
+        with patch('src.services.autonomous_session_manager.autonomous_session_manager') as mock_session_manager, \
+             patch('src.services.simple_task_queue.simple_task_queue') as mock_task_queue:
             
             self.service = CrawlerServiceV2()
             self.mock_session_manager = mock_session_manager

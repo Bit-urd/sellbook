@@ -292,6 +292,201 @@
             font-size: 0.9em;
             margin-top: 5px;
         }
+
+        /* 任务状态监控面板样式 */
+        .task-status-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-left: 5px solid #667eea;
+        }
+
+        .task-status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .task-status-header h3 {
+            color: #333;
+            font-size: 1.3em;
+            margin: 0;
+        }
+
+        .refresh-status-btn {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+
+        .refresh-status-btn:hover {
+            background: #5a67d8;
+        }
+
+        .system-status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+
+        .status-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.running {
+            background: #28a745;
+        }
+
+        .status-dot.stopped {
+            background: #dc3545;
+        }
+
+        .status-dot.warning {
+            background: #ffc107;
+        }
+
+        .status-dot.unknown {
+            background: #6c757d;
+        }
+
+        .status-text {
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .active-tasks-section, .recent-tasks-section {
+            margin-bottom: 20px;
+        }
+
+        .active-tasks-section h4, .recent-tasks-section h4 {
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            padding-left: 5px;
+        }
+
+        .active-tasks-list, .recent-tasks-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 60px;
+        }
+
+        .task-item {
+            background: white;
+            border-radius: 6px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .task-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .task-item.processing {
+            border-left-color: #ffc107;
+            animation: pulse 2s infinite;
+        }
+
+        .task-item.completed {
+            border-left-color: #28a745;
+        }
+
+        .task-item.failed {
+            border-left-color: #dc3545;
+        }
+
+        .task-info {
+            flex: 1;
+        }
+
+        .task-title {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .task-details {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .task-status {
+            font-size: 0.8em;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .task-status.processing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .task-status.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .task-status.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .no-tasks {
+            text-align: center;
+            color: #999;
+            font-style: italic;
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
@@ -327,6 +522,55 @@
                 </ul>
             </div>
         </nav>
+
+        <!-- 🚀 任务执行状态监控面板 -->
+        <div id="task-status-panel" class="task-status-panel">
+            <div class="task-status-header">
+                <h3>🚀 任务执行状态</h3>
+                <button class="refresh-status-btn" onclick="refreshTaskStatus()">🔄 刷新</button>
+            </div>
+            
+            <!-- 系统状态指示器 -->
+            <div class="system-status-grid">
+                <div class="status-card">
+                    <div class="status-label">会话管理器</div>
+                    <div class="status-indicator" id="sessionManagerStatus">
+                        <span class="status-dot unknown"></span>
+                        <span class="status-text">检查中...</span>
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">窗口池</div>
+                    <div class="status-indicator" id="windowPoolStatus">
+                        <span class="status-dot unknown"></span>
+                        <span class="status-text">检查中...</span>
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">内存任务队列</div>
+                    <div class="status-indicator" id="taskQueueStatus">
+                        <span class="status-dot unknown"></span>
+                        <span class="status-text">检查中...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 正在执行的任务（内存队列中按时间倒序前10个） -->
+            <div class="active-tasks-section">
+                <h4>📋 正在执行的任务（内存队列）</h4>
+                <div id="activeTasks" class="active-tasks-list">
+                    <div class="no-tasks">暂无正在执行的任务</div>
+                </div>
+            </div>
+
+            <!-- 最近完成的任务（按完成时间倒序前10个） -->
+            <div class="recent-tasks-section">
+                <h4>✅ 最近完成的任务</h4>
+                <div id="recentTasks" class="recent-tasks-list">
+                    <div class="no-tasks">暂无最近完成的任务</div>
+                </div>
+            </div>
+        </div>
 
         <!-- 数据概览 -->
         <div class="section">
@@ -893,10 +1137,271 @@
         }
 
         // 页面加载时初始化
+        // ============ 任务状态监控功能 ============
+        
+        // 任务状态监控相关变量
+        let taskStatusInterval = null;
+
+        // 实时任务状态监控函数（修正为内存队列数量）
+        async function refreshTaskStatus() {
+            try {
+                // 获取系统状态（包含内存队列信息）
+                const systemResponse = await fetch('/api/crawler/status');
+                const systemData = await systemResponse.json();
+                
+                if (systemData.success) {
+                    updateSystemStatus(systemData.data);
+                }
+
+                // 直接使用现有API并修正显示逻辑
+                const tasksResponse = await fetch('/api/crawler/tasks/recent?limit=20');
+                const tasksData = await tasksResponse.json();
+                
+                if (tasksData.success) {
+                    updateTaskListsWithMemoryLogic(tasksData.data);
+                }
+            } catch (error) {
+                console.error('刷新任务状态失败:', error);
+                updateSystemStatusError();
+            }
+        }
+
+        // 更新系统状态显示（修正内存队列数量）
+        function updateSystemStatus(statusData) {
+            const sessionManager = statusData.session_manager || {};
+            const taskQueue = statusData.task_queue || {};
+
+            // 更新会话管理器状态
+            const sessionStatus = document.getElementById('sessionManagerStatus');
+            const sessionDot = sessionStatus.querySelector('.status-dot');
+            const sessionText = sessionStatus.querySelector('.status-text');
+            
+            if (sessionManager.running) {
+                sessionDot.className = 'status-dot running';
+                sessionText.textContent = `运行中 (${sessionManager.total_windows || 0}个窗口)`;
+            } else {
+                sessionDot.className = 'status-dot stopped';
+                sessionText.textContent = '已停止';
+            }
+
+            // 更新窗口池状态
+            const windowStatus = document.getElementById('windowPoolStatus');
+            const windowDot = windowStatus.querySelector('.status-dot');
+            const windowText = windowStatus.querySelector('.status-text');
+            
+            const availableWindows = sessionManager.available_windows || 0;
+            const totalWindows = sessionManager.total_windows || 0;
+            
+            if (availableWindows > 0) {
+                windowDot.className = 'status-dot running';
+                windowText.textContent = `${availableWindows}/${totalWindows} 可用`;
+            } else if (totalWindows > 0) {
+                windowDot.className = 'status-dot warning';
+                windowText.textContent = `${availableWindows}/${totalWindows} 全忙`;
+            } else {
+                windowDot.className = 'status-dot stopped';
+                windowText.textContent = '无可用窗口';
+            }
+
+            // 更新内存任务队列状态（修正为内存队列数量）
+            const queueStatus = document.getElementById('taskQueueStatus');
+            const queueDot = queueStatus.querySelector('.status-dot');
+            const queueText = queueStatus.querySelector('.status-text');
+            
+            // 这里应该显示内存队列中的任务数量，而不是数据库中的
+            const memoryQueueSize = sessionManager.queue_size || 0;
+            const processingTasks = sessionManager.processing_tasks || 0;
+            
+            if (processingTasks > 0) {
+                queueDot.className = 'status-dot running';
+                queueText.textContent = `${processingTasks}执行中, ${memoryQueueSize}队列中`;
+            } else if (memoryQueueSize > 0) {
+                queueDot.className = 'status-dot warning';
+                queueText.textContent = `${memoryQueueSize}个任务排队`;
+            } else {
+                queueDot.className = 'status-dot running';
+                queueText.textContent = '内存队列空闲';
+            }
+        }
+
+        // 更新系统状态为错误状态
+        function updateSystemStatusError() {
+            const statusElements = [
+                'sessionManagerStatus',
+                'windowPoolStatus', 
+                'taskQueueStatus'
+            ];
+            
+            statusElements.forEach(elementId => {
+                const element = document.getElementById(elementId);
+                const dot = element.querySelector('.status-dot');
+                const text = element.querySelector('.status-text');
+                
+                dot.className = 'status-dot unknown';
+                text.textContent = '连接失败';
+            });
+        }
+
+        // 更新任务列表（使用内存队列逻辑）
+        function updateTaskListsWithMemoryLogic(tasksData) {
+            // 正在执行的任务：状态为running或queued（队列中），按创建时间倒序前10个
+            // pending状态应该被视为待执行，不是正在执行
+            const activeTasks = tasksData
+                .filter(task => task.status === 'running' || task.status === 'queued')
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                .slice(0, 10);
+            
+            // 最近完成的任务：状态为completed或failed，按完成时间倒序前10个
+            const recentCompletedTasks = tasksData
+                .filter(task => task.status === 'completed' || task.status === 'failed')
+                .sort((a, b) => {
+                    const timeA = new Date(a.updated_at || a.created_at);
+                    const timeB = new Date(b.updated_at || b.created_at);
+                    return timeB - timeA;
+                })
+                .slice(0, 10);
+
+            // 更新显示
+            updateTaskList('activeTasks', activeTasks, true);
+            updateTaskList('recentTasks', recentCompletedTasks, false);
+        }
+
+
+        // 更新单个任务列表
+        function updateTaskList(containerId, tasks, isActive) {
+            const container = document.getElementById(containerId);
+            
+            if (tasks.length === 0) {
+                container.innerHTML = '<div class="no-tasks">暂无任务</div>';
+                return;
+            }
+            
+            const tasksHtml = tasks.map(task => {
+                const taskClass = isActive ? 'processing' : task.status;
+                const statusText = getStatusText(task.status);
+                const timeText = getTimeText(task, isActive);
+                
+                return `
+                    <div class="task-item ${taskClass}">
+                        <div class="task-info">
+                            <div class="task-title">${getTaskTitle(task)}</div>
+                            <div class="task-details">${getTaskDetails(task)} • ${timeText}</div>
+                        </div>
+                        <div class="task-status ${task.status}">${statusText}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = tasksHtml;
+        }
+
+        // 获取任务标题
+        function getTaskTitle(task) {
+            const typeMap = {
+                'book_sales_crawl': '📚 书籍销售分析',
+                'shop_books_crawl': '🏪 店铺书籍爬取',
+                'duozhuayu_price': '💰 多抓鱼价格更新',
+                'isbn_analysis': '🔍 ISBN分析'
+            };
+            return typeMap[task.task_type] || `📋 ${task.task_type}`;
+        }
+
+        // 获取任务详情
+        function getTaskDetails(task) {
+            if (task.target_isbn) {
+                return `ISBN: ${task.target_isbn}`;
+            } else if (task.book_title) {
+                return task.book_title;
+            } else if (task.target_url) {
+                return '店铺链接爬取';
+            }
+            return '任务详情';
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '等待中',
+                'running': '执行中',
+                'completed': '已完成',
+                'failed': '失败'
+            };
+            return statusMap[status] || status;
+        }
+
+        // 获取时间文本（针对内存队列优化）
+        function getTimeText(task, isActive) {
+            const now = new Date();
+            
+            // 数据库已经统一处理时区，直接解析时间
+            function parseTime(timeStr) {
+                if (!timeStr) return null;
+                return new Date(timeStr);
+            }
+            
+            const createdAt = parseTime(task.created_at) || new Date();
+            const diffMinutes = Math.floor((now - createdAt) / 60000);
+            
+            if (isActive) {
+                // 对于内存队列中的任务，显示加入队列的时间
+                if (diffMinutes < 1) {
+                    return '刚加入队列';
+                } else if (diffMinutes < 60) {
+                    return `${diffMinutes}分钟前加入`;
+                } else {
+                    return `${Math.floor(diffMinutes / 60)}小时前加入`;
+                }
+            } else {
+                // 对于已完成的任务，显示完成时间，优先使用end_time
+                const completedAt = parseTime(task.end_time) || 
+                                   parseTime(task.updated_at) || 
+                                   createdAt;
+                const completedDiffMinutes = Math.floor((now - completedAt) / 60000);
+                
+                if (completedDiffMinutes < 1) {
+                    return '刚刚完成';
+                } else if (completedDiffMinutes < 60) {
+                    return `${completedDiffMinutes}分钟前完成`;
+                } else {
+                    return `${Math.floor(completedDiffMinutes / 60)}小时前完成`;
+                }
+            }
+        }
+
+        // 启动定时刷新
+        function startTaskStatusMonitoring() {
+            // 立即刷新一次
+            refreshTaskStatus();
+            
+            // 每5秒刷新一次
+            if (taskStatusInterval) {
+                clearInterval(taskStatusInterval);
+            }
+            taskStatusInterval = setInterval(refreshTaskStatus, 5000);
+        }
+
+        // 停止定时刷新
+        function stopTaskStatusMonitoring() {
+            if (taskStatusInterval) {
+                clearInterval(taskStatusInterval);
+                taskStatusInterval = null;
+            }
+        }
+
+        // ============ 页面初始化 ============
+        
         window.onload = () => {
             loadStatistics(); // 加载统计数据
             loadTaskTypes(); // 加载任务类型下拉框
             loadTaskList();  // 加载任务列表
+            
+            // 启动任务状态监控
+            startTaskStatusMonitoring();
+        };
+
+        // 页面卸载时清理
+        window.onbeforeunload = function() {
+            stopTaskStatusMonitoring();
         };
     </script>
 </body>
