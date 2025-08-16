@@ -246,3 +246,458 @@ INFO:     10.0.0.3:65150 - "GET /window-pool/status HTTP/1.1" 200 OK
 INFO:     10.0.0.3:65150 - "GET /window-pool-admin HTTP/1.1" 200 OK
 INFO:     10.0.0.3:65150 - "GET /window-pool/status HTTP/1.1" 200 OK
 2025-08-16 19:03:31,470 - src.services.crawler_service - INFO - 开始执行任务 386: 爬取《石阡说春/人类非物质文化遗产代表作“二十四节气”科普丛书》销售记录
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+2025-08-16 19:09:30,457 - src.services.window_pool - INFO - 窗口 4871517968 频率限制期已过，已自动解封
+INFO:     Shutting down
+INFO:     10.0.0.3:65402 - "GET /static/tailwind-browser.min.js HTTP/1.1" 304 Not Modified
+INFO:     Waiting for connections to close. (CTRL+C to force quit)
+INFO:     10.0.0.3:65402 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:65402 - "GET /api/dashboard HTTP/1.1" 200 OK
+2025-08-16 19:09:31,757 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     Waiting for application shutdown.
+2025-08-16 19:09:32,799 - src.main - INFO - 应用关闭中...
+2025-08-16 19:09:32,799 - src.main - INFO - 断开窗口池连接（保留Chrome窗口）...
+2025-08-16 19:09:32,818 - src.main - INFO - 窗口池已断开，Chrome窗口保持打开状态
+INFO:     Application shutdown complete.
+INFO:     Finished server process [17762]
+INFO:     Started server process [23046]
+INFO:     Waiting for application startup.
+2025-08-16 19:09:33,168 - src.main - INFO - 应用启动中...
+2025-08-16 19:09:33,168 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:49919 - "GET /api/sales/statistics?days=1 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:49920 - "GET /api/sales/hot?days=3&limit=10&offset=0&sort_by=sale_count&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50013 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50099 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50195 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50272 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50352 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50430 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50510 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50588 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50665 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50758 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50850 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:50944 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51041 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51146 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51224 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51338 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51431 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51512 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51605 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51774 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51865 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:51959 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52066 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52156 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52246 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52334 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52437 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52520 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52605 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52701 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:24:55,951 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [23046]
+INFO:     Started server process [27067]
+INFO:     Waiting for application startup.
+2025-08-16 19:24:56,303 - src.main - INFO - 应用启动中...
+2025-08-16 19:24:56,303 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:52791 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:25:11,916 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [27067]
+INFO:     Started server process [27136]
+INFO:     Waiting for application startup.
+2025-08-16 19:25:12,212 - src.main - INFO - 应用启动中...
+2025-08-16 19:25:12,212 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:25:24,555 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [27136]
+INFO:     Started server process [27207]
+INFO:     Waiting for application startup.
+2025-08-16 19:25:24,874 - src.main - INFO - 应用启动中...
+2025-08-16 19:25:24,874 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:52873 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:52959 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53040 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:26:44,060 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [27207]
+INFO:     Started server process [27548]
+INFO:     Waiting for application startup.
+2025-08-16 19:26:44,376 - src.main - INFO - 应用启动中...
+2025-08-16 19:26:44,376 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:26:57,747 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [27548]
+INFO:     Started server process [27623]
+INFO:     Waiting for application startup.
+2025-08-16 19:26:58,050 - src.main - INFO - 应用启动中...
+2025-08-16 19:26:58,050 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:53119 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53217 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53302 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53381 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53460 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53546 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53671 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53756 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53851 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:53934 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:54013 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:54089 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/models/repositories.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:32:34,379 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [27623]
+INFO:     Started server process [29115]
+INFO:     Waiting for application startup.
+2025-08-16 19:32:34,716 - src.main - INFO - 应用启动中...
+2025-08-16 19:32:34,716 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:54238 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:33:03,600 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29115]
+INFO:     Started server process [29351]
+INFO:     Waiting for application startup.
+2025-08-16 19:33:03,920 - src.main - INFO - 应用启动中...
+2025-08-16 19:33:03,920 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:33:11,013 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29351]
+INFO:     Started server process [29399]
+INFO:     Waiting for application startup.
+2025-08-16 19:33:11,256 - src.main - INFO - 应用启动中...
+2025-08-16 19:33:11,256 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:54334 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:33:30,911 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29399]
+INFO:     Started server process [29527]
+INFO:     Waiting for application startup.
+2025-08-16 19:33:31,243 - src.main - INFO - 应用启动中...
+2025-08-16 19:33:31,243 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:54412 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:34:01,185 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29527]
+INFO:     Started server process [29763]
+INFO:     Waiting for application startup.
+2025-08-16 19:34:01,526 - src.main - INFO - 应用启动中...
+2025-08-16 19:34:01,526 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:34:19,141 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29763]
+Process SpawnProcess-13:
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/admin/my-project/sellbook/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/admin/my-project/sellbook/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 67, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/asyncio/base_events.py", line 653, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/admin/my-project/sellbook/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 71, in serve
+    await self._serve(sockets)
+  File "/Users/admin/my-project/sellbook/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 78, in _serve
+    config.load()
+  File "/Users/admin/my-project/sellbook/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 436, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/admin/my-project/sellbook/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/admin/my-project/sellbook/src/main.py", line 17, in <module>
+    from .routes.api_routes import api_router, crawler_router, sales_data_router, task_executor_router, window_pool_router
+  File "/Users/admin/my-project/sellbook/src/routes/api_routes.py", line 12, in <module>
+    from ..services.crawler_service import CrawlerManager, KongfuziCrawler, DuozhuayuCrawler, CrawlerTaskExecutor, task_queue
+  File "/Users/admin/my-project/sellbook/src/services/crawler_service.py", line 1707
+    elif task_type == 'shop_books_crawl':
+    ^^^^
+SyntaxError: invalid syntax
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Started server process [29989]
+INFO:     Waiting for application startup.
+2025-08-16 19:34:35,964 - src.main - INFO - 应用启动中...
+2025-08-16 19:34:35,964 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:54493 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:54572 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:35:18,233 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29989]
+INFO:     Started server process [30336]
+INFO:     Waiting for application startup.
+2025-08-16 19:35:18,571 - src.main - INFO - 应用启动中...
+2025-08-16 19:35:18,571 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:54656 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:54741 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:54820 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:54905 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55253 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55356 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55428 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55526 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55620 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55714 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55799 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55900 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:55992 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56084 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56175 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56259 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56334 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56417 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56498 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56575 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56833 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:56990 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57112 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57216 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57346 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57440 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57517 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57593 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57742 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57841 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:57937 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:58036 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/autonomous_session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:51:04,791 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30336]
+INFO:     Started server process [33822]
+INFO:     Waiting for application startup.
+2025-08-16 19:51:05,168 - src.main - INFO - 应用启动中...
+2025-08-16 19:51:05,168 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/autonomous_session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:51:16,896 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [33822]
+INFO:     Started server process [33885]
+INFO:     Waiting for application startup.
+2025-08-16 19:51:17,196 - src.main - INFO - 应用启动中...
+2025-08-16 19:51:17,196 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/crawler_service_v2.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:51:27,484 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [33885]
+INFO:     Started server process [33948]
+INFO:     Waiting for application startup.
+2025-08-16 19:51:27,797 - src.main - INFO - 应用启动中...
+2025-08-16 19:51:27,797 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:58115 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service_v2.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:51:35,148 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [33948]
+INFO:     Started server process [33998]
+INFO:     Waiting for application startup.
+2025-08-16 19:51:35,554 - src.main - INFO - 应用启动中...
+2025-08-16 19:51:35,554 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/crawler_service_v2.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:51:46,162 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [33998]
+INFO:     Started server process [34053]
+INFO:     Waiting for application startup.
+2025-08-16 19:51:46,486 - src.main - INFO - 应用启动中...
+2025-08-16 19:51:46,486 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/autonomous_session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:51:55,671 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34053]
+INFO:     Started server process [34124]
+INFO:     Waiting for application startup.
+2025-08-16 19:51:55,980 - src.main - INFO - 应用启动中...
+2025-08-16 19:51:55,980 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:58201 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/autonomous_session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:52:04,439 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34124]
+INFO:     Started server process [34188]
+INFO:     Waiting for application startup.
+2025-08-16 19:52:04,748 - src.main - INFO - 应用启动中...
+2025-08-16 19:52:04,748 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/autonomous_session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:52:14,467 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34188]
+INFO:     Started server process [34246]
+INFO:     Waiting for application startup.
+2025-08-16 19:52:14,773 - src.main - INFO - 应用启动中...
+2025-08-16 19:52:14,773 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:58308 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/autonomous_session_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:52:31,804 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34246]
+INFO:     Started server process [34337]
+INFO:     Waiting for application startup.
+2025-08-16 19:52:32,047 - src.main - INFO - 应用启动中...
+2025-08-16 19:52:32,047 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/crawler_service_v2.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:52:39,568 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34337]
+INFO:     Started server process [34427]
+INFO:     Waiting for application startup.
+2025-08-16 19:52:39,838 - src.main - INFO - 应用启动中...
+2025-08-16 19:52:39,838 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'src/services/crawler_service_v2.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:52:53,746 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34427]
+INFO:     Started server process [34521]
+INFO:     Waiting for application startup.
+2025-08-16 19:52:54,068 - src.main - INFO - 应用启动中...
+2025-08-16 19:52:54,068 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:58428 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'src/services/crawler_service_v2.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-08-16 19:53:04,784 - src.main - INFO - 应用关闭中...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34521]
+INFO:     Started server process [34581]
+INFO:     Waiting for application startup.
+2025-08-16 19:53:05,109 - src.main - INFO - 应用启动中...
+2025-08-16 19:53:05,109 - src.main - INFO - 数据库连接就绪
+INFO:     Application startup complete.
+INFO:     10.0.0.3:58506 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:58587 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:58669 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:58755 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:58850 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:58940 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59022 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59110 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59206 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59282 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59365 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59441 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59550 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59682 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59769 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59884 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:59958 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60059 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60141 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60218 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60322 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60395 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60487 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60561 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60636 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60722 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60817 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:60897 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:61012 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:61092 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:61165 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:61232 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:61302 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:61393 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:61480 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK

@@ -18,6 +18,7 @@ from ..models.repositories import (
     SalesRepository, CrawlTaskRepository
 )
 from .window_pool import chrome_pool, WindowPoolManager
+# from .simple_session_manager import SimpleSessionManager  # V2架构，已被V3替代
 
 logger = logging.getLogger(__name__)
 
@@ -1631,7 +1632,7 @@ class CrawlerTaskExecutor:
         
         return params
     
-    async def execute_task_by_type(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_task_by_type(self, task: Dict[str, Any], session_manager=None) -> Dict[str, Any]:
         """根据任务类型执行相应的爬虫方法"""
         task_type = task.get('task_type')
         task_id = task.get('id')
@@ -1654,8 +1655,10 @@ class CrawlerTaskExecutor:
             # 根据任务类型选择对应的爬虫实例和方法
             if task_type in ['book_sales_crawl', 'shop_books_crawl', 'isbn_analysis']:
                 crawler_instance = self.kongfuzi
+                platform = 'kongfuzi'
             elif task_type == 'duozhuayu_price':
                 crawler_instance = self.duozhuayu
+                platform = 'duozhuayu'
             else:
                 raise ValueError(f"任务类型 {task_type} 没有对应的爬虫实例")
             
@@ -1664,31 +1667,60 @@ class CrawlerTaskExecutor:
             if not method:
                 raise AttributeError(f"爬虫实例没有方法: {method_name}")
             
-            # 执行方法
-            if task_type == 'book_sales_crawl':
-                result = await method(
-                    params['target_isbn'], 
-                    params['shop_id'],
-                    params.get('days_limit', 30),
-                    params.get('skip_if_recent', True)
-                )
-            elif task_type == 'shop_books_crawl':
-                # 从target_url提取shop_id
-                shop_id = self._extract_shop_id_from_url(params['target_url'])
-                result = await method(shop_id, params.get('max_pages', 50))
-                result = {'books_crawled': result, 'status': 'completed'}
-            elif task_type == 'duozhuayu_price':
-                result = await method(params['target_isbn'], params['shop_id'])
-                result = {'updated': result, 'status': 'completed' if result else 'failed'}
-            elif task_type == 'isbn_analysis':
-                result = await method(
-                    params['target_isbn'],
-                    params.get('days_limit', 30),
-                    params.get('quality_filter', 'high')
-                )
-                result = {'analysis_data': result, 'status': 'completed'}
+            # 如果有session_manager，则使用会话管理版本的方法执行
+            if session_manager:
+                # 执行方法并注入session_manager
+                if task_type == 'book_sales_crawl':
+                    result = await method(
+                        params['target_isbn'], 
+                        params['shop_id'],
+                        params.get('days_limit', 30),
+                        params.get('skip_if_recent', True),
+                        session_manager=session_manager
+                    )
+                elif task_type == 'shop_books_crawl':
+                    # 从target_url提取shop_id
+                    shop_id = self._extract_shop_id_from_url(params['target_url'])
+                    result = await method(shop_id, params.get('max_pages', 50), session_manager=session_manager)
+                    result = {'books_crawled': result, 'status': 'completed'}
+                elif task_type == 'duozhuayu_price':
+                    result = await method(params['target_isbn'], params['shop_id'], session_manager=session_manager)
+                    result = {'updated': result, 'status': 'completed' if result else 'failed'}
+                elif task_type == 'isbn_analysis':
+                    result = await method(
+                        params['target_isbn'],
+                        params.get('days_limit', 30),
+                        params.get('quality_filter', '九品以上'),
+                        session_manager=session_manager
+                    )
+                else:
+                    raise ValueError(f"不支持的任务类型: {task_type}")
             else:
-                raise ValueError(f"未实现的任务类型执行逻辑: {task_type}")
+                # 执行原有方法（不使用会话管理）
+                if task_type == 'book_sales_crawl':
+                    result = await method(
+                        params['target_isbn'], 
+                        params['shop_id'],
+                        params.get('days_limit', 30),
+                        params.get('skip_if_recent', True)
+                    )
+                elif task_type == 'shop_books_crawl':
+                    # 从target_url提取shop_id
+                    shop_id = self._extract_shop_id_from_url(params['target_url'])
+                    result = await method(shop_id, params.get('max_pages', 50))
+                    result = {'books_crawled': result, 'status': 'completed'}
+                elif task_type == 'duozhuayu_price':
+                    result = await method(params['target_isbn'], params['shop_id'])
+                    result = {'updated': result, 'status': 'completed' if result else 'failed'}
+                elif task_type == 'isbn_analysis':
+                    result = await method(
+                        params['target_isbn'],
+                        params.get('days_limit', 30),
+                        params.get('quality_filter', '九品以上')
+                    )
+                    result = {'analysis_data': result, 'status': 'completed'}
+                else:
+                    raise ValueError(f"未实现的任务类型执行逻辑: {task_type}")
             
             return result
             
@@ -1916,6 +1948,11 @@ class TaskQueue:
             self.task_repo = CrawlTaskRepository()
             self._lock = asyncio.Lock()
             self._processing = False
+            
+            # V3架构：使用AutonomousSessionManager
+            from .autonomous_session_manager import autonomous_session_manager
+            self.session_manager = autonomous_session_manager
+            
             TaskQueue._initialized = True
     
     async def add_tasks(self, task_ids: List[int]) -> int:
@@ -2013,40 +2050,62 @@ class TaskQueue:
     
     def get_queue_status(self) -> Dict[str, Any]:
         """获取队列状态"""
+        # 获取会话管理器状态
+        session_status = self.session_manager.get_status() if self.session_manager else {}
+        
         return {
             "queue_length": len(self.queue),
             "running_count": len(self.running_tasks),
             "is_processing": self._processing,
-            "next_tasks": list(self.queue)[:5]  # 显示前5个任务
+            "next_tasks": list(self.queue)[:5],  # 显示前5个任务
+            "session_manager": session_status
         }
     
     async def _process_queue(self):
-        """处理队列中的任务"""
+        """处理队列中的任务 - 支持网站智能分发"""
         self._processing = True
         logger.info("开始处理任务队列")
         
         try:
             while self.queue:
+                task_to_execute = None
+                
                 async with self._lock:
                     if not self.queue:
                         break
-                    task_id = self.queue.popleft()
-                    self.running_tasks.add(task_id)
+                    
+                    # 智能选择可执行的任务
+                    for i, task_id in enumerate(self.queue):
+                        task = self.task_repo.get_by_id(task_id)
+                        if not task:
+                            continue
+                        
+                        platform = task.get('target_platform', 'unknown')
+                        
+                        # 检查是否有可用窗口处理这个网站
+                        if self.session_manager.can_handle_site(platform):
+                            task_to_execute = (task_id, task)
+                            # 从队列中移除这个任务
+                            del self.queue[i]
+                            self.running_tasks.add(task_id)
+                            break
+                    
+                    # 如果没有可执行的任务，等待一下再重试
+                    if not task_to_execute:
+                        logger.debug("暂无可执行任务，等待窗口释放...")
+                        await asyncio.sleep(2)
+                        continue
+                
+                task_id, task = task_to_execute
                 
                 try:
-                    # 获取任务详情
-                    task = self.task_repo.get_by_id(task_id)
-                    if not task:
-                        logger.warning(f"任务 {task_id} 不存在")
-                        continue
-                    
                     if task.get('status') not in ['queued', 'pending']:
                         logger.warning(f"任务 {task_id} 状态不正确: {task.get('status')}")
                         continue
                     
-                    # 执行任务
-                    logger.info(f"开始执行任务 {task_id}: {task.get('task_name')}")
-                    result = await self.task_executor.execute_task_by_type(task)
+                    # 执行任务（传入session_manager）
+                    logger.info(f"开始执行任务 {task_id}: {task.get('task_name')} (平台: {task.get('target_platform')})")
+                    result = await self.task_executor.execute_task_by_type(task, session_manager=self.session_manager)
                     
                     # 更新任务状态
                     if result.get('status') == 'completed':

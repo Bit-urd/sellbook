@@ -492,6 +492,26 @@ class CrawlTaskRepository:
         query = "SELECT * FROM crawl_tasks WHERE status = 'running'"
         return db.execute_query(query)
     
+    def get_pending_tasks_by_platform(self, platform: str) -> List[Dict]:
+        """获取指定平台的待执行任务"""
+        query = """
+            SELECT * FROM crawl_tasks 
+            WHERE status = 'pending' AND target_platform = ?
+            ORDER BY priority DESC, created_at ASC
+        """
+        return db.execute_query(query, (platform,))
+    
+    def get_platform_task_count(self, platform: str, status: str = None) -> int:
+        """获取指定平台的任务数量"""
+        if status:
+            query = "SELECT COUNT(*) FROM crawl_tasks WHERE target_platform = ? AND status = ?"
+            result = db.execute_query(query, (platform, status))
+        else:
+            query = "SELECT COUNT(*) FROM crawl_tasks WHERE target_platform = ?"
+            result = db.execute_query(query, (platform,))
+        
+        return result[0]['COUNT(*)'] if result else 0
+    
     def get_recent_tasks(self, limit: int = 20) -> List[Dict]:
         """获取最近的任务"""
         query = """

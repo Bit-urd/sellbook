@@ -1,32 +1,22 @@
-# 卖书网站价差数据分析系统 v2.0
+# 卖书网站价差数据分析系统 v3.0
 
 ## 系统简介
 
-专门分析孔夫子旧书网和多抓鱼两个平台书籍价差的数据系统，通过爬取对比发现套利机会。支持ISBN实时查询、销售数据管理、智能价差分析等功能。
+专门分析孔夫子旧书网和多抓鱼两个平台书籍价差的数据系统，通过智能爬虫发现套利机会。采用全新的**自主会话管理器架构**，实现业务层与爬虫工具的完全解耦。
 
-## 快速开始
+## 🚀 快速开始
 
-### 1. 创建虚拟环境并安装依赖
+### 1. 安装依赖
 ```bash
-# 创建虚拟环境
-python3 -m venv venv
+# 使用uv（推荐）
+uv sync
 
-# 激活虚拟环境
-source venv/bin/activate  # macOS/Linux
-# 或
-venv\Scripts\activate  # Windows
-
-# 安装依赖
+# 或使用pip
 pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 2. 数据迁移（如有历史数据）
-```bash
-python migrate_data.py
-```
-
-### 3. 启动Chrome（爬虫需要）
+### 2. 启动Chrome（爬虫需要）
 ```bash
 # macOS
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
@@ -38,412 +28,268 @@ python migrate_data.py
 google-chrome --remote-debugging-port=9222
 ```
 
-### 4. 启动系统
+### 3. 启动系统
 ```bash
-python app.py
+uv run python run.py
 ```
 
-## 访问地址
+## 🎯 核心特性
 
-- **主页**: http://127.0.0.1:8282/ - 数据展示、分析和ISBN搜索
-- **销售数据概览**: http://127.0.0.1:8282/sales-admin - 销售数据统计概览 🆕
-- **店铺管理**: http://127.0.0.1:8282/shop-admin - 店铺增删改查与爬取管理 🆕
-- **书籍管理**: http://127.0.0.1:8282/book-admin - 书籍增删改查与爬取管理 🆕
-- **爬虫控制**: http://127.0.0.1:8282/crawler-admin - 管理爬虫任务（隐藏入口）
+### 📊 数据分析功能
+- **ISBN实时搜索**：输入ISBN即可获取销量排行、价格分布、销售趋势
+- **智能去重机制**：采用孔夫子网item_id作为主键，确保销售记录唯一性
+- **品相智能筛选**：支持"九品以上"和"全部品相"两种数据源
+- **动态价格分区**：自动计算5个价格区间，适用于任意价位书籍
+- **成本价格对比**：集成多抓鱼收购价作为成本参考
+
+### 🤖 智能爬虫系统
+采用**自主会话管理器**架构，业务层完全无需关心爬虫工具：
+
+- **完全自主运行**：后台自动轮询任务队列并执行
+- **智能网站管理**：每个窗口内多个网站状态独立，某个网站被封不影响其他网站
+- **自动状态恢复**：频率限制自动在6分钟后解封
+- **零配置使用**：业务层只需添加任务，无需关心窗口池和浏览器管理
+
+## 🏗️ 系统架构
+
+### V3.0 全新架构
+```
+业务层 ────► SimpleTaskQueue ────► 数据库
+                                    ▲
+AutonomousSessionManager ◄─────────┘
+    │
+    ├─ 内置窗口池管理
+    ├─ 自主任务轮询
+    ├─ 智能状态管理
+    └─ 自动错误处理
+```
+
+**核心组件**：
+
+1. **CrawlerServiceV2**：统一业务入口，提供简单的任务管理API
+2. **SimpleTaskQueue**：纯业务接口，只关心任务增删改查
+3. **AutonomousSessionManager**：自包含的爬虫引擎，包含窗口池和任务执行
+
+## 📱 访问地址
+
+- **主页**: http://127.0.0.1:8282/ - 数据展示和ISBN搜索
 - **API文档**: http://127.0.0.1:8282/docs
 
-## 核心功能
+## 💻 业务使用示例
 
-### 📊 主页功能（数据展示 + ISBN搜索）
-- **数据展示**
-  - 销售排行榜（支持分页，每页20条）
-  - 差价排行榜（孔夫子vs多抓鱼，支持分页）
-  - 预期利润排行（销量×差价，支持分页）
-  - 时间筛选器（3天/7天/30天/全部）
-  - 本地库书籍搜索
-  - 实时统计卡片（销量、价格、库存）
-  
-- **ISBN搜索分析** 🆕
-  - 输入ISBN实时查询书籍销售数据
-  - 1天/7天/30天销量统计
-  - 价格区间分析（最高/最低/平均价）
-  - 销售趋势图表展示
-  - 最新销售日期追踪
+### 添加爬虫任务（超简单）
+```python
+from src.services.crawler_service_v2 import crawler_service_v2
 
-### 🏪 店铺管理模块 🆕
-- **增删改查功能**
-  - 添加新店铺（店铺ID、名称、平台、URL等）
-  - 编辑店铺信息
-  - 删除店铺（同时清理相关数据）
-  - 搜索店铺（支持ID和名称搜索）
-  - 分页展示店铺列表
-  
-- **爬取状态监控**
-  - 实时显示每个店铺的书籍总数
-  - 统计未爬取书籍数量
-  - 可视化爬取进度（进度条+百分比）
-  - 爬取状态标识（未开始/部分爬取/已完成）
-  - 显示最后更新时间
-  
-- **爬取功能**
-  - **单店全量爬取** - 爬取店铺所有书籍的销售数据
-  - **单店增量爬取** - 只爬取未爬取的书籍（提高效率）
-  - **批量全量爬取** - 选择多个店铺进行全量爬取
-  - **批量增量爬取** - 选择多个店铺进行增量爬取
-  
-### 📚 书籍管理模块 🆕
-- **增删改查功能**
-  - 添加新书籍（ISBN、书名、作者、出版社等）
-  - 编辑书籍信息
-  - 删除书籍（同时清理销售记录）
-  - 多条件搜索（ISBN、书名、作者、出版社）
-  - 分页展示书籍列表
-  
-- **爬取状态管理**
-  - 筛选已爬取/未爬取书籍
-  - 实时统计（总数、已爬取、未爬取、爬取率）
-  - 今日更新数量统计
-  - 本周更新数量统计
-  - 显示最后销售更新时间
-  
-- **爬取功能**
-  - **单本书籍爬取** - 爬取指定ISBN的销售数据
-  - **批量爬取** - 选择多本书籍批量爬取
-  - **查看详情** - 查看书籍详细销售数据、价格统计、在售店铺
-  
-### 📊 销售数据概览
-- **统计仪表板**
-  - 店铺总数、书籍总数统计
-  - 已爬取/未爬取书籍统计
-  - 爬取率实时计算显示
-- **快速访问**
-  - 店铺列表快速查看
-  - 书籍爬取状态监控
-  - 一键跳转到详细管理页面
-- **注意**：详细的增删改查功能已迁移至独立的店铺管理和书籍管理模块
+# 直接使用，无需任何初始化！
+# 1. 爬取单本书销售记录
+task_id = crawler_service_v2.add_book_sales_task("9787544291200")
 
-### 🕷️ 爬虫控制（管理页）
-- 批量添加店铺
-- 更新店铺书籍数据
-- 更新多抓鱼价格
-- 查看任务状态
-- 手动触发爬虫
-- 删除爬虫任务
+# 2. 快速爬取ISBN相关数据
+task_ids = crawler_service_v2.quick_crawl_isbn("9787544291200")
 
-## 项目结构
+# 3. 批量添加多个ISBN
+isbn_list = ["9787020002207", "9787108006240"]
+batch_ids = crawler_service_v2.batch_add_isbn_tasks(isbn_list)
+
+# 4. 添加店铺爬取任务
+shop_task = crawler_service_v2.add_shop_books_task(
+    shop_url="https://shop123.kongfz.com/",
+    max_pages=10
+)
+```
+
+### 监控任务状态
+```python
+# 获取完整状态
+status = await crawler_service_v2.get_queue_status()
+
+# 查看特定平台状态
+kongfuzi_status = await crawler_service_v2.get_platform_status('kongfuzi')
+
+# 健康检查
+health = await crawler_service_v2.health_check()
+
+# 统计信息
+stats = await crawler_service_v2.get_statistics()
+```
+
+### 队列管理操作
+```python
+# 重试失败任务
+retried = crawler_service_v2.retry_failed_tasks('kongfuzi')
+
+# 清空待处理任务
+cleared = crawler_service_v2.clear_pending_tasks('kongfuzi')
+
+# 紧急停止平台
+result = crawler_service_v2.emergency_stop_platform('kongfuzi')
+```
+
+## 🔧 项目结构
 
 ```
 sellbook/
-├── src/                 # 源代码
-│   ├── models/          # 数据模型层
-│   │   ├── database.py  # 数据库连接管理
-│   │   ├── models.py    # 数据模型定义
-│   │   ├── book.py      # 书籍模型
-│   │   ├── shop.py      # 店铺模型
-│   │   └── repositories.py # 数据仓库层
-│   ├── repositories/    # 数据访问层
-│   │   ├── book_repository.py # 书籍数据访问
-│   │   └── shop_repository.py # 店铺数据访问
-│   ├── services/        # 业务服务层
-│   │   ├── analysis_service.py # 数据分析服务
-│   │   ├── crawler_service.py  # 爬虫服务
-│   │   ├── book_service.py     # 书籍业务服务
-│   │   └── shop_service.py     # 店铺业务服务
-│   ├── routes/          # API路由层
-│   │   ├── api_routes.py # 数据分析API路由
-│   │   ├── shop_routes.py # 店铺管理路由
-│   │   └── book_routes.py # 书籍管理路由
-│   ├── crawlers/        # 爬虫模块
-│   │   └── isbn_crawler.py # ISBN爬虫
-│   ├── static/          # 前端文件
-│   │   ├── index.html   # 主页（含ISBN搜索）
-│   │   ├── sales_data_admin.html # 销售数据概览页
-│   │   ├── shop_admin.html # 店铺管理页
-│   │   ├── book_admin.html # 书籍管理页
-│   │   └── crawler_admin.html # 爬虫控制页
-│   ├── database.py      # 数据库工具（废弃）
-│   ├── exceptions.py    # 自定义异常
-│   └── main.py          # FastAPI应用入口
-├── tests/               # 测试代码
-│   ├── unit/            # 单元测试
-│   │   ├── models/      # 模型测试
-│   │   ├── services/    # 服务测试
-│   │   ├── repositories/ # 仓库测试
-│   │   ├── crawlers/    # 爬虫测试
-│   │   └── utils/       # 工具测试
-│   ├── integration/     # 集成测试
-│   │   └── routes/      # 路由集成测试
-│   ├── e2e/            # 端到端测试
-│   ├── fixtures/       # 测试数据
-│   └── conftest.py     # pytest配置
-├── data/               # 数据文件
-│   └── sellbook.db     # SQLite数据库
-├── htmlcov/            # 测试覆盖率报告（自动生成）
-├── venv/               # Python虚拟环境
-├── .gitignore          # Git忽略文件
-├── .coveragerc         # 覆盖率配置
-├── pytest.ini          # pytest配置
-├── pyproject.toml      # 项目配置和依赖
-├── requirements.txt    # 依赖包（兼容性）
-├── uv.lock            # uv锁定文件
-├── app.py             # 启动脚本
-├── CLAUDE.md          # 开发指南
-└── README.md          # 项目文档
+├── src/
+│   ├── models/                      # 数据模型层
+│   │   ├── database.py             # 数据库连接管理
+│   │   ├── models.py               # 数据模型定义
+│   │   └── repositories.py        # 数据访问层
+│   ├── services/                   # 业务服务层
+│   │   ├── crawler_service_v2.py   # 爬虫服务V2（统一入口）
+│   │   ├── autonomous_session_manager.py  # 自主会话管理器
+│   │   ├── simple_task_queue.py    # 简化任务队列
+│   │   ├── analysis_service.py     # 数据分析服务
+│   │   └── isbn_crawler.py         # ISBN爬虫
+│   ├── routes/                     # API路由层
+│   │   └── api_routes.py          # 统一API接口
+│   ├── static/                     # 前端文件
+│   │   └── index.html             # 主界面
+│   └── main.py                     # FastAPI应用入口
+├── tests/                          # 测试代码
+│   ├── test_crawler_service_v2.py # V2架构测试
+│   └── ...
+├── data/
+│   └── sellbook.db                # SQLite数据库
+├── CLAUDE.md                      # 开发指南
+└── README.md                      # 项目文档
 ```
 
-## 数据库结构
+## 🧠 智能特性
+
+### 网站状态管理
+- **AVAILABLE**: 可用状态，正常访问
+- **RATE_LIMITED**: 频率限制，自动在6分钟后解封
+- **LOGIN_REQUIRED**: 需要登录，需要人工处理
+- **ERROR**: 一般错误状态
+
+### 任务智能分发
+- **优先级排序**：数字越大优先级越高
+- **可用性检查**：只选择可用窗口的任务
+- **负载均衡**：自动分配到不同窗口
+- **平台隔离**：不同平台任务独立执行
+
+### 自动错误处理
+- **频率限制**：自动标记并等待解封
+- **登录错误**：标记窗口需要登录，跳过使用
+- **网络错误**：标记一般错误，可重试
+- **超时处理**：5分钟超时自动标记失败
+
+## 📊 数据库结构
 
 ### 主要数据表
 - **shops** - 店铺信息表
-- **books** - 书籍基础信息表（含 `is_crawled` 和 `last_sales_update` 字段）
+- **books** - 书籍基础信息表
 - **book_inventory** - 书籍库存价格表
-- **sales_records** - 销售记录表
-- **crawl_tasks** - 爬虫任务表
-- **data_statistics** - 数据统计缓存表
+- **sales_records** - 销售记录表（使用item_id作为主键去重）
+- **crawl_tasks** - 爬虫任务表（含target_platform字段）
 
-## API接口
+### 去重机制
+系统采用孔夫子网的`item_id`作为主键，确保销售记录的唯一性：
+```sql
+CREATE TABLE sales_records (
+    item_id TEXT PRIMARY KEY,  -- 孔夫子网商品ID（唯一）
+    isbn TEXT,
+    title TEXT,
+    sale_price REAL,
+    sale_time TIMESTAMP,
+    quality TEXT,
+    shop_id TEXT
+);
+```
 
-### 店铺管理API (`/api/shops`)
-- `GET /api/shops` - 获取店铺列表（分页、搜索）
-- `GET /api/shops/{shop_id}` - 获取店铺详情
-- `POST /api/shops` - 创建新店铺
-- `PUT /api/shops/{shop_id}` - 更新店铺信息
-- `DELETE /api/shops/{shop_id}` - 删除店铺
-- `POST /api/shops/{shop_id}/crawl` - 爬取单个店铺（支持增量）
-- `POST /api/shops/batch-crawl` - 批量爬取店铺
+## 🔗 API接口
 
-### 书籍管理API (`/api/books`)
-- `GET /api/books` - 获取书籍列表（分页、搜索、筛选）
-- `GET /api/books/{isbn}` - 获取书籍详情
-- `POST /api/books` - 创建新书籍
-- `PUT /api/books/{isbn}` - 更新书籍信息
-- `DELETE /api/books/{isbn}` - 删除书籍
-- `POST /api/books/{isbn}/crawl` - 爬取单本书籍
-- `POST /api/books/batch-crawl` - 批量爬取书籍
-- `GET /api/books/stats/crawl-summary` - 获取爬取统计
-
-### 数据分析API (`/api`)
+### 数据分析API
+- `GET /api/isbn/{isbn}/analysis` - ISBN分析（支持品相筛选）
 - `GET /api/dashboard` - 获取仪表板数据
 - `GET /api/sales/statistics` - 获取销售统计
-- `GET /api/sales/hot` - 获取热销排行
-- `GET /api/profitable/items` - 获取利润商品
-- `POST /api/book/analyze` - ISBN实时分析
 
-### 销售数据API (`/sales-data`)
-- `GET /sales-data/shops` - 获取店铺列表（旧接口）
-- `POST /sales-data/shop/{shop_id}/crawl-sales` - 爬取店铺销售数据
-- `POST /sales-data/crawl-all-shops` - 一键爬取所有店铺
-- `GET /sales-data/shop/{shop_id}/sales-stats` - 获取店铺销售统计
-- `GET /sales-data/books/crawl-status` - 获取书籍爬取状态
+### 任务管理API（V3.0新增）
+爬虫任务通过代码API管理，无需HTTP接口：
+```python
+# 通过CrawlerServiceV2管理所有任务
+crawler_service_v2.add_book_sales_task()
+crawler_service_v2.get_queue_status()
+crawler_service_v2.retry_failed_tasks()
+```
 
-## 技术栈
+## 🧪 测试
+
+### 运行测试
+```bash
+# 测试新架构
+python test_crawler_service_v2.py
+
+# 运行完整测试套件
+pytest
+
+# 测试覆盖率
+pytest --cov=src --cov-report=html
+```
+
+### 测试覆盖
+- 服务初始化和健康检查
+- 任务管理和批量操作
+- 状态查询和监控
+- 队列管理和错误处理
+- 实时任务处理监控
+
+## 🛠️ 技术栈
 
 - **后端框架**：FastAPI 0.100+
 - **数据库**：SQLite 3
-- **爬虫技术**：Playwright + Aiohttp
+- **爬虫技术**：Patchright + BeautifulSoup
+- **异步处理**：asyncio/aiohttp
 - **前端技术**：原生HTML/CSS/JavaScript + Chart.js
 - **Python版本**：3.8+
-- **测试框架**：pytest + pytest-cov + pytest-asyncio
+- **测试框架**：pytest
 
-## 🧪 测试与质量保障
+## 🚨 重要说明
 
-### 测试架构
-项目采用分层测试策略，确保代码质量和功能稳定性：
+### V3.0架构优势
+相比旧版本的手动任务管理，新架构具有以下优势：
 
-```
-tests/
-├── unit/              # 单元测试 - 测试单个函数/类
-│   ├── models/        # 数据模型测试
-│   ├── services/      # 业务服务测试
-│   ├── repositories/  # 数据访问层测试
-│   └── utils/         # 工具函数测试
-├── integration/       # 集成测试 - 测试组件交互
-│   ├── routes/        # API路由测试
-│   └── database/      # 数据库集成测试
-└── e2e/              # 端到端测试 - 测试完整业务流程
-    ├── book_management_flow.py
-    └── shop_management_flow.py
-```
+| 特性 | V2.x架构 | V3.0架构 |
+|------|----------|----------|
+| 窗口管理 | 业务层需要关心 | 完全透明 |
+| 任务调度 | 手动触发 | 自主轮询 |
+| 状态管理 | 全局共享 | 网站独立 |
+| 错误处理 | 复杂重试逻辑 | 智能状态分类 |
+| 业务复杂度 | 高 | 低 |
+| 扩展性 | 困难 | 容易 |
 
-### 运行测试
+### 迁移指南
+如果您在使用旧版本，建议迁移到V3.0架构：
 
-#### 基本测试命令
-```bash
-# 运行所有测试
-pytest
+1. 原有的HTTP任务管理API已废弃
+2. 使用`CrawlerServiceV2`的代码API替代
+3. 无需手动管理窗口池和任务队列
+4. 爬虫会自动启动，无需初始化
 
-# 按类型运行测试
-pytest -m unit          # 单元测试
-pytest -m integration   # 集成测试
-pytest -m e2e           # 端到端测试
+## 📝 开发注意事项
 
-# 运行特定测试文件
-pytest tests/unit/models/test_book.py -v
+1. **Chrome配置**：确保Chrome以调试模式运行（端口9222）
+2. **数据安全**：定期备份`data/sellbook.db`数据库
+3. **任务监控**：可通过`health_check()`和`get_queue_status()`监控系统状态
+4. **错误恢复**：系统具有自动重试和状态恢复机制
+5. **资源管理**：系统会自动管理浏览器资源，无需手动清理
 
-# 查看测试覆盖率
-pytest --cov=src --cov-report=html
-# 覆盖率报告: htmlcov/index.html
-```
+## 🎉 更新日志
 
-#### 调试测试
-```bash
-# 详细输出 + 调试信息
-pytest -v -s
+### v3.0 (2025-01) 🚀
+- ✨ **全新自主会话管理器架构**：业务层与爬虫工具完全解耦
+- 🤖 **AutonomousSessionManager**：完全自包含的爬虫引擎
+- 📋 **SimpleTaskQueue**：纯业务任务队列接口
+- 🔄 **智能任务分发**：根据网站可用性自动选择执行任务
+- 🛡️ **网站状态隔离**：每个窗口内不同网站状态独立管理
+- ⚡ **零配置使用**：无需初始化，自动启动和恢复
+- 📊 **增强监控**：完整的状态查询和统计接口
 
-# 只运行失败的测试
-pytest --lf
-
-# 运行到第一个失败就停止
-pytest -x
-```
-
-### 测试覆盖率
-
-当前测试覆盖率：**79%** ✅
-
-#### 覆盖率分析原则
-
-**为什么不追求100%覆盖率？**
-
-测试覆盖率低的主要原因不是测试不足，而是包含了不应该测试的代码：
-
-1. **Web应用启动代码** (`main.py`) 
-   - FastAPI启动/关闭事件
-   - HTML模板渲染逻辑
-   - 静态文件服务
-
-2. **外部依赖服务** (`crawler_service.py`)
-   - 异步爬虫逻辑需要外部浏览器
-   - 网络请求依赖第三方网站
-   - Playwright交互需要真实环境
-
-3. **数据分析服务** (`analysis_service.py`)
-   - 复杂数据分析需要大量真实数据
-   - 统计计算依赖完整数据集
-
-4. **复杂业务API** (`api_routes.py`, `repositories.py`)
-   - 数据分析类API端点
-   - 复杂的数据访问逻辑
-
-#### 排除的代码类型
-```python
-# .coveragerc 配置
-[run]
-omit = 
-    src/main.py                    # Web启动和模板代码
-    src/services/crawler_service.py  # 爬虫外部依赖
-    src/services/analysis_service.py # 数据分析复杂逻辑
-    src/routes/api_routes.py       # 数据分析API
-    src/models/repositories.py    # 复杂数据访问层
-```
-
-#### 核心业务代码覆盖率 ✅
-- **数据模型**: 100%
-- **业务服务**: 98-100%  
-- **数据仓库**: 100%
-- **路由控制器**: 60-63%
-- **ISBN爬虫**: 95%
-
-### 测试开发原则
-
-#### 🏆 数据驱动测试法则
-
-**永远按照以下顺序进行测试开发：**
-
-1. **READ（查询）→ CREATE（创建）→ UPDATE（更新）→ DELETE（删除）**
-2. **先了解生产数据 → 再编写测试**
-
-```bash
-# ✅ 正确的测试开发流程
-
-# 步骤1：查看生产数据库真实结构
-sqlite3 data/sellbook.db ".schema shops"
-sqlite3 data/sellbook.db "SELECT * FROM shops LIMIT 3;"
-
-# 步骤2：基于真实数据编写查询测试
-# 步骤3：基于查询结果编写创建测试  
-# 步骤4：测试更新和删除功能
-```
-
-#### ⚠️ 避免的错误做法
-- ❌ 假设API数据格式而不验证
-- ❌ 直接从创建测试开始
-- ❌ 用测试数据去"适配"API
-
-#### 🔍 API响应格式验证
-```python
-# ⚠️ 在修复测试前，先查看真实API响应
-response = client.get("/api/shops")
-print("实际响应:", response.json())
-
-# 大多数API返回结构化格式：
-{
-    "success": true,
-    "data": {
-        "shops": [...],
-        "pagination": {...}
-    }
-}
-```
-
-### 测试最佳实践
-
-1. **唯一性处理**
-   ```python
-   import uuid
-   unique_id = str(uuid.uuid4())[:8]
-   test_data = {"shop_id": f"test_shop_{unique_id}"}
-   ```
-
-2. **错误码理解**
-   - 422: 数据格式不匹配
-   - 400: 业务逻辑冲突（如重复ID）
-   - 500: 服务器内部错误
-
-3. **数据库字段映射**
-   - 真实字段: `shop_id`, `shop_name`, `platform`
-   - 测试中必须使用真实字段名
-
-4. **测试隔离**
-   - 每个测试使用独立的测试数据
-   - 测试完成后清理数据
-
-## 注意事项
-
-1. **爬虫配置**：需要Chrome浏览器调试模式（端口9222）
-2. **数据安全**：定期备份 `data/sellbook.db` 数据库
-3. **访问控制**：爬虫控制和销售数据管理页面建议仅管理员使用
-4. **性能优化**：大量数据爬取时建议分批执行
-5. **虚拟环境**：强烈建议使用虚拟环境避免依赖冲突
-
-## 更新日志
-
-### v2.1 (2024-01) 🆕
-- ✨ **重构销售数据管理**：拆分为独立的店铺管理和书籍管理模块
-- 🏪 **店铺管理模块**：
-  - 完整的CRUD功能（增删改查）
-  - 爬取状态实时监控（基于未爬取书籍数）
-  - 全量/增量爬取模式
-  - 批量操作支持
-- 📚 **书籍管理模块**：
-  - 完整的CRUD功能
-  - 多条件搜索和筛选
-  - 单本/批量爬取
-  - 详细销售数据查看
-- 🎯 **增量爬取功能**：只爬取未爬取的书籍，大幅提升效率
-- 📊 **增强统计功能**：今日更新、本周更新等实时统计
-- 🔧 **API重构**：新增专门的店铺和书籍管理API路由
-
-### v2.0 (2024-01)
-- ✨ 新增ISBN实时搜索分析功能
-- ✨ 新增销售数据管理模块
-- ✨ 添加书籍爬取状态追踪
-- 🔧 优化数据库结构，添加 `is_crawled` 和 `last_sales_update` 字段
-- 📊 增强数据统计和可视化功能
-- 🎨 改进前端界面设计
+### v2.x (2024-01)
+- 店铺和书籍管理模块
+- ISBN实时搜索分析
+- 增量爬取功能
 
 ### v1.0 (2023-12)
-- 🚀 初始版本发布
-- 📊 基础数据展示功能
-- 🕷️ 爬虫控制功能
-- 💰 价差分析功能
+- 初始版本发布
