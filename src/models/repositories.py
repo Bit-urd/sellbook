@@ -281,7 +281,7 @@ class BookInventoryRepository:
         results = db.execute_query(query, (isbn, shop_id))
         return results[0] if results else None
     
-    def get_profitable_items(self, min_margin: float = 20.0) -> List[Dict]:
+    def get_profitable_items(self, min_margin: float = 20.0, limit: int = 20, offset: int = 0) -> List[Dict]:
         """获取有利润的商品"""
         query = """
             SELECT bi.*, b.title, b.author, s.shop_name
@@ -291,8 +291,9 @@ class BookInventoryRepository:
             WHERE bi.is_profitable = 1 
               AND bi.profit_margin_second_hand >= ?
             ORDER BY bi.profit_margin_second_hand DESC
+            LIMIT ? OFFSET ?
         """
-        return db.execute_query(query, (min_margin,))
+        return db.execute_query(query, (min_margin, limit, offset))
 
 class SalesRepository:
     """销售记录数据仓库"""
@@ -339,7 +340,7 @@ class SalesRepository:
         """.format(days)
         return db.execute_query(query)
     
-    def get_hot_sales(self, days: int = 7, limit: int = 20) -> List[Dict]:
+    def get_hot_sales(self, days: int = 7, limit: int = 20, offset: int = 0) -> List[Dict]:
         """获取热销书籍"""
         query = """
             SELECT b.title, b.isbn, b.author, 
@@ -354,9 +355,9 @@ class SalesRepository:
             WHERE sr.sale_date >= datetime('now', '-{} days')
             GROUP BY sr.isbn
             ORDER BY sale_count DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
         """.format(days)
-        return db.execute_query(query, (limit,))
+        return db.execute_query(query, (limit, offset))
     
     def get_hot_sales_by_isbn(self, isbn: str) -> List[Dict]:
         """获取指定ISBN的销售统计"""

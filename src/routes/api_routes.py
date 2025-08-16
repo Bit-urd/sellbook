@@ -396,11 +396,12 @@ async def get_sales_statistics(days: int = Query(7, ge=1, le=365)):
 @api_router.get("/sales/hot")
 async def get_hot_sales(
     days: int = Query(7, ge=1, le=365),
-    limit: int = Query(20, ge=1, le=100)
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
 ):
     """获取热销排行榜"""
     try:
-        hot_sales = analysis_service.get_hot_sales_ranking(days, limit)
+        hot_sales = analysis_service.get_hot_sales_ranking(days, limit, offset)
         return {"success": True, "data": hot_sales, "days": days}
     except Exception as e:
         logger.error(f"获取热销排行失败: {e}")
@@ -417,10 +418,14 @@ async def get_sales_trend(days: int = Query(30, ge=1, le=365)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/profitable/items")
-async def get_profitable_items(min_margin: float = Query(20.0, ge=0, le=100)):
+async def get_profitable_items(
+    min_margin: float = Query(0.0, ge=0, le=100),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
     """获取有利润的商品"""
     try:
-        items = analysis_service.get_profitable_items(min_margin)
+        items = analysis_service.get_profitable_items(min_margin, limit, offset)
         return {"success": True, "data": items, "min_margin": min_margin}
     except Exception as e:
         logger.error(f"获取利润商品失败: {e}")

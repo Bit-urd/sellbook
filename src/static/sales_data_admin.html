@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>店铺管理</title>
+    <script src="/static/tailwind-browser.min.js"></script>
     <script src="/static/common-components.js"></script>
     <style>
         * {
@@ -251,35 +252,7 @@
             color: #856404;
         }
 
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .pagination button {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            background: white;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
-        .pagination button:hover:not(:disabled) {
-            background: #f8f9fa;
-        }
-
-        .pagination button:disabled {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-
-        .pagination span {
-            font-size: 14px;
-            color: #666;
-        }
+        /* Tailwind将处理分页样式 */
 
         .loading {
             text-align: center;
@@ -520,7 +493,9 @@
                 </table>
             </div>
 
-            <div class="pagination" id="shopPagination"></div>
+            <nav aria-label="店铺列表分页" class="mt-6">
+                <div id="shopPagination" class="flex items-center justify-center space-x-2"></div>
+            </nav>
         </div>
 
         <!-- 书店书籍销售记录爬取列表 -->
@@ -546,7 +521,9 @@
                 </div>
             </div>
 
-            <div class="pagination" id="booksPagination"></div>
+            <nav aria-label="书籍爐取状态分页" class="mt-6">
+                <div id="booksPagination" class="flex items-center justify-center space-x-2"></div>
+            </nav>
         </div>
     </div>
 
@@ -668,17 +645,105 @@
             updateSelectAllState();
         }
 
-        // 更新店铺分页
-        function updateShopPagination(pagination) {
-            const container = document.getElementById('shopPagination');
+        // 通用Tailwind分页函数
+        function renderTailwindPagination(containerId, pagination, loadFunction) {
+            const container = document.getElementById(containerId);
             const { page, total_pages } = pagination;
 
+            if (total_pages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
             let html = '';
-            html += `<button ${page <= 1 ? 'disabled' : ''} onclick="loadShops(${page - 1})">上一页</button>`;
-            html += `<span>第 ${page} / ${total_pages} 页</span>`;
-            html += `<button ${page >= total_pages ? 'disabled' : ''} onclick="loadShops(${page + 1})">下一页</button>`;
+            
+            // 上一页按钮
+            const prevDisabled = page <= 1;
+            html += `
+                <button 
+                    ${prevDisabled ? 'disabled' : `onclick="${loadFunction}(${page - 1})"`}
+                    class="relative inline-flex items-center px-2 py-2 rounded-l-md border ${
+                        prevDisabled 
+                            ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    } text-sm font-medium"
+                >
+                    <span class="sr-only">上一页</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+
+            // 页码按钮
+            const startPage = Math.max(1, page - 2);
+            const endPage = Math.min(total_pages, page + 2);
+
+            // 第一页（如果不在当前范围内）
+            if (startPage > 1) {
+                html += `
+                    <button 
+                        onclick="${loadFunction}(1)"
+                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >1</button>
+                `;
+                if (startPage > 2) {
+                    html += `<span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>`;
+                }
+            }
+
+            // 中间页码
+            for (let i = startPage; i <= endPage; i++) {
+                const isActive = i === page;
+                html += `
+                    <button 
+                        ${isActive ? '' : `onclick="${loadFunction}(${i})"`}
+                        class="relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            isActive 
+                                ? 'z-10 bg-indigo-600 border-indigo-600 text-white'
+                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                        }"
+                    >${i}</button>
+                `;
+            }
+
+            // 最后一页（如果不在当前范围内）
+            if (endPage < total_pages) {
+                if (endPage < total_pages - 1) {
+                    html += `<span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>`;
+                }
+                html += `
+                    <button 
+                        onclick="${loadFunction}(${total_pages})"
+                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >${total_pages}</button>
+                `;
+            }
+
+            // 下一页按钮
+            const nextDisabled = page >= total_pages;
+            html += `
+                <button 
+                    ${nextDisabled ? 'disabled' : `onclick="${loadFunction}(${page + 1})"`}
+                    class="relative inline-flex items-center px-2 py-2 rounded-r-md border ${
+                        nextDisabled 
+                            ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    } text-sm font-medium"
+                >
+                    <span class="sr-only">下一页</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
 
             container.innerHTML = html;
+        }
+
+        // 更新店铺分页
+        function updateShopPagination(pagination) {
+            renderTailwindPagination('shopPagination', pagination, 'loadShops');
         }
 
         // 搜索店铺
@@ -1038,23 +1103,9 @@
             container.innerHTML = html;
         }
 
-        // 更新分页
+        // 更新分页 - 使用通用Tailwind分页函数
         function updatePagination(containerId, pagination, callback) {
-            const container = document.getElementById(containerId);
-            const { page, total_pages } = pagination;
-
-            let html = '';
-            
-            // 上一页按钮
-            html += `<button ${page <= 1 ? 'disabled' : ''} onclick="${callback.name}(${page - 1})">上一页</button>`;
-            
-            // 页码信息
-            html += `<span>第 ${page} / ${total_pages} 页</span>`;
-            
-            // 下一页按钮
-            html += `<button ${page >= total_pages ? 'disabled' : ''} onclick="${callback.name}(${page + 1})">下一页</button>`;
-
-            container.innerHTML = html;
+            renderTailwindPagination(containerId, pagination, callback.name);
         }
 
         // 点击模态框外部关闭

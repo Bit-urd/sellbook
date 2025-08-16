@@ -101,13 +101,13 @@ class AnalysisService:
         
         return result
     
-    def get_hot_sales_ranking(self, days: int = 7, limit: int = 20) -> List[Dict]:
+    def get_hot_sales_ranking(self, days: int = 7, limit: int = 20, offset: int = 0) -> List[Dict]:
         """获取热销排行榜"""
-        hot_sales = self.sales_repo.get_hot_sales(days, limit)
+        hot_sales = self.sales_repo.get_hot_sales(days, limit, offset)
         
         # 添加排名
         for i, item in enumerate(hot_sales, 1):
-            item['rank'] = i
+            item['rank'] = offset + i  # 排名要加上offset
             # 格式化价格
             item['avg_price'] = round(item['avg_price'], 2) if item['avg_price'] else 0
             item['min_price'] = round(item['min_price'], 2) if item['min_price'] else 0
@@ -115,20 +115,23 @@ class AnalysisService:
         
         return hot_sales
     
-    def get_profitable_items(self, min_margin: float = 20.0) -> List[Dict]:
+    def get_profitable_items(self, min_margin: float = 20.0, limit: int = 20, offset: int = 0) -> List[Dict]:
         """获取有利润的商品列表"""
-        items = self.inventory_repo.get_profitable_items(min_margin)
-        
-        # 按利润率排序
-        items.sort(key=lambda x: x.get('profit_margin_second_hand', 0), reverse=True)
+        items = self.inventory_repo.get_profitable_items(min_margin, limit, offset)
         
         # 格式化数据
-        for item in items:
-            item['profit_margin_second_hand'] = round(item['profit_margin_second_hand'], 2)
-            item['price_diff_second_hand'] = round(item['price_diff_second_hand'], 2)
+        for i, item in enumerate(items):
+            item['rank'] = offset + i + 1
+            item['profit_margin_second_hand'] = round(item.get('profit_margin_second_hand', 0), 2)
+            item['price_diff_second_hand'] = round(item.get('price_diff_second_hand', 0), 2)
             item['expected_profit'] = round(
-                item['kongfuzi_price'] * item['profit_margin_second_hand'] / 100, 2
+                item.get('kongfuzi_price', 0) * item.get('profit_margin_second_hand', 0) / 100, 2
             )
+            # 为前端重命名字段
+            item['kongfuzi_price'] = item.get('kongfuzi_price', 0)
+            item['duozhuayu_price'] = item.get('duozhuayu_second_hand_price', 0)
+            item['price_diff'] = item['price_diff_second_hand']
+            item['profit_rate'] = item['profit_margin_second_hand']
         
         return items
     

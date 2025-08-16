@@ -5,12 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'">
     <title>卖书网站价差数据分析系统</title>
+    <script src="/static/tailwind-browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/static/common-components.js"></script>
     <style>
-        * {
+        /* 页面基础重置，但保留Bootstrap组件样式 */
+        body, h1, h2, h3, h4, h5, h6, p, ul, ol, li {
             margin: 0;
             padding: 0;
+        }
+        
+        *, *::before, *::after {
             box-sizing: border-box;
         }
 
@@ -43,6 +48,72 @@
             margin-bottom: 30px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Bootstrap分页组件样式 */
+        .pagination {
+            display: flex;
+            padding-left: 0;
+            list-style: none;
+            border-radius: 0.25rem;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        
+        .page-item {
+            position: relative;
+            display: block;
+        }
+        
+        .page-item:first-child .page-link {
+            margin-left: 0;
+            border-top-left-radius: 0.25rem;
+            border-bottom-left-radius: 0.25rem;
+        }
+        
+        .page-item:last-child .page-link {
+            border-top-right-radius: 0.25rem;
+            border-bottom-right-radius: 0.25rem;
+        }
+        
+        .page-link {
+            position: relative;
+            display: block;
+            padding: 0.5rem 0.75rem;
+            margin-left: -1px;
+            line-height: 1.25;
+            color: #667eea;
+            text-decoration: none;
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            cursor: pointer;
+        }
+        
+        .page-link:hover {
+            z-index: 2;
+            color: #495057;
+            text-decoration: none;
+            background-color: #e9ecef;
+            border-color: #dee2e6;
+        }
+        
+        .page-item.active .page-link {
+            z-index: 3;
+            color: #fff;
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+        
+        .page-item.disabled .page-link {
+            color: #6c757d;
+            pointer-events: none;
+            cursor: auto;
+            background-color: #fff;
+            border-color: #dee2e6;
+        }
+        
+        .page-item.disabled .page-link span {
+            color: #6c757d;
         }
 
         .navbar-content {
@@ -762,11 +833,11 @@
                         <tr><td colspan="8" style="text-align: center;">加载中...</td></tr>
                     </tbody>
                 </table>
-                <div style="text-align: center; margin-top: 20px;">
-                    <button onclick="loadSalesRank(currentSalesPage - 1)" id="salesPrevBtn" style="padding: 8px 15px; margin: 0 5px;">上一页</button>
-                    <span id="salesPageInfo">第 1 页</span>
-                    <button onclick="loadSalesRank(currentSalesPage + 1)" id="salesNextBtn" style="padding: 8px 15px; margin: 0 5px;">下一页</button>
-                </div>
+                <nav aria-label="销量排行分页" class="mt-4">
+                    <ul class="pagination justify-content-center" id="salesPagination">
+                        <!-- 分页按钮将由JavaScript动态生成 -->
+                    </ul>
+                </nav>
             </div>
 
             <!-- 差价排行 -->
@@ -788,11 +859,11 @@
                         <tr><td colspan="7" style="text-align: center;">加载中...</td></tr>
                     </tbody>
                 </table>
-                <div style="text-align: center; margin-top: 20px;">
-                    <button onclick="loadPriceDiffRank(currentDiffPage - 1)" id="diffPrevBtn" style="padding: 8px 15px; margin: 0 5px;">上一页</button>
-                    <span id="diffPageInfo">第 1 页</span>
-                    <button onclick="loadPriceDiffRank(currentDiffPage + 1)" id="diffNextBtn" style="padding: 8px 15px; margin: 0 5px;">下一页</button>
-                </div>
+                <nav aria-label="差价排行分页" class="mt-4">
+                    <ul class="pagination justify-content-center" id="diffPagination">
+                        <!-- 分页按钮将由JavaScript动态生成 -->
+                    </ul>
+                </nav>
             </div>
 
             <!-- 预期利润最高排行 -->
@@ -813,11 +884,11 @@
                         <tr><td colspan="6" style="text-align: center;">加载中...</td></tr>
                     </tbody>
                 </table>
-                <div style="text-align: center; margin-top: 20px;">
-                    <button onclick="loadProfitRank(currentProfitPage - 1)" id="profitPrevBtn" style="padding: 8px 15px; margin: 0 5px;">上一页</button>
-                    <span id="profitPageInfo">第 1 页</span>
-                    <button onclick="loadProfitRank(currentProfitPage + 1)" id="profitNextBtn" style="padding: 8px 15px; margin: 0 5px;">下一页</button>
-                </div>
+                <nav aria-label="利润排行分页" class="mt-4">
+                    <ul class="pagination justify-content-center" id="profitPagination">
+                        <!-- 分页按钮将由JavaScript动态生成 -->
+                    </ul>
+                </nav>
             </div>
         </div>
 
@@ -830,7 +901,111 @@
         let currentSalesPage = 1;
         let currentDiffPage = 1;
         let currentProfitPage = 1;
-        const pageSize = 20;
+        const pageSize = 10; // 每页10条，平衡显示效果和分页功能
+        let totalSalesPages = 1;
+        let totalDiffPages = 1;
+        let totalProfitPages = 1;
+
+        // 渲染Tailwind分页组件
+        function renderPagination(containerId, currentPage, totalPages, loadFunction) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            // 如果只有1页或没有数据，隐藏分页组件
+            if (totalPages <= 1) {
+                container.style.display = 'none';
+                return;
+            }
+            
+            // 显示分页组件
+            container.style.display = 'flex';
+            container.className = 'flex items-center justify-center space-x-1 my-4';
+            
+            // 上一页按钮
+            const prevBtn = document.createElement('button');
+            prevBtn.className = `px-3 py-2 text-sm font-medium border border-gray-300 rounded-md ${
+                currentPage === 1 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'bg-white text-gray-700 hover:bg-gray-50 cursor-pointer'
+            }`;
+            prevBtn.innerHTML = '&laquo;';
+            prevBtn.disabled = currentPage === 1;
+            if (currentPage > 1) {
+                prevBtn.onclick = () => loadFunction(currentPage - 1);
+            }
+            container.appendChild(prevBtn);
+            
+            // 页码按钮
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+            if (endPage - startPage < 4) {
+                startPage = Math.max(1, endPage - 4);
+            }
+            
+            // 如果不是从第一页开始，添加第一页和省略号
+            if (startPage > 1) {
+                const firstBtn = document.createElement('button');
+                firstBtn.className = 'px-3 py-2 text-sm font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer';
+                firstBtn.textContent = '1';
+                firstBtn.onclick = () => loadFunction(1);
+                container.appendChild(firstBtn);
+                
+                if (startPage > 2) {
+                    const ellipsisSpan = document.createElement('span');
+                    ellipsisSpan.className = 'px-3 py-2 text-sm font-medium text-gray-500';
+                    ellipsisSpan.textContent = '...';
+                    container.appendChild(ellipsisSpan);
+                }
+            }
+            
+            // 中间页码
+            for (let i = startPage; i <= endPage; i++) {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-2 text-sm font-medium border border-gray-300 rounded-md ${
+                    i === currentPage
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-white text-gray-700 hover:bg-gray-50 cursor-pointer'
+                }`;
+                btn.textContent = i.toString();
+                
+                if (i === currentPage) {
+                    btn.setAttribute('aria-current', 'page');
+                } else {
+                    btn.onclick = () => loadFunction(i);
+                }
+                container.appendChild(btn);
+            }
+            
+            // 如果不是到最后一页结束，添加省略号和最后一页
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsisSpan = document.createElement('span');
+                    ellipsisSpan.className = 'px-3 py-2 text-sm font-medium text-gray-500';
+                    ellipsisSpan.textContent = '...';
+                    container.appendChild(ellipsisSpan);
+                }
+                
+                const lastBtn = document.createElement('button');
+                lastBtn.className = 'px-3 py-2 text-sm font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer';
+                lastBtn.textContent = totalPages.toString();
+                lastBtn.onclick = () => loadFunction(totalPages);
+                container.appendChild(lastBtn);
+            }
+            
+            // 下一页按钮
+            const nextBtn = document.createElement('button');
+            nextBtn.className = `px-3 py-2 text-sm font-medium border border-gray-300 rounded-md ${
+                currentPage === totalPages 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'bg-white text-gray-700 hover:bg-gray-50 cursor-pointer'
+            }`;
+            nextBtn.innerHTML = '&raquo;';
+            nextBtn.disabled = currentPage === totalPages;
+            if (currentPage < totalPages) {
+                nextBtn.onclick = () => loadFunction(currentPage + 1);
+            }
+            container.appendChild(nextBtn);
+        }
 
         // ISBN搜索功能
         function searchBookISBN() {
@@ -1155,26 +1330,35 @@
             // 使用新的商机分析数据结构
             const todayStats = data.today_stats || {};
             const businessStats = data.business_opportunity_stats || {};
+            
+            // 安全更新函数 - 检查元素是否存在
+            function safeUpdate(elementId, value) {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = value;
+                }
+            }
+            
             // 更新销量统计 - 显示商机分析数据
-            document.getElementById('totalSales').textContent = businessStats.total_books_monitored || todayStats.total_sales || 0;
-            document.getElementById('todaySales').textContent = todayStats.total_sales || 0;
-            document.getElementById('weekSales').textContent = todayStats.total_sales || 0;
-            document.getElementById('monthSales').textContent = todayStats.total_sales || 0;
-            document.getElementById('growthRate').textContent = `0%`;
+            safeUpdate('totalSales', businessStats.total_books_monitored || todayStats.total_sales || 0);
+            safeUpdate('todaySales', todayStats.total_sales || 0);
+            safeUpdate('weekSales', todayStats.total_sales || 0);
+            safeUpdate('monthSales', todayStats.total_sales || 0);
+            safeUpdate('growthRate', '0%');
 
             // 更新价格分析 - 使用市场价格数据
-            document.getElementById('avgPrice').textContent = `¥${businessStats.avg_market_price || 0}`;
-            document.getElementById('maxPrice').textContent = `¥${businessStats.max_price || 0}`;
-            document.getElementById('minPrice').textContent = `¥${businessStats.min_price || 0}`;
-            document.getElementById('medianPrice').textContent = `¥${businessStats.avg_market_price || 0}`;
-            document.getElementById('priceRange').textContent = businessStats.price_range || '¥0-0';
+            safeUpdate('avgPrice', `¥${businessStats.avg_market_price || 0}`);
+            safeUpdate('maxPrice', `¥${businessStats.max_price || 0}`);
+            safeUpdate('minPrice', `¥${businessStats.min_price || 0}`);
+            safeUpdate('medianPrice', `¥${businessStats.avg_market_price || 0}`);
+            safeUpdate('priceRange', businessStats.price_range || '¥0-0');
 
             // 更新商机分析
-            document.getElementById('totalInventory').textContent = businessStats.total_books_monitored || 0;
-            document.getElementById('activeItems').textContent = businessStats.profitable_opportunities || 0;
-            document.getElementById('outOfStock').textContent = `${businessStats.profit_discovery_rate || 0}%`;
-            document.getElementById('newItems').textContent = businessStats.monitored_shops || 0;
-            document.getElementById('turnoverRate').textContent = `${businessStats.avg_profit_margin || 0}%`;
+            safeUpdate('totalInventory', businessStats.total_books_monitored || 0);
+            safeUpdate('activeItems', businessStats.profitable_opportunities || 0);
+            safeUpdate('outOfStock', `${businessStats.profit_discovery_rate || 0}%`);
+            safeUpdate('newItems', businessStats.monitored_shops || 0);
+            safeUpdate('turnoverRate', `${businessStats.avg_profit_margin || 0}%`);
         }
 
         // 销量排行
@@ -1208,10 +1392,18 @@
                         tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">暂无数据</td></tr>';
                     }
 
-                    // 更新分页信息
-                    document.getElementById('salesPageInfo').textContent = `第 ${page} 页`;
-                    document.getElementById('salesPrevBtn').disabled = page === 1;
-                    document.getElementById('salesNextBtn').disabled = data.data.length < pageSize;
+                    // 根据返回数据动态计算总页数
+                    const hasMore = data.data.length === pageSize;
+                    if (!hasMore) {
+                        // 如果当前页没有满页数据，说明这是最后一页
+                        totalSalesPages = page;
+                    } else {
+                        // 当前页满载，至少还有下一页
+                        totalSalesPages = Math.max(totalSalesPages, page + 1);
+                    }
+                    
+                    // 渲染分页组件
+                    renderPagination('salesPagination', currentSalesPage, totalSalesPages, loadSalesRank);
                 }
             } catch (error) {
                 console.error('加载销量排行失败:', error);
@@ -1247,10 +1439,18 @@
                         tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">暂无数据</td></tr>';
                     }
 
-                    // 更新分页信息
-                    document.getElementById('diffPageInfo').textContent = `第 ${page} 页`;
-                    document.getElementById('diffPrevBtn').disabled = page === 1;
-                    document.getElementById('diffNextBtn').disabled = data.data.length < pageSize;
+                    // 根据返回数据动态计算总页数
+                    const hasMore = data.data.length === pageSize;
+                    if (!hasMore) {
+                        // 如果当前页没有满页数据，说明这是最后一页
+                        totalDiffPages = page;
+                    } else {
+                        // 当前页满载，至少还有下一页
+                        totalDiffPages = Math.max(totalDiffPages, page + 1);
+                    }
+                    
+                    // 渲染分页组件
+                    renderPagination('diffPagination', currentDiffPage, totalDiffPages, loadPriceDiffRank);
                 }
             } catch (error) {
                 console.error('加载差价排行失败:', error);
@@ -1294,10 +1494,18 @@
                         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无数据</td></tr>';
                     }
 
-                    // 更新分页信息
-                    document.getElementById('profitPageInfo').textContent = `第 ${page} 页`;
-                    document.getElementById('profitPrevBtn').disabled = page === 1;
-                    document.getElementById('profitNextBtn').disabled = data.data.length < pageSize;
+                    // 根据返回数据动态计算总页数
+                    const hasMore = profitData.length === pageSize;
+                    if (!hasMore) {
+                        // 如果当前页没有满页数据，说明这是最后一页
+                        totalProfitPages = page;
+                    } else {
+                        // 当前页满载，至少还有下一页
+                        totalProfitPages = Math.max(totalProfitPages, page + 1);
+                    }
+                    
+                    // 渲染分页组件
+                    renderPagination('profitPagination', currentProfitPage, totalProfitPages, loadProfitRank);
                 }
             } catch (error) {
                 console.error('加载利润排行失败:', error);

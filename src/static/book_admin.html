@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>书籍管理</title>
+    <script src="/static/tailwind-browser.min.js"></script>
     <script src="/static/common-components.js"></script>
     <style>
         * {
@@ -263,30 +264,7 @@
             color: #721c24;
         }
 
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .pagination button {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            background: white;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
-        .pagination button:hover:not(:disabled) {
-            background: #f8f9fa;
-        }
-
-        .pagination button:disabled {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
+        /* Tailwind将处理分页样式 */
 
         .modal {
             display: none;
@@ -484,7 +462,9 @@
                 </table>
             </div>
 
-            <div class="pagination" id="pagination"></div>
+            <nav aria-label="书籍列表分页" class="mt-6">
+                <div id="pagination" class="flex items-center justify-center space-x-2"></div>
+            </nav>
         </div>
     </div>
 
@@ -642,15 +622,98 @@
             updateSelectAllState();
         }
 
-        // 更新分页
+        // 更新分页 - Tailwind版本
         function updatePagination(pagination) {
             const container = document.getElementById('pagination');
             const { page, total_pages } = pagination;
 
+            if (total_pages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
             let html = '';
-            html += `<button ${page <= 1 ? 'disabled' : ''} onclick="loadBooks(${page - 1})">上一页</button>`;
-            html += `<span>第 ${page} / ${total_pages} 页</span>`;
-            html += `<button ${page >= total_pages ? 'disabled' : ''} onclick="loadBooks(${page + 1})">下一页</button>`;
+            
+            // 上一页按钮
+            const prevDisabled = page <= 1;
+            html += `
+                <button 
+                    ${prevDisabled ? 'disabled' : `onclick="loadBooks(${page - 1})"`}
+                    class="relative inline-flex items-center px-2 py-2 rounded-l-md border ${
+                        prevDisabled 
+                            ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    } text-sm font-medium"
+                >
+                    <span class="sr-only">上一页</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+
+            // 页码按钮
+            const startPage = Math.max(1, page - 2);
+            const endPage = Math.min(total_pages, page + 2);
+
+            // 第一页（如果不在当前范围内）
+            if (startPage > 1) {
+                html += `
+                    <button 
+                        onclick="loadBooks(1)"
+                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >1</button>
+                `;
+                if (startPage > 2) {
+                    html += `<span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>`;
+                }
+            }
+
+            // 中间页码
+            for (let i = startPage; i <= endPage; i++) {
+                const isActive = i === page;
+                html += `
+                    <button 
+                        ${isActive ? '' : `onclick="loadBooks(${i})"`}
+                        class="relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            isActive 
+                                ? 'z-10 bg-indigo-600 border-indigo-600 text-white'
+                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                        }"
+                    >${i}</button>
+                `;
+            }
+
+            // 最后一页（如果不在当前范围内）
+            if (endPage < total_pages) {
+                if (endPage < total_pages - 1) {
+                    html += `<span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>`;
+                }
+                html += `
+                    <button 
+                        onclick="loadBooks(${total_pages})"
+                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >${total_pages}</button>
+                `;
+            }
+
+            // 下一页按钮
+            const nextDisabled = page >= total_pages;
+            html += `
+                <button 
+                    ${nextDisabled ? 'disabled' : `onclick="loadBooks(${page + 1})"`}
+                    class="relative inline-flex items-center px-2 py-2 rounded-r-md border ${
+                        nextDisabled 
+                            ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                    } text-sm font-medium"
+                >
+                    <span class="sr-only">下一页</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
 
             container.innerHTML = html;
         }
