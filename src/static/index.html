@@ -565,6 +565,49 @@
             background: #f8f9fa;
             color: #333;
             font-weight: 600;
+            position: relative;
+        }
+
+        /* 排序按钮样式 */
+        .sort-header {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sort-buttons {
+            display: flex;
+            flex-direction: column;
+            margin-left: 8px;
+        }
+
+        .sort-btn {
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            cursor: pointer;
+            margin: 1px 0;
+            opacity: 0.3;
+            transition: opacity 0.2s;
+        }
+
+        .sort-btn.asc {
+            border-bottom: 6px solid #666;
+        }
+
+        .sort-btn.desc {
+            border-top: 6px solid #666;
+        }
+
+        .sort-btn.active {
+            opacity: 1;
+        }
+
+        .sort-btn:hover {
+            opacity: 0.7;
         }
 
         tr:hover {
@@ -822,11 +865,51 @@
                             <th>排名</th>
                             <th>书名</th>
                             <th>ISBN</th>
-                            <th>销量</th>
-                            <th>平均价格</th>
-                            <th>最低价格</th>
-                            <th>最高价格</th>
-                            <th>成本价格</th>
+                            <th>
+                                <div class="sort-header" onclick="sortSalesTable('sale_count')">
+                                    销量
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="sale_count" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="sale_count" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortSalesTable('avg_price')">
+                                    平均价格
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="avg_price" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="avg_price" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortSalesTable('min_price')">
+                                    最低价格
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="min_price" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="min_price" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortSalesTable('max_price')">
+                                    最高价格
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="max_price" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="max_price" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortSalesTable('cost_price')">
+                                    成本价格
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="cost_price" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="cost_price" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -849,10 +932,42 @@
                             <th>排名</th>
                             <th>书名</th>
                             <th>ISBN</th>
-                            <th>孔夫子价格</th>
-                            <th>多抓鱼价格</th>
-                            <th>差价</th>
-                            <th>利润率</th>
+                            <th>
+                                <div class="sort-header" onclick="sortPriceDiffTable('kongfuzi_price')">
+                                    孔夫子价格
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="kongfuzi_price" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="kongfuzi_price" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortPriceDiffTable('duozhuayu_price')">
+                                    多抓鱼价格
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="duozhuayu_price" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="duozhuayu_price" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortPriceDiffTable('price_diff')">
+                                    差价
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="price_diff" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="price_diff" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortPriceDiffTable('profit_rate')">
+                                    利润率
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="profit_rate" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="profit_rate" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -875,9 +990,33 @@
                             <th>排名</th>
                             <th>书名</th>
                             <th>ISBN</th>
-                            <th>销量</th>
-                            <th>差价</th>
-                            <th>预期利润</th>
+                            <th>
+                                <div class="sort-header" onclick="sortProfitTable('sale_count')">
+                                    销量
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="sale_count" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="sale_count" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortProfitTable('price_diff')">
+                                    差价
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="price_diff" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="price_diff" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortProfitTable('expected_profit')">
+                                    预期利润
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="expected_profit" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="expected_profit" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -905,6 +1044,11 @@
         let totalSalesPages = 1;
         let totalDiffPages = 1;
         let totalProfitPages = 1;
+        
+        // 排序状态
+        let currentSalesSort = { field: 'sale_count', direction: 'desc' };
+        let currentDiffSort = { field: 'price_diff', direction: 'desc' };
+        let currentProfitSort = { field: 'expected_profit', direction: 'desc' };
 
         // 渲染Tailwind分页组件
         function renderPagination(containerId, currentPage, totalPages, loadFunction) {
@@ -1361,12 +1505,72 @@
             safeUpdate('turnoverRate', `${businessStats.avg_profit_margin || 0}%`);
         }
 
+        // 排序函数
+        function sortSalesTable(field) {
+            // 切换排序方向
+            if (currentSalesSort.field === field) {
+                currentSalesSort.direction = currentSalesSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSalesSort.field = field;
+                currentSalesSort.direction = 'desc';
+            }
+            
+            // 更新排序按钮状态
+            updateSortButtons('salesRankTable', field, currentSalesSort.direction);
+            
+            // 重新加载数据
+            currentSalesPage = 1;
+            loadSalesRank(1);
+        }
+        
+        function sortPriceDiffTable(field) {
+            if (currentDiffSort.field === field) {
+                currentDiffSort.direction = currentDiffSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentDiffSort.field = field;
+                currentDiffSort.direction = 'desc';
+            }
+            
+            updateSortButtons('priceDiffTable', field, currentDiffSort.direction);
+            currentDiffPage = 1;
+            loadPriceDiffRank(1);
+        }
+        
+        function sortProfitTable(field) {
+            if (currentProfitSort.field === field) {
+                currentProfitSort.direction = currentProfitSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentProfitSort.field = field;
+                currentProfitSort.direction = 'desc';
+            }
+            
+            updateSortButtons('profitRankTable', field, currentProfitSort.direction);
+            currentProfitPage = 1;
+            loadProfitRank(1);
+        }
+        
+        // 更新排序按钮状态
+        function updateSortButtons(tableId, activeField, direction) {
+            const table = document.getElementById(tableId);
+            const sortBtns = table.querySelectorAll('.sort-btn');
+            
+            // 重置所有按钮
+            sortBtns.forEach(btn => btn.classList.remove('active'));
+            
+            // 激活当前排序按钮
+            const activeBtn = table.querySelector(`.sort-btn[data-field="${activeField}"][data-dir="${direction}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+        }
+
         // 销量排行
         async function loadSalesRank(page = 1) {
             try {
                 const offset = (page - 1) * pageSize;
                 const days = currentDays === 0 ? 365 : currentDays;
-                const response = await fetch(`/api/sales/hot?days=${days}&limit=${pageSize}&offset=${offset}`);
+                const sortParam = `&sort_by=${currentSalesSort.field}&sort_order=${currentSalesSort.direction}`;
+                const response = await fetch(`/api/sales/hot?days=${days}&limit=${pageSize}&offset=${offset}${sortParam}`);
                 const data = await response.json();
 
                 if (data.success) {
@@ -1414,7 +1618,8 @@
         async function loadPriceDiffRank(page = 1) {
             try {
                 const offset = (page - 1) * pageSize;
-                const response = await fetch(`/api/profitable/items?min_margin=0&limit=${pageSize}&offset=${offset}`);
+                const sortParam = `&sort_by=${currentDiffSort.field}&sort_order=${currentDiffSort.direction}`;
+                const response = await fetch(`/api/profitable/items?min_margin=0&limit=${pageSize}&offset=${offset}${sortParam}`);
                 const data = await response.json();
 
                 if (data.success) {
@@ -1462,8 +1667,9 @@
             try {
                 const offset = (page - 1) * pageSize;
                 const days = currentDays === 0 ? 365 : currentDays;
+                const sortParam = `&sort_by=${currentProfitSort.field}&sort_order=${currentProfitSort.direction}`;
                 // 这里需要后端支持，暂时用模拟数据
-                const response = await fetch(`/api/sales/hot?days=${days}&limit=${pageSize}&offset=${offset}`);
+                const response = await fetch(`/api/sales/hot?days=${days}&limit=${pageSize}&offset=${offset}${sortParam}`);
                 const data = await response.json();
 
                 if (data.success) {

@@ -37,7 +37,9 @@ async def get_books_list(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None, description="搜索ISBN、书名、作者或出版社"),
-    crawl_status: Optional[str] = Query(None, description="爬取状态过滤")
+    crawl_status: Optional[str] = Query(None, description="爬取状态过滤"),
+    sort_by: str = Query("sales_count", regex="^(sales_count|avg_price|cost_price)$"),
+    sort_order: str = Query("asc", regex="^(asc|desc)$")
 ):
     """获取书籍列表（分页）"""
     try:
@@ -61,6 +63,18 @@ async def get_books_list(
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
         
+        # 构建排序子句
+        allowed_sort_fields = {
+            'sales_count': '(SELECT COUNT(*) FROM sales_records sr WHERE sr.isbn = b.isbn)',
+            'avg_price': '(SELECT AVG(sale_price) FROM sales_records sr WHERE sr.isbn = b.isbn)',
+            'cost_price': '(SELECT AVG(bi.duozhuayu_second_hand_price) FROM book_inventory bi WHERE bi.isbn = b.isbn AND bi.duozhuayu_second_hand_price > 0)'
+        }
+        
+        if sort_by in allowed_sort_fields:
+            order_clause = f"ORDER BY {allowed_sort_fields[sort_by]} {sort_order.upper()} NULLS LAST"
+        else:
+            order_clause = "ORDER BY b.last_sales_update DESC NULLS LAST, b.created_at DESC"
+
         # 获取书籍列表
         from ..models.database import db
         books_query = f"""
@@ -72,7 +86,7 @@ async def get_books_list(
                 (SELECT AVG(bi.duozhuayu_second_hand_price) FROM book_inventory bi WHERE bi.isbn = b.isbn AND bi.duozhuayu_second_hand_price > 0) as cost_price
             FROM books b
             {where_clause}
-            ORDER BY b.last_sales_update DESC NULLS LAST, b.created_at DESC
+            {order_clause}
             LIMIT ? OFFSET ?
         """
         books = db.execute_query(books_query, params + [page_size, offset])
@@ -397,11 +411,13 @@ async def get_sales_statistics(days: int = Query(7, ge=1, le=365)):
 async def get_hot_sales(
     days: int = Query(7, ge=1, le=365),
     limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0)
+    offset: int = Query(0, ge=0),
+    sort_by: str = Query("sale_count", regex="^(sale_count|avg_price|min_price|max_price|cost_price)$"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$")
 ):
     """获取热销排行榜"""
     try:
-        hot_sales = analysis_service.get_hot_sales_ranking(days, limit, offset)
+        hot_sales = analysis_service.get_hot_sales_ranking(days, limit, offset, sort_by, sort_order)
         return {"success": True, "data": hot_sales, "days": days}
     except Exception as e:
         logger.error(f"获取热销排行失败: {e}")
@@ -421,11 +437,13 @@ async def get_sales_trend(days: int = Query(30, ge=1, le=365)):
 async def get_profitable_items(
     min_margin: float = Query(0.0, ge=0, le=100),
     limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0)
+    offset: int = Query(0, ge=0),
+    sort_by: str = Query("price_diff", regex="^(kongfuzi_price|duozhuayu_price|price_diff|profit_rate)$"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$")
 ):
     """获取有利润的商品"""
     try:
-        items = analysis_service.get_profitable_items(min_margin, limit, offset)
+        items = analysis_service.get_profitable_items(min_margin, limit, offset, sort_by, sort_order)
         return {"success": True, "data": items, "min_margin": min_margin}
     except Exception as e:
         logger.error(f"获取利润商品失败: {e}")

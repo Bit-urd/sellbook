@@ -281,8 +281,24 @@ class BookInventoryRepository:
         results = db.execute_query(query, (isbn, shop_id))
         return results[0] if results else None
     
-    def get_profitable_items(self, min_margin: float = 20.0, limit: int = 20, offset: int = 0) -> List[Dict]:
+    def get_profitable_items(self, min_margin: float = 20.0, limit: int = 20, offset: int = 0, sort_by: str = "price_diff", sort_order: str = "desc") -> List[Dict]:
         """获取有利润的商品"""
+        # 字段映射，确保安全
+        allowed_sort_fields = {
+            'kongfuzi_price': 'bi.kongfuzi_price',
+            'duozhuayu_price': 'bi.duozhuayu_second_hand_price',
+            'price_diff': 'bi.price_diff_second_hand',
+            'profit_rate': 'bi.profit_margin_second_hand'
+        }
+        
+        if sort_by not in allowed_sort_fields:
+            sort_by = 'price_diff'
+        
+        if sort_order.lower() not in ['asc', 'desc']:
+            sort_order = 'desc'
+            
+        order_clause = f"ORDER BY {allowed_sort_fields[sort_by]} {sort_order.upper()}"
+        
         query = """
             SELECT bi.*, b.title, b.author, s.shop_name
             FROM book_inventory bi
@@ -290,9 +306,9 @@ class BookInventoryRepository:
             JOIN shops s ON bi.shop_id = s.id
             WHERE bi.is_profitable = 1 
               AND bi.profit_margin_second_hand >= ?
-            ORDER BY bi.profit_margin_second_hand DESC
+            {}
             LIMIT ? OFFSET ?
-        """
+        """.format(order_clause)
         return db.execute_query(query, (min_margin, limit, offset))
 
 class SalesRepository:
@@ -340,8 +356,25 @@ class SalesRepository:
         """.format(days)
         return db.execute_query(query)
     
-    def get_hot_sales(self, days: int = 7, limit: int = 20, offset: int = 0) -> List[Dict]:
+    def get_hot_sales(self, days: int = 7, limit: int = 20, offset: int = 0, sort_by: str = "sale_count", sort_order: str = "desc") -> List[Dict]:
         """获取热销书籍"""
+        # 字段映射，确保安全
+        allowed_sort_fields = {
+            'sale_count': 'sale_count',
+            'avg_price': 'avg_price', 
+            'min_price': 'min_price',
+            'max_price': 'max_price',
+            'cost_price': 'cost_price'
+        }
+        
+        if sort_by not in allowed_sort_fields:
+            sort_by = 'sale_count'
+        
+        if sort_order.lower() not in ['asc', 'desc']:
+            sort_order = 'desc'
+            
+        order_clause = f"ORDER BY {allowed_sort_fields[sort_by]} {sort_order.upper()}"
+        
         query = """
             SELECT b.title, b.isbn, b.author, 
                    COUNT(*) as sale_count,
@@ -354,9 +387,9 @@ class SalesRepository:
             LEFT JOIN book_inventory bi ON sr.isbn = bi.isbn
             WHERE sr.sale_date >= datetime('now', '-{} days')
             GROUP BY sr.isbn
-            ORDER BY sale_count DESC
+            {}
             LIMIT ? OFFSET ?
-        """.format(days)
+        """.format(days, order_clause)
         return db.execute_query(query, (limit, offset))
     
     def get_hot_sales_by_isbn(self, isbn: str) -> List[Dict]:

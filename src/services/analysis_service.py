@@ -101,9 +101,9 @@ class AnalysisService:
         
         return result
     
-    def get_hot_sales_ranking(self, days: int = 7, limit: int = 20, offset: int = 0) -> List[Dict]:
+    def get_hot_sales_ranking(self, days: int = 7, limit: int = 20, offset: int = 0, sort_by: str = "sale_count", sort_order: str = "desc") -> List[Dict]:
         """获取热销排行榜"""
-        hot_sales = self.sales_repo.get_hot_sales(days, limit, offset)
+        hot_sales = self.sales_repo.get_hot_sales(days, limit, offset, sort_by, sort_order)
         
         # 添加排名
         for i, item in enumerate(hot_sales, 1):
@@ -115,9 +115,9 @@ class AnalysisService:
         
         return hot_sales
     
-    def get_profitable_items(self, min_margin: float = 20.0, limit: int = 20, offset: int = 0) -> List[Dict]:
+    def get_profitable_items(self, min_margin: float = 20.0, limit: int = 20, offset: int = 0, sort_by: str = "price_diff", sort_order: str = "desc") -> List[Dict]:
         """获取有利润的商品列表"""
-        items = self.inventory_repo.get_profitable_items(min_margin, limit, offset)
+        items = self.inventory_repo.get_profitable_items(min_margin, limit, offset, sort_by, sort_order)
         
         # 格式化数据
         for i, item in enumerate(items):

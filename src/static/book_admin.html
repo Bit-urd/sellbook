@@ -242,6 +242,48 @@
             top: 0;
         }
 
+        /* 排序按钮样式 */
+        .sort-header {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sort-buttons {
+            display: flex;
+            flex-direction: column;
+            margin-left: 8px;
+        }
+
+        .sort-btn {
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            cursor: pointer;
+            margin: 1px 0;
+            opacity: 0.3;
+            transition: opacity 0.2s;
+        }
+
+        .sort-btn.asc {
+            border-bottom: 6px solid #666;
+        }
+
+        .sort-btn.desc {
+            border-top: 6px solid #666;
+        }
+
+        .sort-btn.active {
+            opacity: 1;
+        }
+
+        .sort-btn:hover {
+            opacity: 0.7;
+        }
+
         tr:hover {
             background: #f8f9fa;
         }
@@ -448,9 +490,33 @@
                             <th>书名</th>
                             <th>作者</th>
                             <th>出版社</th>
-                            <th>30天内销售数</th>
-                            <th>平均价格</th>
-                            <th>成本价</th>
+                            <th>
+                                <div class="sort-header" onclick="sortBooksTable('sales_count')">
+                                    30天内销售数
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="sales_count" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="sales_count" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortBooksTable('avg_price')">
+                                    平均价格
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="avg_price" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="avg_price" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sort-header" onclick="sortBooksTable('cost_price')">
+                                    成本价
+                                    <div class="sort-buttons">
+                                        <div class="sort-btn asc" data-field="cost_price" data-dir="asc"></div>
+                                        <div class="sort-btn desc" data-field="cost_price" data-dir="desc"></div>
+                                    </div>
+                                </div>
+                            </th>
                             <th>爬取状态</th>
                             <th>最后更新</th>
                             <th>操作</th>
@@ -531,11 +597,46 @@
         let currentPage = 1;
         let selectedBooks = new Set();
         let editingIsbn = null;
+        
+        // 排序状态
+        let currentSort = { field: 'sales_count', direction: 'desc' };
 
         // 页面加载时初始化
         window.onload = () => {
             loadBooks();
         };
+
+        // 排序函数
+        function sortBooksTable(field) {
+            // 切换排序方向
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 'asc';
+            }
+            
+            // 更新排序按钮状态
+            updateSortButtons(field, currentSort.direction);
+            
+            // 重新加载数据
+            currentPage = 1;
+            loadBooks(1);
+        }
+        
+        // 更新排序按钮状态
+        function updateSortButtons(activeField, direction) {
+            const sortBtns = document.querySelectorAll('.sort-btn');
+            
+            // 重置所有按钮
+            sortBtns.forEach(btn => btn.classList.remove('active'));
+            
+            // 激活当前排序按钮
+            const activeBtn = document.querySelector(`.sort-btn[data-field="${activeField}"][data-dir="${direction}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+        }
 
         // 加载书籍列表
         async function loadBooks(page = 1) {
@@ -554,6 +655,8 @@
                 if (crawlStatus) {
                     url += `&crawl_status=${crawlStatus}`;
                 }
+                // 添加排序参数
+                url += `&sort_by=${currentSort.field}&sort_order=${currentSort.direction}`;
 
                 const response = await fetch(url);
                 
