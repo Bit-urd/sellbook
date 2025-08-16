@@ -28,7 +28,8 @@ class ChromeWindowPool:
         self.window_info = {}  # 窗口信息 {window_id: {'created_at': time, 'used_count': int}}
         
         # 封控状态追踪
-        self.rate_limited_windows = {}  # 被封控的窗口ID字典 {window_id: unban_time}
+        self.rate_limited_windows = {}  # 被频率限制的窗口ID字典 {window_id: unban_time}
+        self.login_required_windows = {}  # 需要登录的窗口ID字典 {window_id: error_time}
         self.last_success_time = {}  # 每个窗口最后成功时间 {window_id: timestamp}
         
         # 连接相关
@@ -257,18 +258,25 @@ class ChromeWindowPool:
                     page = self.available_windows.popleft()
                     window_id = id(page)
 
-                    # 检查窗口是否被封禁
+                    # 检查窗口是否被频率限制
                     if window_id in self.rate_limited_windows:
                         unban_time = self.rate_limited_windows[window_id]
                         if time.time() < unban_time:
-                            # 仍在封禁期，放回队列末尾，并继续查找
+                            # 仍在频率限制期，放回队列末尾，并继续查找
                             self.available_windows.append(page)
-                            logger.debug(f"窗口 {window_id} 仍在封禁期，跳过")
+                            logger.debug(f"窗口 {window_id} 仍在频率限制期，跳过")
                             continue # 继续循环查找下一个可用窗口
                         else:
-                            # 封禁已过，解除封禁
+                            # 频率限制已过，解除限制
                             self.rate_limited_windows.pop(window_id, None)
-                            logger.info(f"窗口 {window_id} 封禁期已过，已自动解封")
+                            logger.info(f"窗口 {window_id} 频率限制期已过，已自动解封")
+                    
+                    # 检查窗口是否需要登录（登录错误不会自动恢复，需要人工处理）
+                    if window_id in self.login_required_windows:
+                        # 登录错误窗口跳过，不自动恢复
+                        self.available_windows.append(page)
+                        logger.debug(f"窗口 {window_id} 需要登录，跳过")
+                        continue # 继续循环查找下一个可用窗口
                     
                     # 检查窗口是否仍然有效
                     try:
@@ -418,30 +426,63 @@ class ChromeWindowPool:
         self.connected = False
         logger.info("已断开所有浏览器连接")
     
-    def mark_window_rate_limited(self, page: Page, duration_minutes: int = 31):
-        """标记窗口为被封控状态
+    def mark_window_rate_limited(self, page: Page, duration_minutes: int = 6):
+        """标记窗口为被频率限制状态
         
         Args:
             page: 要标记的页面
-            duration_minutes: 封控持续时间（分钟）
+            duration_minutes: 频率限制持续时间（分钟）
         """
         window_id = id(page)
         unban_time = time.time() + duration_minutes * 60
         self.rate_limited_windows[window_id] = unban_time
         
+        # 清除登录错误状态（如果有）
+        self.login_required_windows.pop(window_id, None)
+        
         # 格式化解封时间
         unban_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(unban_time))
-        logger.warning(f"窗口 {window_id} 被标记为封控状态，将在 {unban_time_str} 后解封")
+        logger.warning(f"窗口 {window_id} 被标记为频率限制状态，将在 {unban_time_str} 后解封")
+    
+    def mark_window_login_required(self, page: Page):
+        """标记窗口为需要登录状态
+        
+        Args:
+            page: 要标记的页面
+        """
+        window_id = id(page)
+        error_time = time.time()
+        self.login_required_windows[window_id] = error_time
+        
+        # 清除频率限制状态（如果有）
+        self.rate_limited_windows.pop(window_id, None)
+        
+        error_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(error_time))
+        logger.error(f"窗口 {window_id} 需要登录，请在浏览器中手动登录。错误时间: {error_time_str}")
+    
+    def clear_window_login_required(self, page: Page):
+        """清除窗口的登录错误状态（手动登录后调用）
+        
+        Args:
+            page: 要清除状态的页面
+        """
+        window_id = id(page)
+        if window_id in self.login_required_windows:
+            self.login_required_windows.pop(window_id, None)
+            logger.info(f"窗口 {window_id} 登录错误状态已清除")
     
     def mark_window_success(self, page: Page):
-        """标记窗口成功访问，清除封控状态"""
+        """标记窗口成功访问，清除所有错误状态"""
         window_id = id(page)
+        # 清除频率限制状态
         self.rate_limited_windows.pop(window_id, None)
+        # 清除登录错误状态
+        self.login_required_windows.pop(window_id, None)
         self.last_success_time[window_id] = time.time()
-        logger.debug(f"窗口 {window_id} 成功访问，清除封控状态")
+        logger.debug(f"窗口 {window_id} 成功访问，清除所有错误状态")
     
     def is_all_windows_rate_limited(self) -> bool:
-        """检查是否所有窗口都被封控"""
+        """检查是否所有窗口都被频率限制"""
         total_windows = len(self.available_windows) + len(self.busy_windows)
         if total_windows == 0:
             return False
@@ -454,27 +495,72 @@ class ChromeWindowPool:
             
         now = time.time()
         
-        # 检查所有窗口是否都在封控列表且未到解封时间
+        # 检查所有窗口是否都在频率限制列表且未到解封时间
         for window_id in all_window_ids:
             if window_id not in self.rate_limited_windows or self.rate_limited_windows[window_id] < now:
-                return False  # 只要有一个窗口没被封控，或已解封，就返回False
+                return False  # 只要有一个窗口没被频率限制，或已解封，就返回False
 
-        logger.error(f"警告：所有 {total_windows} 个窗口都被封控！")
+        logger.error(f"警告：所有 {total_windows} 个窗口都被频率限制！")
         return True
     
+    def is_all_windows_login_required(self) -> bool:
+        """检查是否所有窗口都需要登录"""
+        total_windows = len(self.available_windows) + len(self.busy_windows)
+        if total_windows == 0:
+            return False
+        
+        all_window_ids = set()
+        for page in self.available_windows:
+            all_window_ids.add(id(page))
+        for window_id in self.busy_windows.keys():
+            all_window_ids.add(window_id)
+        
+        # 检查所有窗口是否都需要登录
+        for window_id in all_window_ids:
+            if window_id not in self.login_required_windows:
+                return False  # 只要有一个窗口不需要登录，就返回False
+
+        logger.error(f"警告：所有 {total_windows} 个窗口都需要登录！")
+        return True
+    
+    def get_available_window_count(self) -> int:
+        """获取真正可用的窗口数量（排除被限制或需要登录的窗口）"""
+        available_count = 0
+        now = time.time()
+        
+        for page in self.available_windows:
+            window_id = id(page)
+            # 检查是否被频率限制且仍在限制期内
+            if window_id in self.rate_limited_windows and self.rate_limited_windows[window_id] > now:
+                continue
+            # 检查是否需要登录
+            if window_id in self.login_required_windows:
+                continue
+            available_count += 1
+        
+        return available_count
+    
     def get_rate_limit_status(self) -> Dict[str, Any]:
-        """获取封控状态详情"""
+        """获取窗口状态详情"""
         total_windows = len(self.available_windows) + len(self.busy_windows)
         rate_limited_count = len(self.rate_limited_windows)
+        login_required_count = len(self.login_required_windows)
+        available_count = self.get_available_window_count()
         
         rate_limited_windows_info = {k: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(v)) for k, v in self.rate_limited_windows.items()}
+        login_required_windows_info = {k: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(v)) for k, v in self.login_required_windows.items()}
         
         return {
             "total_windows": total_windows,
+            "available_windows": available_count,
             "rate_limited_count": rate_limited_count,
-            "all_limited": self.is_all_windows_rate_limited(),
-            "rate_limited_windows": rate_limited_windows_info,  # 返回详细信息
-            "percentage_limited": (rate_limited_count / total_windows * 100) if total_windows > 0 else 0
+            "login_required_count": login_required_count,
+            "all_rate_limited": self.is_all_windows_rate_limited(),
+            "all_login_required": self.is_all_windows_login_required(),
+            "rate_limited_windows": rate_limited_windows_info,
+            "login_required_windows": login_required_windows_info,
+            "percentage_limited": (rate_limited_count / total_windows * 100) if total_windows > 0 else 0,
+            "percentage_login_required": (login_required_count / total_windows * 100) if total_windows > 0 else 0
         }
     
     def get_pool_status(self) -> Dict[str, Any]:
@@ -483,13 +569,28 @@ class ChromeWindowPool:
         for window_id, info in self.window_info.items():
             status = "busy" if window_id in self.busy_windows else "available"
             is_rate_limited = window_id in self.rate_limited_windows
+            is_login_required = window_id in self.login_required_windows
             unban_time = self.rate_limited_windows.get(window_id)
+            login_error_time = self.login_required_windows.get(window_id)
+            
+            # 判断窗口实际状态
+            if is_login_required:
+                actual_status = "需要登录"
+            elif is_rate_limited:
+                actual_status = "频率限制"
+            elif status == "busy":
+                actual_status = "使用中"
+            else:
+                actual_status = "可用"
             
             window_details.append({
                 "window_id": window_id,
                 "status": status,
+                "actual_status": actual_status,
                 "is_rate_limited": is_rate_limited,
+                "is_login_required": is_login_required,
                 "unban_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(unban_time)) if unban_time else None,
+                "login_error_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(login_error_time)) if login_error_time else None,
                 "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(info['created_at'])),
                 "used_count": info['used_count'],
                 "last_success": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.last_success_time.get(window_id, 0))) if window_id in self.last_success_time else "从未成功"
@@ -545,16 +646,25 @@ class WindowPoolManager:
                 
             except Exception as e:
                 error_msg = str(e)
-                # 检查是否是封控错误
-                if "RATE_LIMITED:" in error_msg or "LOGIN_REQUIRED:" in error_msg:
-                    # 标记窗口为封控状态
-                    self.pool.mark_window_rate_limited(page, duration_minutes=31)
+                
+                # 区分处理不同类型的错误
+                if "LOGIN_REQUIRED:" in error_msg:
+                    # 登录错误：标记窗口为需要登录状态
+                    self.pool.mark_window_login_required(page)
                     
-                    # 检查是否所有窗口都被封控
+                    # 检查是否所有窗口都需要登录
+                    if self.pool.is_all_windows_login_required():
+                        logger.error("所有窗口都需要登录，爬虫服务停止运行")
+                        raise Exception("ALL_WINDOWS_LOGIN_REQUIRED:所有窗口都需要登录，请在浏览器中登录后重试")
+                
+                elif "RATE_LIMITED:" in error_msg:
+                    # 频率限制错误：标记窗口为频率限制状态
+                    self.pool.mark_window_rate_limited(page, duration_minutes=6)
+                    
+                    # 检查是否所有窗口都被频率限制
                     if self.pool.is_all_windows_rate_limited():
-                        logger.error("所有窗口都被封控，需要等待或手动登录")
-                        # 这里可以触发全局等待逻辑
-                        raise Exception("ALL_WINDOWS_RATE_LIMITED:所有窗口都被封控，请等待2分钟或手动登录后重试")
+                        logger.warning("所有窗口都被频率限制，等待6分钟后重试")
+                        raise Exception("ALL_WINDOWS_RATE_LIMITED:所有窗口都被频率限制，请等待6分钟或稍后重试")
                 
                 raise  # 重新抛出异常
                 
