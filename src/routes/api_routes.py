@@ -729,6 +729,8 @@ async def get_task_status(status: Optional[str] = None):
             tasks = task_repo.get_pending_tasks()
         elif status == "running":
             tasks = task_repo.get_running_tasks()
+        elif status == "completed":
+            tasks = task_repo.get_completed_tasks()
         else:
             tasks = task_repo.get_recent_tasks(50)
         

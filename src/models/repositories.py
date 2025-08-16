@@ -478,6 +478,37 @@ class CrawlTaskRepository:
         
         return db.execute_update(query, tuple(task_ids))
     
+    def cleanup_old_completed_tasks(self, days_old: int = 3) -> int:
+        """定期清理已完成的任务
+        
+        Args:
+            days_old: 保留最近多少天的已完成任务，默认3天
+            
+        Returns:
+            删除的任务数量
+        """
+        query = """
+            DELETE FROM crawl_tasks 
+            WHERE status = 'completed' 
+            AND end_time < datetime('now', '-{} days')
+        """.format(days_old)
+        
+        deleted_count = db.execute_update(query)
+        if deleted_count > 0:
+            logger.info(f"自动清理了 {deleted_count} 个超过 {days_old} 天的已完成任务")
+        
+        return deleted_count
+    
+    def get_completed_tasks(self, limit: int = 50) -> List[Dict]:
+        """获取已完成的任务"""
+        query = """
+            SELECT * FROM crawl_tasks 
+            WHERE status = 'completed'
+            ORDER BY end_time DESC 
+            LIMIT ?
+        """
+        return db.execute_query(query, (limit,))
+    
     def create_book_sales_tasks(self, shop_id: int, book_list: List[Dict]) -> int:
         """为店铺的书籍列表批量创建销售记录爬取任务"""
         created_count = 0

@@ -85,6 +85,16 @@ async def startup_event():
     logger.info("应用启动中...")
     # 数据库已在模块导入时初始化
     logger.info("数据库连接就绪")
+    
+    # 自动清理超过3天的已完成任务
+    try:
+        from .models.repositories import CrawlTaskRepository
+        task_repo = CrawlTaskRepository()
+        deleted_count = task_repo.cleanup_old_completed_tasks(days_old=3)
+        if deleted_count > 0:
+            logger.info(f"启动时清理了 {deleted_count} 个已完成的旧任务")
+    except Exception as e:
+        logger.warning(f"清理任务时出错: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -95,10 +105,10 @@ async def shutdown_event():
     from .services.window_pool import chrome_pool
     if chrome_pool.connected:
         logger.info("断开窗口池连接（保留Chrome窗口）...")
-        # 只断开playwright连接，不关闭窗口
-        if chrome_pool.playwright:
-            await chrome_pool.playwright.stop()
-            chrome_pool.playwright = None
+        # 只断开patchright连接，不关闭窗口
+        if chrome_pool.patchright:
+            await chrome_pool.patchright.stop()
+            chrome_pool.patchright = None
             chrome_pool.browser = None
             chrome_pool.connected = False
         logger.info("窗口池已断开，Chrome窗口保持打开状态")

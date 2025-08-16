@@ -9,7 +9,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import aiohttp
-from playwright.async_api import async_playwright, Page
+from patchright.async_api import async_playwright, Page
 from collections import deque
 
 from ..models.models import Shop, Book, BookInventory, SalesRecord, CrawlTask

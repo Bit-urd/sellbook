@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 import aiohttp
-from playwright.async_api import async_playwright, Page, Browser
+from patchright.async_api import async_playwright, Page, Browser
 from collections import deque
 import time
 
@@ -33,7 +33,7 @@ class ChromeWindowPool:
         self.last_success_time = {}  # 每个窗口最后成功时间 {window_id: timestamp}
         
         # 连接相关
-        self.playwright = None
+        self.patchright = None
         self.browser = None
         self.connected = False
         self._lock = asyncio.Lock()
@@ -197,8 +197,8 @@ class ChromeWindowPool:
                         return False
             
             # 连接到浏览器
-            self.playwright = await async_playwright().start()
-            self.browser = await self.playwright.chromium.connect_over_cdp(ws_url)
+            self.patchright = await async_playwright().start()
+            self.browser = await self.patchright.chromium.connect_over_cdp(ws_url)
             
             self.connected = True
             logger.info("成功连接到Chrome浏览器")
@@ -417,10 +417,10 @@ class ChromeWindowPool:
         # 关闭所有窗口
         await self.close_all_windows()
         
-        # 断开playwright连接
-        if self.playwright:
-            await self.playwright.stop()
-            self.playwright = None
+        # 断开patchright连接
+        if self.patchright:
+            await self.patchright.stop()
+            self.patchright = None
             self.browser = None
         
         self.connected = False
