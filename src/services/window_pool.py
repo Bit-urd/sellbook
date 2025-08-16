@@ -257,28 +257,43 @@ class ChromeWindowPool:
         Returns:
             可用的页面对象，如果超时返回None
         """
+        logger.debug(f"开始获取窗口，超时时间: {timeout}秒")
+        
         # 确保窗口池已初始化
         if not self._initialized:
+            logger.debug("窗口池未初始化，开始初始化")
             if not await self.initialize():
+                logger.error("窗口池初始化失败")
                 return None
+            logger.debug("窗口池初始化完成")
         
         start_time = time.time()
+        attempt = 0
         
         while True:
+            attempt += 1
+            logger.debug(f"第{attempt}次尝试获取窗口，已等待{time.time() - start_time:.2f}秒")
+            
             async with self._lock:
-                # 从可用窗口池中获取
-                if self.available_windows:
+                logger.debug(f"已获取窗口池锁，可用窗口数: {len(self.available_windows)}, 忙碌窗口数: {len(self.busy_windows)}")
+                
+                # 尝试获取可用窗口，跳过受限制的窗口
+                checked_windows = []
+                found_page = None
+                
+                while self.available_windows and not found_page:
                     page = self.available_windows.popleft()
                     window_id = id(page)
 
                     # 检查窗口是否被频率限制
                     if window_id in self.rate_limited_windows:
                         unban_time = self.rate_limited_windows[window_id]
+                        logger.debug(f"检查窗口 {window_id} 频率限制状态，解封时间: {time.strftime('%H:%M:%S', time.localtime(unban_time))}")
                         if time.time() < unban_time:
-                            # 仍在频率限制期，放回队列末尾，并继续查找
-                            self.available_windows.append(page)
+                            # 仍在频率限制期，记录并继续查找
+                            checked_windows.append(page)
                             logger.debug(f"窗口 {window_id} 仍在频率限制期，跳过")
-                            continue # 继续循环查找下一个可用窗口
+                            continue
                         else:
                             # 频率限制已过，解除限制
                             self.rate_limited_windows.pop(window_id, None)
@@ -287,9 +302,9 @@ class ChromeWindowPool:
                     # 检查窗口是否需要登录（登录错误不会自动恢复，需要人工处理）
                     if window_id in self.login_required_windows:
                         # 登录错误窗口跳过，不自动恢复
-                        self.available_windows.append(page)
+                        checked_windows.append(page)
                         logger.debug(f"窗口 {window_id} 需要登录，跳过")
-                        continue # 继续循环查找下一个可用窗口
+                        continue
                     
                     # 检查窗口是否仍然有效
                     try:
@@ -300,19 +315,28 @@ class ChromeWindowPool:
                             logger.info(f"窗口 {window_id} 处于空白页，导航到孔夫子网主页")
                             await page.goto("https://www.kongfz.com/", wait_until="domcontentloaded", timeout=10000)
                         
-                        self.busy_windows[window_id] = page
-                        self.window_info[window_id]['used_count'] += 1
-                        logger.debug(f"从池中获取窗口: {window_id}, URL: {current_url}")
-                        return page
+                        # 找到可用窗口
+                        found_page = page
+                        break
                     except:
                         # 窗口已失效，移除并创建新的
                         await self._remove_window_unsafe(page)
                         new_page = await self._create_window()
                         if new_page:
-                            window_id = id(new_page)
-                            self.busy_windows[window_id] = new_page
-                            self.window_info[window_id]['used_count'] += 1
-                            return new_page
+                            found_page = new_page
+                            break
+                
+                # 将检查过但不可用的窗口放回队列
+                for page in checked_windows:
+                    self.available_windows.append(page)
+                
+                # 如果找到可用窗口，标记为忙碌并返回
+                if found_page:
+                    window_id = id(found_page)
+                    self.busy_windows[window_id] = found_page
+                    self.window_info[window_id]['used_count'] += 1
+                    logger.debug(f"从池中获取窗口: {window_id}")
+                    return found_page
                 
                 # 如果池中没有可用窗口，且还能创建新窗口
                 total_windows = len(self.busy_windows) + len(self.available_windows)
@@ -327,7 +351,12 @@ class ChromeWindowPool:
             
             # 检查超时
             if time.time() - start_time > timeout:
-                logger.warning(f"获取窗口超时（{timeout}秒），所有窗口都在使用中")
+                logger.warning(f"获取窗口超时（{timeout}秒），所有窗口都在使用中或被限制")
+                return None
+            
+            # 检查是否所有窗口都被限制，如果是则提前返回
+            if self.is_all_windows_rate_limited() or self.is_all_windows_login_required():
+                logger.warning("所有窗口都被限制或需要登录，无法获取可用窗口")
                 return None
             
             # 等待一小段时间后重试
@@ -643,15 +672,24 @@ class WindowPoolManager:
     def __call__(self, func):
         """装饰器：自动管理窗口生命周期"""
         async def wrapper(*args, **kwargs):
+            logger.debug(f"开始执行窗口管理器装饰的函数: {func.__name__}")
+            
             # 获取窗口
+            logger.debug("开始获取窗口")
             page = await self.pool.get_window()
             if not page:
+                logger.error("无法获取可用的浏览器窗口")
                 raise Exception("无法获取可用的浏览器窗口，请稍后重试")
+            
+            window_id = id(page)
+            logger.debug(f"获取到窗口 {window_id}，开始执行函数")
             
             try:
                 # 将page注入到函数参数中
                 kwargs['page'] = page
+                logger.debug(f"开始执行函数 {func.__name__}")
                 result = await func(*args, **kwargs)
+                logger.debug(f"函数 {func.__name__} 执行成功")
                 
                 # 成功完成，标记窗口为成功状态
                 self.pool.mark_window_success(page)
@@ -659,9 +697,11 @@ class WindowPoolManager:
                 
             except Exception as e:
                 error_msg = str(e)
+                logger.error(f"函数 {func.__name__} 执行出错: {error_msg}")
                 
                 # 区分处理不同类型的错误
                 if "LOGIN_REQUIRED:" in error_msg:
+                    logger.warning(f"窗口 {window_id} 需要登录")
                     # 登录错误：标记窗口为需要登录状态
                     self.pool.mark_window_login_required(page)
                     
@@ -671,18 +711,22 @@ class WindowPoolManager:
                         raise Exception("ALL_WINDOWS_LOGIN_REQUIRED:所有窗口都需要登录，请在浏览器中登录后重试")
                 
                 elif "RATE_LIMITED:" in error_msg:
+                    logger.warning(f"窗口 {window_id} 被频率限制")
                     # 频率限制错误：标记窗口为频率限制状态
                     self.pool.mark_window_rate_limited(page, duration_minutes=6)
                     
                     # 检查是否所有窗口都被频率限制
                     if self.pool.is_all_windows_rate_limited():
                         logger.warning("所有窗口都被频率限制，等待6分钟后重试")
-                        raise Exception("ALL_WINDOWS_RATE_LIMITED:所有窗口都被频率限制，请等待6分钟或稍后重试")
+                        # 不要阻塞主线程，直接重新抛出原始异常
+                        pass
                 
                 raise  # 重新抛出异常
                 
             finally:
+                logger.debug(f"开始归还窗口 {window_id}")
                 # 归还窗口，默认保持存活状态
                 await self.pool.return_window(page, keep_alive=self.keep_window_alive)
+                logger.debug(f"窗口 {window_id} 已归还")
         
         return wrapper

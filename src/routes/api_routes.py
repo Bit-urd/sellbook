@@ -38,8 +38,8 @@ async def get_books_list(
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None, description="搜索ISBN、书名、作者或出版社"),
     crawl_status: Optional[str] = Query(None, description="爬取状态过滤"),
-    sort_by: str = Query("sales_count", regex="^(sales_count|avg_price|cost_price)$"),
-    sort_order: str = Query("asc", regex="^(asc|desc)$")
+    sort_by: str = Query("sales_count", pattern="^(sales_count|avg_price|cost_price)$"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$")
 ):
     """获取书籍列表（分页）"""
     try:
@@ -412,8 +412,8 @@ async def get_hot_sales(
     days: int = Query(7, ge=1, le=365),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    sort_by: str = Query("sale_count", regex="^(sale_count|avg_price|min_price|max_price|cost_price)$"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$")
+    sort_by: str = Query("sale_count", pattern="^(sale_count|avg_price|min_price|max_price|cost_price)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$")
 ):
     """获取热销排行榜"""
     try:
@@ -438,8 +438,8 @@ async def get_profitable_items(
     min_margin: float = Query(0.0, ge=0, le=100),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    sort_by: str = Query("price_diff", regex="^(kongfuzi_price|duozhuayu_price|price_diff|profit_rate)$"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$")
+    sort_by: str = Query("price_diff", pattern="^(kongfuzi_price|duozhuayu_price|price_diff|profit_rate)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$")
 ):
     """获取有利润的商品"""
     try:
@@ -494,7 +494,7 @@ async def get_price_comparison(isbn: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/isbn/{isbn}/analysis")
-async def get_isbn_analysis(isbn: str, quality: str = Query("九品以上", regex="^(九品以上|全部品相)$")):
+async def get_isbn_analysis(isbn: str, quality: str = Query("九品以上", pattern="^(九品以上|全部品相)$")):
     """获取ISBN分析数据（GET方式，用于前端调用）
     
     Args:
@@ -526,7 +526,7 @@ async def get_isbn_analysis(isbn: str, quality: str = Query("九品以上", rege
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/book/analyze")
-async def analyze_book_sales(isbn: str, quality: str = Query("high", regex="^(high|all)$")):
+async def analyze_book_sales(isbn: str, quality: str = Query("high", pattern="^(high|all)$")):
     """实时分析单本书的销售数据（ISBN搜索）
     
     Args:
@@ -579,6 +579,15 @@ async def analyze_book_sales(isbn: str, quality: str = Query("high", regex="^(hi
         elif "RATE_LIMITED:" in error_str:
             error_type = "RATE_LIMITED" 
             error_message = error_str.split("RATE_LIMITED:")[1].strip()
+        elif "搜索次数已达到上限" in error_str or "请求错误，请降低访问频次" in error_str:
+            # 检查窗口池状态
+            from ..services.window_pool import chrome_pool
+            if chrome_pool.is_all_windows_rate_limited():
+                error_type = "ALL_WINDOWS_RATE_LIMITED"
+                error_message = "所有窗口都被频率限制，请等待6分钟后重试"
+            else:
+                error_type = "RATE_LIMITED"
+                error_message = "访问频率过高，请稍后重试"
         elif "Cannot connect to host localhost:9222" in error_str:
             error_type = "CRAWLER_SERVICE_UNAVAILABLE"
             error_message = "爬虫服务暂时不可用，请稍后再试"
@@ -1574,7 +1583,7 @@ async def get_queue_status():
 
 @sales_data_router.get("/books/crawl-status")
 async def get_books_crawl_status(
-    status: str = Query("all", regex="^(all|crawled|not_crawled)$"),
+    status: str = Query("all", pattern="^(all|crawled|not_crawled)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     shop_search: Optional[str] = Query(None, description="搜索店铺名称或店铺ID")

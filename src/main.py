@@ -4,6 +4,7 @@
 """
 import logging
 from pathlib import Path
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
@@ -24,6 +25,41 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    # 启动事件
+    logger.info("应用启动中...")
+    # 数据库已在模块导入时初始化
+    logger.info("数据库连接就绪")
+    
+    # 自动清理超过3天的已完成任务
+    try:
+        from .models.repositories import CrawlTaskRepository
+        task_repo = CrawlTaskRepository()
+        deleted_count = task_repo.cleanup_old_completed_tasks(days_old=3)
+        if deleted_count > 0:
+            logger.info(f"启动时清理了 {deleted_count} 个已完成的旧任务")
+    except Exception as e:
+        logger.warning(f"清理任务时出错: {e}")
+    
+    yield
+    
+    # 关闭事件
+    logger.info("应用关闭中...")
+    
+    # 断开窗口池连接，但保留窗口
+    from .services.window_pool import chrome_pool
+    if chrome_pool.connected:
+        logger.info("断开窗口池连接（保留Chrome窗口）...")
+        # 只断开patchright连接，不关闭窗口
+        if chrome_pool.patchright:
+            await chrome_pool.patchright.stop()
+            chrome_pool.patchright = None
+            chrome_pool.browser = None
+            chrome_pool.connected = False
+        logger.info("窗口池已断开，Chrome窗口保持打开状态")
+
 class CSPMiddleware(BaseHTTPMiddleware):
     """CSP中间件，允许Chart.js正常运行"""
     async def dispatch(self, request: Request, call_next):
@@ -43,7 +79,8 @@ class CSPMiddleware(BaseHTTPMiddleware):
 app = FastAPI(
     title="卖书网站价差数据分析系统",
     description="孔夫子和多抓鱼价差分析系统",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # 添加CSP中间件
@@ -79,39 +116,6 @@ static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-@app.on_event("startup")
-async def startup_event():
-    """应用启动事件"""
-    logger.info("应用启动中...")
-    # 数据库已在模块导入时初始化
-    logger.info("数据库连接就绪")
-    
-    # 自动清理超过3天的已完成任务
-    try:
-        from .models.repositories import CrawlTaskRepository
-        task_repo = CrawlTaskRepository()
-        deleted_count = task_repo.cleanup_old_completed_tasks(days_old=3)
-        if deleted_count > 0:
-            logger.info(f"启动时清理了 {deleted_count} 个已完成的旧任务")
-    except Exception as e:
-        logger.warning(f"清理任务时出错: {e}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭事件"""
-    logger.info("应用关闭中...")
-    
-    # 断开窗口池连接，但保留窗口
-    from .services.window_pool import chrome_pool
-    if chrome_pool.connected:
-        logger.info("断开窗口池连接（保留Chrome窗口）...")
-        # 只断开patchright连接，不关闭窗口
-        if chrome_pool.patchright:
-            await chrome_pool.patchright.stop()
-            chrome_pool.patchright = None
-            chrome_pool.browser = None
-            chrome_pool.connected = False
-        logger.info("窗口池已断开，Chrome窗口保持打开状态")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():

@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import aiohttp
@@ -179,6 +180,8 @@ class KongfuziCrawler:
             quality_filter: 品相过滤 - "high" (九品以上) 或 "all" (全部品相)
             page: 浏览器页面（由装饰器自动注入）
         """
+        logger.debug(f"开始分析书籍销售数据: ISBN={isbn}, 天数限制={days_limit}, 品相过滤={quality_filter}")
+        
         cutoff_date = datetime.now() - timedelta(days=days_limit)
         all_sales = []
         
@@ -186,7 +189,9 @@ class KongfuziCrawler:
         max_pages = 20
         
         try:
+            logger.debug(f"开始循环爬取，最大页数: {max_pages}")
             while page_num <= max_pages:
+                logger.debug(f"开始处理第 {page_num} 页")
                 # 根据品相过滤和页码构建搜索URL
                 if quality_filter == "high":
                     # 九品以上 (90分以上)
@@ -197,12 +202,16 @@ class KongfuziCrawler:
                 
                 logger.info(f"正在爬取第 {page_num} 页: {search_url}")
                 
+                logger.debug(f"开始导航到页面: {search_url}")
                 await page.goto(search_url, wait_until='networkidle')
+                logger.debug(f"页面导航完成，等待2秒")
                 await asyncio.sleep(2)
                 
                 # 第一页检查登录状态
                 if page_num == 1:
+                    logger.debug("检查第一页的登录状态和频率限制")
                     await self._check_page_for_rate_limit(page)
+                    logger.debug("第一页状态检查完成")
                 
                 # 提取当前页面的销售记录
                 page_sales = await self.extract_sales_records(page)
@@ -995,9 +1004,11 @@ class KongfuziCrawler:
             page: 浏览器页面
         """
         if not page:
+            logger.debug("页面对象为空，跳过检查")
             return
         
         try:
+            logger.debug("开始获取页面内容用于状态检查")
             # 检查页面标题和内容
             page_content = await page.evaluate("""
                 () => {
@@ -1013,20 +1024,32 @@ class KongfuziCrawler:
             # 检查所有内容
             all_content = f"{page_content.get('title', '')} {page_content.get('body', '')} {page_content.get('html', '')}"
             current_url = page_content.get('url', '')
+            page_title = page_content.get('title', '')
+            
+            logger.debug(f"页面标题: {page_title}")
+            logger.debug(f"当前URL: {current_url}")
+            logger.debug(f"页面内容长度: {len(all_content)}")
             
             # 检查登录状态
             if self._is_login_required(all_content, current_url):
+                logger.warning("检测到需要登录")
                 raise Exception("LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。")
             
             # 检查频率限制
             if self._is_rate_limit_error(all_content):
+                logger.warning("检测到频率限制")
+                time.sleep(1)
                 raise Exception("RATE_LIMITED:很抱歉，您当前的搜索次数已达到上限，请稍后访问！请求错误，请降低访问频次或更换真实账号使用。")
+            
+            logger.debug("页面状态检查通过，无登录或频率限制问题")
                 
         except Exception as e:
             error_str = str(e)
+            logger.error(f"页面状态检查出错: {error_str}")
             if self._is_rate_limit_error(error_str) or self._is_login_required_error(error_str):
                 raise
             # 其他异常不处理，继续执行
+            logger.debug("忽略非关键异常，继续执行")
     
     async def extract_book_info_from_current_page(self, page: Page) -> Dict:
         """从当前页面提取书籍信息
