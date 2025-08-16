@@ -269,10 +269,14 @@ sqlite3 data/sellbook.db "SELECT * FROM shops LIMIT 5;"
 rm -f data/sellbook.db && python -c "from src.models.database import db; db.init_database()"
 ```
 
+### 添加依赖
+```
+uv add fastapi 或者 uv pip install fastapi
+```
 ### 开发服务器
 ```bash
 # 启动开发服务器
-uvicorn src.main:app --reload --port 8282
+uv run python run.py
 
 # 访问API文档
 open http://localhost:8282/docs

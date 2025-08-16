@@ -214,7 +214,9 @@ class ChromeWindowPool:
         """创建新的浏览器窗口"""
         try:
             if not self.connected or not self.browser:
-                return None
+                # 尝试重新连接浏览器
+                if not await self._connect_browser():
+                    return None
             
             # 创建新的上下文和页面
             context = await self.browser.new_context()
@@ -233,6 +235,17 @@ class ChromeWindowPool:
             
         except Exception as e:
             logger.error(f"创建窗口失败: {e}")
+            # 如果是连接错误，尝试重置连接状态
+            if "Connection closed" in str(e) or "WebSocket" in str(e):
+                logger.warning("检测到浏览器连接断开，重置连接状态")
+                self.connected = False
+                self.browser = None
+                if self.patchright:
+                    try:
+                        await self.patchright.stop()
+                    except:
+                        pass
+                    self.patchright = None
             return None
     
     async def get_window(self, timeout: float = 30.0) -> Optional[Page]:

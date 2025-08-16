@@ -1916,23 +1916,43 @@ class TaskQueue:
             self.task_repo = CrawlTaskRepository()
             self._lock = asyncio.Lock()
             self._processing = False
+            self._retry_counts = {}  # 任务重试计数器 {task_id: retry_count}
             TaskQueue._initialized = True
+    
+    async def _get_task_retry_count(self, task_id: int) -> int:
+        """获取任务的重试次数"""
+        return self._retry_counts.get(task_id, 0)
+    
+    async def _set_task_retry_count(self, task_id: int, count: int):
+        """设置任务的重试次数"""
+        self._retry_counts[task_id] = count
+    
+    async def _clear_task_retry_count(self, task_id: int):
+        """清除任务的重试计数"""
+        self._retry_counts.pop(task_id, None)
     
     async def add_tasks(self, task_ids: List[int]) -> int:
         """将任务添加到队列"""
+        added_count = 0
+        should_start_processing = False
+        
         async with self._lock:
-            added_count = 0
             for task_id in task_ids:
                 if task_id not in self.running_tasks and task_id not in self.queue:
                     # 只加入内存队列，不更改数据库状态
                     self.queue.append(task_id)
                     added_count += 1
             
-            # 如果队列不为空且没有在处理，启动处理
+            # 如果队列不为空且没有在处理，标记需要启动处理
             if self.queue and not self._processing:
-                asyncio.create_task(self._process_queue())
-            
-            return added_count
+                should_start_processing = True
+                self._processing = True  # 立即标记为处理中，避免重复启动
+        
+        # 在锁外启动处理，避免长时间持有锁
+        if should_start_processing:
+            asyncio.create_task(self._process_queue())
+        
+        return added_count
     
     async def add_pending_tasks(self) -> int:
         """将所有待执行任务添加到队列"""
@@ -1952,8 +1972,9 @@ class TaskQueue:
     async def clear_all_tasks(self) -> Dict[str, int]:
         """清空队列并删除所有待执行任务"""
         async with self._lock:
-            # 清空队列
-            queue_count = await self.clear_queue()
+            # 直接清空队列，不调用clear_queue避免重复获取锁
+            queue_count = len(self.queue)
+            self.queue.clear()
             
             # 删除所有pending任务
             from ..models.database import db
@@ -2063,15 +2084,56 @@ class TaskQueue:
                         logger.error(f"任务 {task_id} 执行失败: {result.get('message')}")
                 
                 except Exception as e:
+                    error_msg = str(e)
                     logger.error(f"处理任务 {task_id} 时发生异常: {e}")
-                    try:
-                        self.task_repo.update_status(task_id, 'failed', error_message=str(e))
-                    except:
-                        pass
+                    
+                    # 特殊处理全局频率限制异常
+                    if "ALL_WINDOWS_RATE_LIMITED" in error_msg:
+                        logger.warning(f"任务 {task_id} 因全窗口频率限制暂停，暂停任务队列处理")
+                        
+                        # 获取当前重试次数
+                        retry_count = await self._get_task_retry_count(task_id)
+                        retry_count += 1
+                        
+                        if retry_count <= 3:  # 最多重试3次
+                            try:
+                                # 更新重试次数和状态
+                                await self._set_task_retry_count(task_id, retry_count)
+                                self.task_repo.update_status(task_id, 'pending', 
+                                                           error_message=f"窗口频率限制，第{retry_count}次重试")
+                                # 将任务重新加入队列开头，优先处理
+                                async with self._lock:
+                                    if task_id not in self.queue:
+                                        self.queue.appendleft(task_id)
+                                logger.info(f"任务 {task_id} 已重新加入队列开头等待重试（第{retry_count}次）")
+                            except:
+                                pass
+                            # 暂停队列处理，不阻塞整个应用
+                            logger.warning("检测到全窗口频率限制，暂停任务队列处理6分钟")
+                            # 设置处理状态为false，允许后续重新启动
+                            async with self._lock:
+                                self._processing = False
+                            return  # 直接退出队列处理
+                        else:
+                            # 重试次数超限，标记为失败
+                            try:
+                                self.task_repo.update_status(task_id, 'failed', 
+                                                           error_message=f"频率限制重试次数超限（{retry_count-1}次）")
+                                logger.error(f"任务 {task_id} 频率限制重试次数超限，标记为失败")
+                            except:
+                                pass
+                    else:
+                        # 其他异常，标记为失败
+                        try:
+                            self.task_repo.update_status(task_id, 'failed', error_message=error_msg)
+                        except:
+                            pass
                 
                 finally:
                     async with self._lock:
                         self.running_tasks.discard(task_id)
+                    # 清除任务的重试计数（在锁外执行）
+                    await self._clear_task_retry_count(task_id)
                 
                 # 任务间间隔，避免过快执行
                 await asyncio.sleep(1)

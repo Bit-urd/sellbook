@@ -1,229 +1,248 @@
+warning: `VIRTUAL_ENV=/Users/admin/my-project/sellbook-v2/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
 INFO:     Will watch for changes in these directories: ['/Users/admin/my-project/sellbook/src']
 INFO:     Uvicorn running on http://0.0.0.0:8282 (Press CTRL+C to quit)
-INFO:     Started reloader process [96037] using StatReload
-INFO:     Started server process [96039]
+INFO:     Started reloader process [17749] using StatReload
+INFO:     Started server process [17762]
 INFO:     Waiting for application startup.
-2025-08-16 00:37:44,473 - src.main - INFO - 应用启动中...
-2025-08-16 00:37:44,473 - src.main - INFO - 数据库连接就绪
+2025-08-16 18:59:24,923 - src.main - INFO - 应用启动中...
+2025-08-16 18:59:24,923 - src.main - INFO - 数据库连接就绪
 INFO:     Application startup complete.
-INFO:     127.0.0.1:52760 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52760 - "GET /static/common-components.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:52760 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52765 - "GET /api/dashboard HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52766 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52760 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52775 - "GET /favicon.ico HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:52812 - "GET /api/dashboard HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52813 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52970 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53053 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53165 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53165 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53165 - "GET /api/dashboard HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53169 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
-2025-08-16 00:39:51,790 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
-INFO:     127.0.0.1:53329 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53228 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53228 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53464 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53639 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53786 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53953 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:42:01,191 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [96039]
-INFO:     Started server process [98566]
-INFO:     Waiting for application startup.
-2025-08-16 00:42:01,735 - src.main - INFO - 应用启动中...
-2025-08-16 00:42:01,735 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:42:12,870 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [98566]
-INFO:     Started server process [98734]
-INFO:     Waiting for application startup.
-2025-08-16 00:42:13,304 - src.main - INFO - 应用启动中...
-2025-08-16 00:42:13,304 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-INFO:     127.0.0.1:54093 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'src/routes/api_routes.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:42:34,032 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [98734]
-INFO:     Started server process [98916]
-INFO:     Waiting for application startup.
-2025-08-16 00:42:34,470 - src.main - INFO - 应用启动中...
-2025-08-16 00:42:34,470 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-INFO:     127.0.0.1:54226 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54357 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54691 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:44:37,963 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [98916]
-INFO:     Started server process [99982]
-INFO:     Waiting for application startup.
-2025-08-16 00:44:38,388 - src.main - INFO - 应用启动中...
-2025-08-16 00:44:38,389 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:44:53,858 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [99982]
-INFO:     Started server process [226]
-INFO:     Waiting for application startup.
-2025-08-16 00:44:54,275 - src.main - INFO - 应用启动中...
-2025-08-16 00:44:54,275 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-INFO:     127.0.0.1:54809 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55029 - "GET /api/dashboard HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55119 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55124 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55124 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55124 - "GET /api/dashboard HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55127 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55129 - "GET /favicon.ico HTTP/1.1" 404 Not Found
-2025-08-16 00:46:16,817 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
-2025-08-16 00:46:20,873 - src.services.crawler_service - ERROR - 爬取ISBN 9787572201882 销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
-2025-08-16 00:46:20,873 - src.routes.api_routes - ERROR - 分析书籍销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
-INFO:     127.0.0.1:55127 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55229 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55234 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55421 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-2025-08-16 00:46:59,445 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
-2025-08-16 00:47:02,780 - src.services.crawler_service - ERROR - 爬取ISBN 9787572201882 销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
-2025-08-16 00:47:02,780 - src.routes.api_routes - ERROR - 分析书籍销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
-INFO:     127.0.0.1:55390 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55537 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55547 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55664 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55775 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:48:26,359 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [226]
-INFO:     Started server process [1579]
-INFO:     Waiting for application startup.
-2025-08-16 00:48:26,797 - src.main - INFO - 应用启动中...
-2025-08-16 00:48:26,797 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-INFO:     127.0.0.1:55795 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:48:49,444 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [1579]
-INFO:     Started server process [1802]
-INFO:     Waiting for application startup.
-2025-08-16 00:48:49,852 - src.main - INFO - 应用启动中...
-2025-08-16 00:48:49,852 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-INFO:     127.0.0.1:56242 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-2025-08-16 00:50:03,493 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
-INFO:     127.0.0.1:56224 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56224 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56350 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56361 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56483 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56573 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56609 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56769 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56864 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56877 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57036 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:53:20,004 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [1802]
-INFO:     Started server process [3176]
-INFO:     Waiting for application startup.
-2025-08-16 00:53:20,443 - src.main - INFO - 应用启动中...
-2025-08-16 00:53:20,443 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-INFO:     127.0.0.1:57132 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57145 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57465 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57584 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57584 - "GET /static/common-components.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:57584 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57584 - "GET /api/dashboard HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57586 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57690 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-2025-08-16 00:55:23,956 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
-2025-08-16 00:55:23,956 - src.services.crawler_service - INFO - 正在爬取第 1 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=1&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=1
-INFO:     127.0.0.1:57739 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-2025-08-16 00:55:27,088 - src.services.crawler_service - INFO - 第 1 页获取了 50 条有效销售记录
-2025-08-16 00:55:29,089 - src.services.crawler_service - INFO - 正在爬取第 2 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=2&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=2
-2025-08-16 00:55:32,162 - src.services.crawler_service - INFO - 第 2 页获取了 50 条有效销售记录
-2025-08-16 00:55:34,163 - src.services.crawler_service - INFO - 正在爬取第 3 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=3&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=3
-2025-08-16 00:55:36,842 - src.services.crawler_service - INFO - 第 3 页获取了 50 条有效销售记录
-2025-08-16 00:55:38,843 - src.services.crawler_service - INFO - 正在爬取第 4 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=4&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=4
-2025-08-16 00:55:41,862 - src.services.crawler_service - INFO - 第 4 页获取了 28 条有效销售记录
-2025-08-16 00:55:41,862 - src.services.crawler_service - INFO - 第 4 页发现超过 30 天的记录，停止翻页
-INFO:     127.0.0.1:57644 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57644 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57836 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57836 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57836 - "GET /api/dashboard HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57838 - "GET /api/sales/hot?days=3&limit=20&offset=0 HTTP/1.1" 200 OK
-2025-08-16 00:56:13,632 - src.services.crawler_service - INFO - 成功连接到Chrome浏览器
-2025-08-16 00:56:13,632 - src.services.crawler_service - INFO - 正在爬取第 1 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=1&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=1
-2025-08-16 00:56:16,754 - src.services.crawler_service - INFO - 第 1 页获取了 50 条有效销售记录
-2025-08-16 00:56:18,755 - src.services.crawler_service - INFO - 正在爬取第 2 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=2&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=2
-2025-08-16 00:56:21,826 - src.services.crawler_service - INFO - 第 2 页获取了 50 条有效销售记录
-INFO:     127.0.0.1:57968 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57974 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-2025-08-16 00:56:23,827 - src.services.crawler_service - INFO - 正在爬取第 3 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=3&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=3
-2025-08-16 00:56:26,907 - src.services.crawler_service - INFO - 第 3 页获取了 50 条有效销售记录
-2025-08-16 00:56:28,908 - src.services.crawler_service - INFO - 正在爬取第 4 页: https://search.kongfz.com/product/?dataType=1&keyword=9787572201882&page=4&sortType=10&actionPath=sortType,quality&quality=90~&quaSelect=4
-2025-08-16 00:56:31,951 - src.services.crawler_service - INFO - 第 4 页获取了 28 条有效销售记录
-2025-08-16 00:56:31,951 - src.services.crawler_service - INFO - 第 4 页发现超过 30 天的记录，停止翻页
-INFO:     127.0.0.1:57877 - "POST /api/book/analyze?isbn=9787572201882&quality=high HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57877 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58071 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58179 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58185 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58324 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:58:16,621 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [3176]
-INFO:     Started server process [4855]
-INFO:     Waiting for application startup.
-2025-08-16 00:58:17,091 - src.main - INFO - 应用启动中...
-2025-08-16 00:58:17,091 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-INFO:     127.0.0.1:58477 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58481 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'src/services/crawler_service.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2025-08-16 00:58:31,950 - src.main - INFO - 应用关闭中...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [4855]
-INFO:     Started server process [5032]
-INFO:     Waiting for application startup.
-2025-08-16 00:58:32,366 - src.main - INFO - 应用启动中...
-2025-08-16 00:58:32,366 - src.main - INFO - 数据库连接就绪
-INFO:     Application startup complete.
-INFO:     127.0.0.1:58599 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64315 - "GET /static/index.html HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64315 - "GET /static/common-components.js HTTP/1.1" 304 Not Modified
+INFO:     10.0.0.3:64315 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64318 - "GET /api/sales/statistics?days=1 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64319 - "GET /api/sales/hot?days=3&limit=10&offset=0&sort_by=sale_count&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64319 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64420 - "GET /static/index.html HTTP/1.1" 304 Not Modified
+INFO:     10.0.0.3:64420 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64421 - "GET /api/sales/statistics?days=1 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64422 - "GET /api/sales/hot?days=3&limit=10&offset=0&sort_by=sale_count&sort_order=desc HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64422 - "GET /api/dashboard HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64422 - "GET /static/crawler_admin.html HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64422 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64421 - "GET /sales-data/shops?page=1&page_size=1 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64420 - "GET /task-executor/task-types/list HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64429 - "GET /task-executor/tasks/list?page=1&page_size=20&status=queued HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64421 - "GET /sales-data/books/crawl-status?status=all&page=1&page_size=1 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64441 - "GET /task-executor/tasks/list?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64462 - "GET /task-executor/tasks/list?page=1&page_size=20&status=pending HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64471 - "GET /task-executor/tasks/list?page=1&page_size=20&status=failed HTTP/1.1" 200 OK
+2025-08-16 19:00:12,993 - src.services.crawler_service - INFO - 开始处理任务队列
+2025-08-16 19:00:12,993 - src.services.crawler_service - INFO - 开始执行任务 41: 爬取店铺 534779 的书籍
+2025-08-16 19:00:12,994 - src.services.crawler_service - ERROR - 处理任务 41 时发生异常: 不支持的任务类型: shop_books
+INFO:     10.0.0.3:64490 - "POST /task-executor/tasks/retry-failed HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64490 - "GET /task-executor/tasks/list?page=1&page_size=20&status=failed HTTP/1.1" 200 OK
+2025-08-16 19:00:13,997 - src.services.crawler_service - INFO - 开始执行任务 196: 爬取《毫针速刺法》销售记录
+2025-08-16 19:00:14,332 - src.services.window_pool - INFO - 成功连接到Chrome浏览器
+2025-08-16 19:00:14,332 - src.services.window_pool - INFO - 需要创建 2 个新窗口
+2025-08-16 19:00:14,449 - src.services.window_pool - INFO - 创建新窗口: 4423624592
+2025-08-16 19:00:15,138 - src.services.window_pool - INFO - 创建新窗口 1/2 成功
+2025-08-16 19:00:15,265 - src.services.window_pool - INFO - 创建新窗口: 4871517968
+2025-08-16 19:00:16,048 - src.services.window_pool - INFO - 创建新窗口 2/2 成功
+2025-08-16 19:00:16,049 - src.services.window_pool - INFO - ============================================================
+2025-08-16 19:00:16,049 - src.services.window_pool - INFO - 请在新打开的Chrome窗口中登录孔夫子旧书网账号
+2025-08-16 19:00:16,049 - src.services.window_pool - INFO -   新窗口1: https://www.kongfz.com/
+2025-08-16 19:00:16,049 - src.services.window_pool - INFO -   新窗口2: https://www.kongfz.com/
+2025-08-16 19:00:16,049 - src.services.window_pool - INFO - 登录完成后，窗口将保持登录状态供爬虫使用
+2025-08-16 19:00:16,049 - src.services.window_pool - INFO - ============================================================
+2025-08-16 19:00:16,049 - src.services.window_pool - INFO - 窗口池初始化完成，共有 2 个窗口
+2025-08-16 19:00:17,642 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:64503 - "GET /task-executor/tasks/list?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.2:64585 - "POST /task-executor/queue/clear HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64503 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 19:00:22,659 - src.services.crawler_service - ERROR - 分析并保存ISBN 9787543976054 销售数据失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
+2025-08-16 19:00:22,659 - src.services.window_pool - ERROR - 窗口 4423624592 需要登录，请在浏览器中手动登录。错误时间: 2025-08-16 19:00:22
+2025-08-16 19:00:22,664 - src.services.crawler_service - ERROR - 爬取ISBN 9787543976054 失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
+2025-08-16 19:00:22,667 - src.services.crawler_service - ERROR - 任务 196 执行失败: 爬取ISBN 9787543976054 失败: LOGIN_REQUIRED:需要登录孔夫子旧书网账号才能访问销售数据。请在浏览器中登录后重试。
+2025-08-16 19:00:23,668 - src.services.crawler_service - INFO - 任务队列处理完成
+INFO:     10.0.0.3:64619 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64659 - "GET /static/crawler_admin.html HTTP/1.1" 304 Not Modified
+INFO:     10.0.0.3:64659 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64660 - "GET /sales-data/shops?page=1&page_size=1 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64661 - "GET /task-executor/task-types/list HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64662 - "GET /task-executor/tasks/list?page=1&page_size=20&status=queued HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64662 - "GET /sales-data/books/crawl-status?status=all&page=1&page_size=1 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64672 - "GET /task-executor/tasks/list?page=1&page_size=20 HTTP/1.1" 200 OK
+2025-08-16 19:01:13,302 - src.services.crawler_service - INFO - 开始处理任务队列
+2025-08-16 19:01:13,303 - src.services.crawler_service - INFO - 开始执行任务 197: 爬取《从坚毅到卓越：坚持、热情和毅力如何带你从平庸迈向卓越》销售记录
+2025-08-16 19:01:13,304 - src.services.crawler_service - INFO - ISBN 9787111626435 在最近7天内已被爬取过，跳过
+2025-08-16 19:01:13,305 - src.services.crawler_service - INFO - 任务 197 已跳过
+INFO:     10.0.0.3:64687 - "POST /task-executor/queue/start-all HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64687 - "GET /task-executor/tasks/list?page=1&page_size=20 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64687 - "GET /static/crawler_admin.html HTTP/1.1" 304 Not Modified
+2025-08-16 19:01:14,307 - src.services.crawler_service - INFO - 开始执行任务 198: 爬取《投资成长股：罗·普莱斯投资之道》销售记录
+2025-08-16 19:01:14,312 - src.services.crawler_service - INFO - ISBN 9787111659259 在最近7天内已被爬取过，跳过
+2025-08-16 19:01:14,314 - src.services.crawler_service - INFO - 任务 198 已跳过
+INFO:     10.0.0.3:64687 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64691 - "GET /sales-data/shops?page=1&page_size=1 HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64692 - "GET /task-executor/task-types/list HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64693 - "GET /task-executor/tasks/list?page=1&page_size=20&status=queued HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64691 - "GET /sales-data/books/crawl-status?status=all&page=1&page_size=1 HTTP/1.1" 200 OK
+2025-08-16 19:01:15,317 - src.services.crawler_service - INFO - 开始执行任务 199: 爬取《脑血管疾病全程护理》销售记录
+2025-08-16 19:01:15,321 - src.services.crawler_service - INFO - ISBN 9787117325974 在最近7天内已被爬取过，跳过
+2025-08-16 19:01:15,323 - src.services.crawler_service - INFO - 任务 199 已跳过
+2025-08-16 19:01:16,326 - src.services.crawler_service - INFO - 开始执行任务 200: 爬取《用药咨询标准化手册丛书：血栓栓塞性疾病用药咨询标准化手册》销售记录
+2025-08-16 19:01:16,328 - src.services.crawler_service - INFO - ISBN 9787117241359 在最近7天内已被爬取过，跳过
+2025-08-16 19:01:16,329 - src.services.crawler_service - INFO - 任务 200 已跳过
+2025-08-16 19:01:17,331 - src.services.crawler_service - INFO - 开始执行任务 201: 爬取《孤独星球Lonely Planet口袋指南系列-京都和大阪（口袋版）》销售记录
+INFO:     10.0.0.3:64703 - "GET /task-executor/tasks/list?page=1&page_size=20 HTTP/1.1" 200 OK
+2025-08-16 19:01:18,502 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+2025-08-16 19:01:24,609 - src.services.crawler_service - INFO - 成功保存 1 条销售记录
+2025-08-16 19:01:24,611 - src.services.crawler_service - INFO - 已更新ISBN 9787520403856 的销售记录爬取状态和时间
+2025-08-16 19:01:24,618 - src.services.crawler_service - INFO - 成功爬取ISBN 9787520403856，保存了 1 条销售记录
+2025-08-16 19:01:24,620 - src.services.crawler_service - INFO - 任务 201 执行成功
+2025-08-16 19:01:25,622 - src.services.crawler_service - INFO - 开始执行任务 202: 爬取《工匠精神：日本家族企业的长寿基因》销售记录
+2025-08-16 19:01:26,791 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+2025-08-16 19:01:32,875 - src.services.crawler_service - INFO - 成功保存 5 条销售记录
+2025-08-16 19:01:32,877 - src.services.crawler_service - INFO - 已更新ISBN 9787300259246 的销售记录爬取状态和时间
+2025-08-16 19:01:32,883 - src.services.crawler_service - INFO - 成功爬取ISBN 9787300259246，保存了 5 条销售记录
+2025-08-16 19:01:32,885 - src.services.crawler_service - INFO - 任务 202 执行成功
+2025-08-16 19:01:33,887 - src.services.crawler_service - INFO - 开始执行任务 203: 爬取《想飞的熊》销售记录
+2025-08-16 19:01:34,975 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+2025-08-16 19:01:41,057 - src.services.crawler_service - INFO - 成功保存 1 条销售记录
+2025-08-16 19:01:41,067 - src.services.crawler_service - INFO - 已更新ISBN 9787511057396 的销售记录爬取状态和时间
+2025-08-16 19:01:41,076 - src.services.crawler_service - INFO - 成功爬取ISBN 9787511057396，保存了 1 条销售记录
+2025-08-16 19:01:41,078 - src.services.crawler_service - INFO - 任务 203 执行成功
+2025-08-16 19:01:42,081 - src.services.crawler_service - INFO - 开始执行任务 204: 爬取《借东西的小人》销售记录
+2025-08-16 19:01:43,319 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:64781 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 19:01:49,402 - src.services.crawler_service - INFO - 成功保存 2 条销售记录
+2025-08-16 19:01:49,405 - src.services.crawler_service - INFO - 已更新ISBN 9787544786294 的销售记录爬取状态和时间
+2025-08-16 19:01:49,412 - src.services.crawler_service - INFO - 成功爬取ISBN 9787544786294，保存了 2 条销售记录
+2025-08-16 19:01:49,414 - src.services.crawler_service - INFO - 任务 204 执行成功
+2025-08-16 19:01:50,417 - src.services.crawler_service - INFO - 开始执行任务 205: 爬取《全球不平等》销售记录
+2025-08-16 19:01:50,420 - src.services.crawler_service - INFO - ISBN 9787521705423 在最近7天内已被爬取过，跳过
+2025-08-16 19:01:50,423 - src.services.crawler_service - INFO - 任务 205 已跳过
+2025-08-16 19:01:51,426 - src.services.crawler_service - INFO - 开始执行任务 208: 爬取《实用抗感染治疗学（第3版）》销售记录
+2025-08-16 19:01:51,430 - src.services.crawler_service - INFO - ISBN 9787117284011 在最近7天内已被爬取过，跳过
+2025-08-16 19:01:51,432 - src.services.crawler_service - INFO - 任务 208 已跳过
+2025-08-16 19:01:52,435 - src.services.crawler_service - INFO - 开始执行任务 209: 爬取《实用化学药品检验检测技术指南》销售记录
+2025-08-16 19:01:52,439 - src.services.crawler_service - INFO - ISBN 9787117239813 在最近7天内已被爬取过，跳过
+2025-08-16 19:01:52,442 - src.services.crawler_service - INFO - 任务 209 已跳过
+2025-08-16 19:01:53,445 - src.services.crawler_service - INFO - 开始执行任务 210: 爬取《痔疮揭秘（第二版）》销售记录
+2025-08-16 19:01:53,449 - src.services.crawler_service - INFO - ISBN 9787535977755 在最近7天内已被爬取过，跳过
+2025-08-16 19:01:53,451 - src.services.crawler_service - INFO - 任务 210 已跳过
+2025-08-16 19:01:54,454 - src.services.crawler_service - INFO - 开始执行任务 211: 爬取《我是记者猴尖尖/中国原创科学童话》销售记录
+2025-08-16 19:01:55,646 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:64826 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:01,696 - src.services.crawler_service - INFO - 成功保存 0 条销售记录
+2025-08-16 19:02:01,699 - src.services.crawler_service - INFO - 已更新ISBN 9787535082312 的销售记录爬取状态和时间
+2025-08-16 19:02:01,704 - src.services.crawler_service - INFO - 成功爬取ISBN 9787535082312，保存了 0 条销售记录
+2025-08-16 19:02:01,706 - src.services.crawler_service - INFO - 任务 211 执行成功
+2025-08-16 19:02:02,709 - src.services.crawler_service - INFO - 开始执行任务 212: 爬取《崛起(从不同角度看自己)》销售记录
+2025-08-16 19:02:04,009 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:64851 - "GET /window-pool/status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64851 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64851 - "GET /window-pool/status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64861 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64861 - "GET /window-pool/status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64861 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64861 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:10,075 - src.services.crawler_service - INFO - 成功保存 0 条销售记录
+2025-08-16 19:02:10,078 - src.services.crawler_service - INFO - 已更新ISBN 9787520531078 的销售记录爬取状态和时间
+2025-08-16 19:02:10,085 - src.services.crawler_service - INFO - 成功爬取ISBN 9787520531078，保存了 0 条销售记录
+2025-08-16 19:02:10,087 - src.services.crawler_service - INFO - 任务 212 执行成功
+2025-08-16 19:02:11,090 - src.services.crawler_service - INFO - 开始执行任务 213: 爬取《非自杀性自伤临床管理新进展》销售记录
+2025-08-16 19:02:12,036 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:64879 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64888 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64888 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:18,119 - src.services.crawler_service - INFO - 成功保存 3 条销售记录
+2025-08-16 19:02:18,123 - src.services.crawler_service - INFO - 已更新ISBN 9787572709029 的销售记录爬取状态和时间
+2025-08-16 19:02:18,129 - src.services.crawler_service - INFO - 成功爬取ISBN 9787572709029，保存了 3 条销售记录
+2025-08-16 19:02:18,131 - src.services.crawler_service - INFO - 任务 213 执行成功
+INFO:     10.0.0.3:64888 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64888 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:19,133 - src.services.crawler_service - INFO - 开始执行任务 214: 爬取《一本与生生》销售记录
+2025-08-16 19:02:19,137 - src.services.crawler_service - INFO - ISBN 9787108061690 在最近7天内已被爬取过，跳过
+2025-08-16 19:02:19,139 - src.services.crawler_service - INFO - 任务 214 已跳过
+INFO:     10.0.0.3:64888 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64888 - "GET /window-pool/status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64888 - "GET /window-pool-admin HTTP/1.1" 200 OK
+2025-08-16 19:02:20,141 - src.services.crawler_service - INFO - 开始执行任务 215: 爬取《茶树杂交育种理论与实践》销售记录
+2025-08-16 19:02:20,144 - src.services.crawler_service - INFO - ISBN 9787109268050 在最近7天内已被爬取过，跳过
+2025-08-16 19:02:20,145 - src.services.crawler_service - INFO - 任务 215 已跳过
+INFO:     10.0.0.3:64888 - "GET /window-pool/status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64888 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64888 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:21,148 - src.services.crawler_service - INFO - 开始执行任务 216: 爬取《这个宇宙和我有什么关系？》销售记录
+2025-08-16 19:02:21,152 - src.services.crawler_service - INFO - ISBN 9787571421601 在最近7天内已被爬取过，跳过
+2025-08-16 19:02:21,154 - src.services.crawler_service - INFO - 任务 216 已跳过
+INFO:     10.0.0.3:64888 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64888 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:22,156 - src.services.crawler_service - INFO - 开始执行任务 217: 爬取《孕妇及产后居家康复指导》销售记录
+2025-08-16 19:02:22,161 - src.services.crawler_service - INFO - ISBN 9787121401350 在最近7天内已被爬取过，跳过
+2025-08-16 19:02:22,163 - src.services.crawler_service - INFO - 任务 217 已跳过
+INFO:     10.0.0.3:64904 - "GET /window-pool-admin HTTP/1.1" 200 OK
+2025-08-16 19:02:23,166 - src.services.crawler_service - INFO - 开始执行任务 218: 爬取《古筝五线谱视奏训练教程》销售记录
+INFO:     10.0.0.3:64904 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:24,311 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+2025-08-16 19:02:30,387 - src.services.crawler_service - INFO - 成功保存 1 条销售记录
+2025-08-16 19:02:30,388 - src.services.crawler_service - INFO - 已更新ISBN 9787539658704 的销售记录爬取状态和时间
+2025-08-16 19:02:30,393 - src.services.crawler_service - INFO - 成功爬取ISBN 9787539658704，保存了 1 条销售记录
+2025-08-16 19:02:30,394 - src.services.crawler_service - INFO - 任务 218 执行成功
+2025-08-16 19:02:31,397 - src.services.crawler_service - INFO - 开始执行任务 219: 爬取《彩乌鸦中文原创系列 俄罗斯娃娃的秘密》销售记录
+2025-08-16 19:02:32,634 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:64944 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:38,732 - src.services.crawler_service - INFO - 成功保存 6 条销售记录
+2025-08-16 19:02:38,734 - src.services.crawler_service - INFO - 已更新ISBN 9787539163680 的销售记录爬取状态和时间
+2025-08-16 19:02:38,740 - src.services.crawler_service - INFO - 成功爬取ISBN 9787539163680，保存了 6 条销售记录
+2025-08-16 19:02:38,742 - src.services.crawler_service - INFO - 任务 219 执行成功
+2025-08-16 19:02:39,745 - src.services.crawler_service - INFO - 开始执行任务 220: 爬取《诡秘之主9（爱潜水的乌贼 超人气克苏鲁奇幻与蒸汽朋克破圈力作/旅行家卷完结篇/风炫出品）》销售记录
+2025-08-16 19:02:40,902 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:64973 - "GET /window-pool/status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:64973 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 19:02:47,046 - src.services.crawler_service - INFO - 成功保存 23 条销售记录
+2025-08-16 19:02:47,047 - src.services.crawler_service - INFO - 已更新ISBN 9787539673684 的销售记录爬取状态和时间
+2025-08-16 19:02:47,050 - src.services.crawler_service - INFO - 成功爬取ISBN 9787539673684，保存了 23 条销售记录
+2025-08-16 19:02:47,051 - src.services.crawler_service - INFO - 任务 220 执行成功
+2025-08-16 19:02:48,054 - src.services.crawler_service - INFO - 开始执行任务 221: 爬取《迟到的东南亚》销售记录
+2025-08-16 19:02:49,261 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:65006 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:02:55,335 - src.services.crawler_service - INFO - 成功保存 0 条销售记录
+2025-08-16 19:02:55,339 - src.services.crawler_service - INFO - 已更新ISBN 9787520395069 的销售记录爬取状态和时间
+2025-08-16 19:02:55,345 - src.services.crawler_service - INFO - 成功爬取ISBN 9787520395069，保存了 0 条销售记录
+2025-08-16 19:02:55,347 - src.services.crawler_service - INFO - 任务 221 执行成功
+2025-08-16 19:02:56,349 - src.services.crawler_service - INFO - 开始执行任务 222: 爬取《结构是什么》销售记录
+2025-08-16 19:02:56,353 - src.services.crawler_service - INFO - ISBN 9787521706543 在最近7天内已被爬取过，跳过
+2025-08-16 19:02:56,356 - src.services.crawler_service - INFO - 任务 222 已跳过
+2025-08-16 19:02:57,358 - src.services.crawler_service - INFO - 开始执行任务 223: 爬取《羊典型疾病快速诊断与防治图谱》销售记录
+2025-08-16 19:02:57,362 - src.services.crawler_service - INFO - ISBN 9787122366788 在最近7天内已被爬取过，跳过
+2025-08-16 19:02:57,364 - src.services.crawler_service - INFO - 任务 223 已跳过
+2025-08-16 19:02:58,367 - src.services.crawler_service - INFO - 开始执行任务 224: 爬取《做温暖的父母：理解孩子的心理语言》销售记录
+2025-08-16 19:02:58,371 - src.services.crawler_service - INFO - ISBN 9787303127184 在最近7天内已被爬取过，跳过
+2025-08-16 19:02:58,373 - src.services.crawler_service - INFO - 任务 224 已跳过
+2025-08-16 19:02:59,377 - src.services.crawler_service - INFO - 开始执行任务 382: 爬取《伤寒论选读考点速查速记（全国中医药行业高等教育“十三五”规划教材配套用书）》销售记录
+2025-08-16 19:03:00,580 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:65035 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:03:06,642 - src.services.crawler_service - INFO - 成功保存 0 条销售记录
+2025-08-16 19:03:06,646 - src.services.crawler_service - INFO - 已更新ISBN 9787506780988 的销售记录爬取状态和时间
+2025-08-16 19:03:06,653 - src.services.crawler_service - INFO - 成功爬取ISBN 9787506780988，保存了 0 条销售记录
+2025-08-16 19:03:06,656 - src.services.crawler_service - INFO - 任务 382 执行成功
+2025-08-16 19:03:07,659 - src.services.crawler_service - INFO - 开始执行任务 383: 爬取《胃与肠：临床医生应掌握的免疫组化染色的知识》销售记录
+2025-08-16 19:03:09,031 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:65099 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:65099 - "GET /window-pool/status HTTP/1.1" 200 OK
+INFO:     10.0.0.3:65099 - "GET /sales-data/crawler/rate-limit-status HTTP/1.1" 200 OK
+2025-08-16 19:03:15,108 - src.services.crawler_service - INFO - 成功保存 1 条销售记录
+2025-08-16 19:03:15,111 - src.services.crawler_service - INFO - 已更新ISBN 9787559119018 的销售记录爬取状态和时间
+2025-08-16 19:03:15,118 - src.services.crawler_service - INFO - 成功爬取ISBN 9787559119018，保存了 1 条销售记录
+2025-08-16 19:03:15,120 - src.services.crawler_service - INFO - 任务 383 执行成功
+2025-08-16 19:03:16,123 - src.services.crawler_service - INFO - 开始执行任务 384: 爬取《血液透析血管通路临床规范（配增值）》销售记录
+2025-08-16 19:03:17,422 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+2025-08-16 19:03:23,495 - src.services.crawler_service - INFO - 成功保存 0 条销售记录
+2025-08-16 19:03:23,498 - src.services.crawler_service - INFO - 已更新ISBN 9787117259125 的销售记录爬取状态和时间
+2025-08-16 19:03:23,506 - src.services.crawler_service - INFO - 成功爬取ISBN 9787117259125，保存了 0 条销售记录
+2025-08-16 19:03:23,509 - src.services.crawler_service - INFO - 任务 384 执行成功
+INFO:     10.0.0.3:65134 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:03:24,512 - src.services.crawler_service - INFO - 开始执行任务 385: 爬取《登封二十四节气》销售记录
+2025-08-16 19:03:25,440 - src.services.crawler_service - INFO - 请求成功，重置封控等待时间为0
+INFO:     10.0.0.3:65150 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:65150 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:03:30,457 - src.services.crawler_service - ERROR - 分析并保存ISBN 9787109254015 销售数据失败: RATE_LIMITED:很抱歉，您当前的搜索次数已达到上限，请稍后访问！请求错误，请降低访问频次或更换真实账号使用。
+2025-08-16 19:03:30,457 - src.services.window_pool - WARNING - 窗口 4871517968 被标记为频率限制状态，将在 2025-08-16 19:09:30 后解封
+2025-08-16 19:03:30,464 - src.services.crawler_service - ERROR - 爬取ISBN 9787109254015 失败: RATE_LIMITED:很抱歉，您当前的搜索次数已达到上限，请稍后访问！请求错误，请降低访问频次或更换真实账号使用。
+2025-08-16 19:03:30,466 - src.services.crawler_service - ERROR - 任务 385 执行失败: 爬取ISBN 9787109254015 失败: RATE_LIMITED:很抱歉，您当前的搜索次数已达到上限，请稍后访问！请求错误，请降低访问频次或更换真实账号使用。
+INFO:     10.0.0.3:65150 - "GET /window-pool-admin HTTP/1.1" 200 OK
+INFO:     10.0.0.3:65150 - "GET /window-pool/status HTTP/1.1" 200 OK
+2025-08-16 19:03:31,470 - src.services.crawler_service - INFO - 开始执行任务 386: 爬取《石阡说春/人类非物质文化遗产代表作“二十四节气”科普丛书》销售记录
