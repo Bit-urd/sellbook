@@ -545,13 +545,25 @@
             const rateLimitStatus = document.getElementById('rateLimitStatus');
             
             if (data.rate_limit_status) {
-                if (data.rate_limit_status.all_limited) {
+                // 首先检查是否已初始化和连接
+                if (!data.connected || !data.initialized || data.total_windows === 0) {
+                    rateLimitStatus.textContent = '未初始化';
+                    rateLimitCard.className = 'status-card disconnected';
+                    if (!data.connected) {
+                        addLog('窗口池未连接，请检查服务状态', 'warning');
+                    } else if (!data.initialized) {
+                        addLog('窗口池未初始化，请先初始化窗口池', 'warning');
+                    } else if (data.total_windows === 0) {
+                        addLog('没有可用窗口，请增加窗口数量', 'warning');
+                    }
+                } else if (data.rate_limit_status.all_limited) {
                     rateLimitStatus.textContent = '全部封控！';
                     rateLimitCard.className = 'status-card disconnected';
                     addLog('警告：所有窗口都被封控，需要等待2分钟或手动登录', 'error');
                 } else if (data.rate_limit_status.rate_limited_count > 0) {
                     const percentage = data.rate_limit_status.percentage_limited.toFixed(0);
                     rateLimitStatus.textContent = `${data.rate_limit_status.rate_limited_count}个封控(${percentage}%)`;
+                    rateLimitCard.className = 'status-card';
                     rateLimitCard.style.borderLeftColor = '#f39c12';
                 } else {
                     rateLimitStatus.textContent = '正常';

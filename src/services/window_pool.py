@@ -149,6 +149,32 @@ class ChromeWindowPool:
         # 如果大部分窗口都被限制，认为全部受限
         return limited_count >= total_windows * 0.8
     
+    def get_earliest_unblock_time(self) -> Optional[float]:
+        """获取最早的窗口解禁时间
+        
+        Returns:
+            float: 最早解禁的时间戳，如果没有被限制的窗口则返回None
+        """
+        if not self.window_penalties:
+            return None
+        
+        current_time = time.time()
+        earliest_time = None
+        
+        for window_id, penalties in self.window_penalties.items():
+            blocked_until = penalties.get('blocked_until', 0)
+            login_until = penalties.get('login_required_until', 0)
+            
+            # 取两个惩罚时间的最大值
+            window_unblock_time = max(blocked_until, login_until)
+            
+            # 只考虑未来的时间
+            if window_unblock_time > current_time:
+                if earliest_time is None or window_unblock_time < earliest_time:
+                    earliest_time = window_unblock_time
+        
+        return earliest_time
+    
     def get_rate_limit_status(self) -> Dict[str, Any]:
         """获取窗口状态详情（兼容旧接口）"""
         total_windows = len(self.available_windows) + len(self.busy_windows)
@@ -728,7 +754,7 @@ class WindowPoolManager:
                     self.pool.mark_window_rate_limited(page, duration_minutes=6)
                     
                     # 检查是否所有窗口都被频率限制
-                    if self.pool.is_all_windows_rate_limited():
+                    if self.pool._is_all_windows_limited():
                         logger.warning("所有窗口都被频率限制，等待6分钟后重试")
                         # 不要阻塞主线程，直接重新抛出原始异常
                         pass

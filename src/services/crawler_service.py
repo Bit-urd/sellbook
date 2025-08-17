@@ -119,7 +119,19 @@ class KongfuziCrawler:
     @classmethod
     def get_rate_limit_status(cls) -> dict:
         """获取当前封控状态信息"""
-        wait_time = cls._rate_limit_wait_time
+        from .window_pool import chrome_pool
+        
+        # 获取窗口池的真实状态
+        if chrome_pool._is_all_windows_limited():
+            earliest_unblock = chrome_pool.get_earliest_unblock_time()
+            if earliest_unblock:
+                import time
+                wait_time = max(0, earliest_unblock - time.time())
+            else:
+                wait_time = cls._rate_limit_wait_time
+        else:
+            wait_time = 0
+            
         next_wait_time = min(wait_time * 2, cls._max_wait_time) if wait_time > 0 else 2 * 60
         
         def format_time_display(seconds: int) -> dict:
@@ -2107,8 +2119,20 @@ class TaskQueue:
                     async with self._lock:
                         self.running_tasks.discard(task_id)
                 
-                # 任务间间隔，避免过快执行
-                await asyncio.sleep(1)
+                # 智能等待机制：当所有窗口被限制时，等待到解禁时间
+                from .window_pool import chrome_pool
+                if chrome_pool._is_all_windows_limited():
+                    earliest_unblock = chrome_pool.get_earliest_unblock_time()
+                    if earliest_unblock:
+                        wait_time = max(1, earliest_unblock - time.time())
+                        logger.warning(f"所有窗口被限制，等待 {wait_time:.1f} 秒后继续处理任务")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logger.warning("所有窗口被限制但无法计算解禁时间，等待60秒")
+                        await asyncio.sleep(60)
+                else:
+                    # 正常任务间隔
+                    await asyncio.sleep(1)
         
         finally:
             self._processing = False

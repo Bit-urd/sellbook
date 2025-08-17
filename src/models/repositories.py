@@ -377,14 +377,17 @@ class SalesRepository:
         
         query = """
             SELECT b.title, b.isbn, b.author, 
-                   COUNT(*) as sale_count,
+                   COUNT(DISTINCT sr.item_id) as sale_count,
                    AVG(sr.sale_price) as avg_price,
                    MIN(sr.sale_price) as min_price,
                    MAX(sr.sale_price) as max_price,
-                   COALESCE(bi.duozhuayu_second_hand_price, bi.duozhuayu_new_price) as cost_price
+                   (SELECT COALESCE(bi2.duozhuayu_second_hand_price, bi2.duozhuayu_new_price) 
+                    FROM book_inventory bi2 
+                    WHERE bi2.isbn = sr.isbn 
+                    ORDER BY bi2.duozhuayu_second_hand_price DESC 
+                    LIMIT 1) as cost_price
             FROM sales_records sr
             JOIN books b ON sr.isbn = b.isbn
-            LEFT JOIN book_inventory bi ON sr.isbn = bi.isbn
             WHERE sr.sale_date >= datetime('now', '-{} days')
             GROUP BY sr.isbn
             {}

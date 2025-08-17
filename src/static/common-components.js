@@ -195,12 +195,40 @@ class RateLimitStatusComponent {
             const data = await response.json();
 
             if (data.success) {
-                this.displayStatus(data.data);
+                // 先检查窗口池状态
+                await this.checkWindowPoolStatus(data.data);
             }
         } catch (error) {
             console.warn('获取封控状态失败:', error);
             // 网络错误时显示离线状态而不是隐藏组件
             this.showOfflineStatus();
+        }
+    }
+
+    /**
+     * 检查窗口池状态
+     */
+    async checkWindowPoolStatus(rateLimitStatus) {
+        try {
+            const poolResponse = await fetch('/window-pool/status');
+            const poolData = await poolResponse.json();
+
+            if (poolData.success && poolData.data) {
+                const { connected, initialized, total_windows } = poolData.data;
+                
+                // 如果窗口池未就绪，显示初始化状态
+                if (!connected || !initialized || total_windows === 0) {
+                    this.showInitializationStatus(connected, initialized, total_windows);
+                    return;
+                }
+            }
+            
+            // 窗口池正常，显示封控状态
+            this.displayStatus(rateLimitStatus);
+        } catch (error) {
+            console.warn('获取窗口池状态失败:', error);
+            // 如果无法获取窗口池状态，仍然显示封控状态
+            this.displayStatus(rateLimitStatus);
         }
     }
 
@@ -354,6 +382,56 @@ class RateLimitStatusComponent {
                 this.isVisible = true;
             }
         }
+    }
+
+    /**
+     * 显示初始化状态
+     */
+    showInitializationStatus(connected, initialized, totalWindows) {
+        if (!this.container) return;
+        
+        this.container.style.background = 'linear-gradient(135deg, #f39c12, #e67e22)';
+        this.container.style.color = 'white';
+        this.container.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+        this.container.style.display = 'block';
+        
+        let statusText = '系统未就绪';
+        let detailText = '';
+        
+        if (!connected) {
+            detailText = '窗口池未连接';
+        } else if (!initialized) {
+            detailText = '窗口池未初始化';
+        } else if (totalWindows === 0) {
+            detailText = '没有可用窗口';
+        }
+        
+        this.container.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="
+                    width: 10px; 
+                    height: 10px; 
+                    background: white; 
+                    border-radius: 50%;
+                    animation: blink 1.5s infinite;
+                "></div>
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">
+                        ⚠️ ${statusText}
+                    </div>
+                    <div style="font-size: 12px; opacity: 0.9;">
+                        ${detailText}
+                    </div>
+                </div>
+            </div>
+            <style>
+                @keyframes blink {
+                    0%, 50% { opacity: 1; }
+                    51%, 100% { opacity: 0.3; }
+                }
+            </style>
+        `;
+        this.isVisible = true;
     }
 
     /**
