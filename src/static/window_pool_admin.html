@@ -423,6 +423,7 @@
                             <th>窗口ID</th>
                             <th>状态</th>
                             <th>封控状态</th>
+                            <th>解封时间</th>
                             <th>创建时间</th>
                             <th>使用次数</th>
                             <th>最后成功</th>
@@ -430,7 +431,7 @@
                     </thead>
                     <tbody id="windowTableBody">
                         <tr>
-                            <td colspan="4" style="text-align: center;">暂无窗口数据</td>
+                            <td colspan="7" style="text-align: center;">暂无窗口数据</td>
                         </tr>
                     </tbody>
                 </table>
@@ -580,21 +581,47 @@
             const tbody = document.getElementById('windowTableBody');
             
             if (!windows || windows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">暂无窗口数据</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">暂无窗口数据</td></tr>';
                 return;
             }
             
             tbody.innerHTML = '';
             windows.forEach(window => {
                 const row = tbody.insertRow();
-                const rateLimitBadge = window.is_rate_limited 
-                    ? '<span style="color: red; font-weight: bold;">已封控</span>' 
-                    : '<span style="color: green;">正常</span>';
+                
+                // 封控状态显示
+                let blockStatus, unblockTime;
+                if (window.is_rate_limited) {
+                    blockStatus = '<span style="color: red; font-weight: bold;">已封控</span>';
+                    unblockTime = window.blocked_until || '计算中...';
+                } else if (window.is_login_required) {
+                    blockStatus = '<span style="color: orange; font-weight: bold;">需要登录</span>';
+                    unblockTime = window.login_required_until || '计算中...';
+                } else {
+                    blockStatus = '<span style="color: green;">正常</span>';
+                    unblockTime = '-';
+                }
+                
+                // 计算剩余时间
+                let remainingTime = '-';
+                if (unblockTime !== '-' && unblockTime !== '计算中...') {
+                    const unblockTimestamp = new Date(unblockTime).getTime();
+                    const currentTimestamp = new Date().getTime();
+                    const remainingMs = unblockTimestamp - currentTimestamp;
+                    
+                    if (remainingMs > 0) {
+                        const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+                        remainingTime = `${unblockTime}<br><small style="color: #666;">(${remainingMinutes}分钟后)</small>`;
+                    } else {
+                        remainingTime = '<span style="color: green;">已解封</span>';
+                    }
+                }
                 
                 row.innerHTML = `
                     <td>${window.window_id}</td>
                     <td><span class="status-badge ${window.status}">${window.status === 'available' ? '可用' : '使用中'}</span></td>
-                    <td>${rateLimitBadge}</td>
+                    <td>${blockStatus}</td>
+                    <td>${remainingTime}</td>
                     <td>${window.created_at}</td>
                     <td>${window.used_count}</td>
                     <td>${window.last_success || '从未成功'}</td>

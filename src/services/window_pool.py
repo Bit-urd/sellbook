@@ -27,6 +27,7 @@ class ChromeWindowPool:
         self.available_windows = deque()  # 可用窗口队列
         self.busy_windows = {}  # 忙碌窗口字典 {window_id: page}
         self.window_info = {}  # 窗口信息 {window_id: {'created_at': time, 'used_count': int}}
+        self.preferred_window_id = None  # 首选窗口ID，业务优先使用
         
         # 基于aiolimiter的限流管理
         self.window_limiters = {}  # {window_id: AsyncLimiter}
@@ -437,40 +438,85 @@ class ChromeWindowPool:
             async with self._lock:
                 logger.debug(f"已获取窗口池锁，可用窗口数: {len(self.available_windows)}, 忙碌窗口数: {len(self.busy_windows)}")
                 
-                # 尝试获取可用窗口，使用aiolimiter检查限制
-                checked_windows = []
                 found_page = None
                 
-                while self.available_windows and not found_page:
-                    page = self.available_windows.popleft()
-                    window_id = id(page)
-
-                    # 使用新的限流检查
-                    if not await self._can_access_window(window_id):
-                        # 窗口被限制，记录并继续查找
-                        checked_windows.append(page)
-                        logger.debug(f"窗口 {window_id} 被限制，跳过")
-                        continue
-                    
-                    # 检查窗口是否仍然有效
-                    try:
-                        await page.evaluate("() => true")  # 简单的检查
-                        # 检查URL，如果是about:blank或错误页面，导航到主页
-                        current_url = page.url
-                        if "about:blank" in current_url:
-                            logger.info(f"窗口 {window_id} 处于空白页，导航到孔夫子网主页")
-                            await page.goto("https://www.kongfz.com/", wait_until="domcontentloaded", timeout=10000)
-                        
-                        # 找到可用窗口
-                        found_page = page
-                        break
-                    except:
-                        # 窗口已失效，移除并创建新的
-                        await self._remove_window_unsafe(page)
-                        new_page = await self._create_window()
-                        if new_page:
-                            found_page = new_page
+                # 优先处理首选窗口
+                checked_windows = []
+                preferred_page = None
+                
+                # 步骤1：如果有首选窗口，先找到它
+                if self.preferred_window_id:
+                    for page in list(self.available_windows):
+                        if id(page) == self.preferred_window_id:
+                            preferred_page = page
+                            self.available_windows.remove(page)
                             break
+                
+                # 步骤2：尝试首选窗口
+                if preferred_page:
+                    window_id = self.preferred_window_id
+                    logger.debug(f"尝试首选窗口: {window_id}")
+                    
+                    # 检查首选窗口是否可用
+                    if await self._can_access_window(window_id):
+                        try:
+                            await preferred_page.evaluate("() => true")
+                            # 检查URL
+                            current_url = preferred_page.url
+                            if "about:blank" in current_url:
+                                logger.info(f"首选窗口 {window_id} 处于空白页，导航到孔夫子网主页")
+                                await preferred_page.goto("https://www.kongfz.com/", wait_until="domcontentloaded", timeout=10000)
+                            
+                            found_page = preferred_page
+                            logger.info(f"成功使用首选窗口: {window_id}")
+                        except:
+                            # 首选窗口已失效
+                            logger.warning(f"首选窗口 {window_id} 已失效，重置首选窗口")
+                            await self._remove_window_unsafe(preferred_page)
+                            self.preferred_window_id = None
+                    else:
+                        # 首选窗口被限制，放回队列待后续处理
+                        logger.warning(f"首选窗口 {window_id} 被限制，尝试其他窗口")
+                        checked_windows.append(preferred_page)
+                
+                # 步骤3：如果首选窗口不可用，从池子中选择其他窗口
+                if not found_page:
+                    while self.available_windows and not found_page:
+                        page = self.available_windows.popleft()
+                        window_id = id(page)
+                        
+                        # 检查窗口限流状态
+                        if not await self._can_access_window(window_id):
+                            checked_windows.append(page)
+                            logger.debug(f"窗口 {window_id} 被限制，跳过")
+                            continue
+                        
+                        # 检查窗口是否仍然有效
+                        try:
+                            await page.evaluate("() => true")
+                            current_url = page.url
+                            if "about:blank" in current_url:
+                                logger.info(f"窗口 {window_id} 处于空白页，导航到孔夫子网主页")
+                                await page.goto("https://www.kongfz.com/", wait_until="domcontentloaded", timeout=10000)
+                            
+                            # 找到可用窗口，设置为新的首选窗口
+                            found_page = page
+                            old_preferred = self.preferred_window_id
+                            self.preferred_window_id = window_id
+                            logger.warning(f"窗口切换: {old_preferred} -> {window_id} (新首选窗口)")
+                            break
+                            
+                        except:
+                            # 窗口已失效，移除并尝试创建新窗口
+                            await self._remove_window_unsafe(page)
+                            new_page = await self._create_window()
+                            if new_page:
+                                found_page = new_page
+                                new_window_id = id(new_page)
+                                old_preferred = self.preferred_window_id
+                                self.preferred_window_id = new_window_id
+                                logger.warning(f"窗口切换: {old_preferred} -> {new_window_id} (新建首选窗口)")
+                                break
                 
                 # 将检查过但不可用的窗口放回队列
                 for page in checked_windows:
@@ -492,7 +538,13 @@ class ChromeWindowPool:
                         window_id = id(page)
                         self.busy_windows[window_id] = page
                         self.window_info[window_id]['used_count'] += 1
-                        logger.debug(f"创建新窗口: {window_id}")
+                        # 设置新窗口为首选窗口
+                        if self.preferred_window_id != window_id:
+                            old_preferred = self.preferred_window_id
+                            self.preferred_window_id = window_id
+                            logger.info(f"创建新窗口并设为首选: {old_preferred} -> {window_id}")
+                        else:
+                            logger.debug(f"创建新窗口: {window_id}")
                         return page
             
             # 检查超时
@@ -500,8 +552,9 @@ class ChromeWindowPool:
                 logger.warning(f"获取窗口超时（{timeout}秒），所有窗口都在使用中或被限制")
                 return None
             
-            # 检查是否所有窗口都被限制，如果是则提前返回
-            if self._is_all_windows_limited():
+            # 只有在确实没有找到可用窗口的情况下，才检查是否所有窗口都被限制
+            # 这样可以避免在窗口切换过程中过早地判断所有窗口不可用
+            if attempt > 3 and self._is_all_windows_limited():
                 logger.warning("所有窗口都被限制，无法获取可用窗口")
                 return None
             
@@ -556,6 +609,11 @@ class ChromeWindowPool:
         """移除窗口（不加锁，内部使用）"""
         window_id = id(page)
         
+        # 如果被移除的是首选窗口，重置首选窗口
+        if self.preferred_window_id == window_id:
+            self.preferred_window_id = None
+            logger.warning(f"首选窗口 {window_id} 被移除，重置首选窗口")
+        
         # 从各个集合中移除
         self.busy_windows.pop(window_id, None)
         if page in self.available_windows:
@@ -596,9 +654,10 @@ class ChromeWindowPool:
             self.available_windows.clear()
             self.busy_windows.clear()
             self.window_info.clear()
+            self.preferred_window_id = None  # 重置首选窗口
             self._initialized = False
             
-            logger.info("已关闭所有窗口")
+            logger.info("已关闭所有窗口，重置首选窗口")
     
     async def disconnect(self):
         """断开连接并清理所有窗口"""
@@ -686,6 +745,7 @@ class ChromeWindowPool:
             "available_count": len(self.available_windows),
             "busy_count": len(self.busy_windows),
             "total_windows": len(self.available_windows) + len(self.busy_windows),
+            "preferred_window_id": self.preferred_window_id,
             "rate_limit_status": rate_limit_status,
             "window_details": window_details
         }
