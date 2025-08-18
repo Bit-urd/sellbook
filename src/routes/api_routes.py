@@ -1612,43 +1612,71 @@ async def get_books_crawl_status(
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
         
-        # 获取总数
+        # 获取总数 - 直接从books表统计
         total_query = f"""
-            SELECT COUNT(DISTINCT bi.isbn) as total 
-            FROM book_inventory bi
-            JOIN books b ON bi.isbn = b.isbn
-            LEFT JOIN shops s ON bi.shop_id = s.id
-            {where_clause}
+            SELECT COUNT(*) as total 
+            FROM books b
+            {where_clause.replace('s.shop_name', 'NULL').replace('s.shop_id', 'NULL')}
         """
-        total_result = db.execute_query(total_query, params)
+        # 如果有店铺搜索条件，需要修改查询逻辑
+        if shop_search:
+            # 店铺搜索需要通过book_inventory表关联
+            total_query = f"""
+                SELECT COUNT(DISTINCT b.isbn) as total 
+                FROM books b
+                JOIN book_inventory bi ON b.isbn = bi.isbn
+                JOIN shops s ON bi.shop_id = s.id
+                {where_clause}
+            """
+            total_result = db.execute_query(total_query, params)
+        else:
+            # 普通状态筛选，直接查books表
+            filtered_params = [p for p in params if shop_search not in str(p)] if shop_search else params
+            total_result = db.execute_query(total_query, filtered_params[:len(params)//2] if shop_search else params)
+        
         total = total_result[0]['total'] if total_result else 0
         
-        # 获取分页数据
+        # 获取分页数据 - 根据是否有店铺搜索决定查询逻辑
         offset = (page - 1) * page_size
-        books_query = f"""
-            SELECT DISTINCT
-                b.isbn, b.title, b.author, b.publisher,
-                b.last_sales_update, b.created_at, b.updated_at,
-                s.shop_name, s.shop_id,
-                (CASE WHEN b.last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as is_crawled
-            FROM book_inventory bi
-            JOIN books b ON bi.isbn = b.isbn
-            LEFT JOIN shops s ON bi.shop_id = s.id
-            {where_clause}
-            ORDER BY b.last_sales_update DESC NULLS LAST, s.shop_name ASC
-            LIMIT ? OFFSET ?
-        """
-        books = db.execute_query(books_query, params + [page_size, offset])
+        if shop_search:
+            # 有店铺搜索时，需要通过库存表关联
+            books_query = f"""
+                SELECT DISTINCT
+                    b.isbn, b.title, b.author, b.publisher,
+                    b.last_sales_update, b.created_at, b.updated_at,
+                    s.shop_name, s.shop_id,
+                    (CASE WHEN b.last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as is_crawled
+                FROM books b
+                JOIN book_inventory bi ON b.isbn = bi.isbn
+                JOIN shops s ON bi.shop_id = s.id
+                {where_clause}
+                ORDER BY b.last_sales_update DESC NULLS LAST, s.shop_name ASC
+                LIMIT ? OFFSET ?
+            """
+            books = db.execute_query(books_query, params + [page_size, offset])
+        else:
+            # 无店铺搜索时，直接查books表
+            books_query = f"""
+                SELECT 
+                    b.isbn, b.title, b.author, b.publisher,
+                    b.last_sales_update, b.created_at, b.updated_at,
+                    NULL as shop_name, NULL as shop_id,
+                    (CASE WHEN b.last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as is_crawled
+                FROM books b
+                {where_clause.replace('s.shop_name', 'NULL').replace('s.shop_id', 'NULL')}
+                ORDER BY b.last_sales_update DESC NULLS LAST, b.title ASC
+                LIMIT ? OFFSET ?
+            """
+            filtered_params = [p for p in params if shop_search not in str(p)] if shop_search else params
+            books = db.execute_query(books_query, filtered_params + [page_size, offset])
         
-        # 统计信息
+        # 统计信息 - 直接从books表统计，这是关键修复！
         stats = db.execute_query("""
             SELECT 
-                COUNT(DISTINCT b.isbn) as total_books,
-                SUM(CASE WHEN b.last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as crawled_count,
-                SUM(CASE WHEN b.last_sales_update IS NULL THEN 1 ELSE 0 END) as not_crawled_count
-            FROM book_inventory bi
-            JOIN books b ON bi.isbn = b.isbn
-            LEFT JOIN shops s ON bi.shop_id = s.id
+                COUNT(*) as total_books,
+                SUM(CASE WHEN last_sales_update IS NOT NULL THEN 1 ELSE 0 END) as crawled_count,
+                SUM(CASE WHEN last_sales_update IS NULL THEN 1 ELSE 0 END) as not_crawled_count
+            FROM books
         """)[0]
         
         return {
