@@ -633,9 +633,10 @@ async def add_shops(shop_ids: List[str]):
         for shop in shops:
             task = CrawlTask(
                 task_name=f"爬取店铺 {shop.shop_id} 的书籍",
-                task_type="shop_books",
+                task_type="shop_books_crawl",
                 target_platform="kongfuzi",
-                target_url=shop.shop_id
+                target_url=f"https://shop.kongfz.com/{shop.shop_id}/all/0_50_0_0_1_newItem_desc_0_0/",
+                shop_id=shop.shop_id
             )
             task_repo.create(task)
         
@@ -660,9 +661,10 @@ async def crawl_shop_books(shop_id: str, max_pages: int = Query(50, ge=1, le=100
         # 创建爬虫任务
         task = CrawlTask(
             task_name=f"爬取店铺 {shop_id} 的书籍",
-            task_type="shop_books",
+            task_type="shop_books_crawl",
             target_platform="kongfuzi",
-            target_url=shop_id,
+            target_url=f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/",
+            shop_id=shop_id,
             task_params={"max_pages": max_pages}
         )
         task_id = task_repo.create(task)
@@ -692,9 +694,10 @@ async def update_all_shops():
         for shop in shops:
             task = CrawlTask(
                 task_name=f"更新店铺 {shop['shop_id']} 的书籍",
-                task_type="shop_books",
+                task_type="shop_books_crawl",
                 target_platform="kongfuzi",
-                target_url=shop['shop_id']
+                target_url=f"https://shop.kongfz.com/{shop['shop_id']}/all/0_50_0_0_1_newItem_desc_0_0/",
+                shop_id=shop['shop_id']
             )
             task_id = task_repo.create(task)
             task_ids.append(task_id)
@@ -1796,7 +1799,7 @@ async def batch_update_shops_books(request: BatchShopRequest):
                 task_type="shop_books_crawl",
                 target_platform="kongfuzi",
                 target_url=f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/",
-                shop_id=shop['id']
+                shop_id=shop_id  # 使用孔夫子网的shop_id而不是数据库内部ID
             )
             task_id = task_repo.create(task)
             task_ids.append(task_id)

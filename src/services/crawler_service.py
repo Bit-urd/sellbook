@@ -441,7 +441,7 @@ class KongfuziCrawler:
             page: 浏览器页面
         """
         try:
-            return await page.evaluate("""
+            return await page.evaluate(r"""
                 () => {
                     const sales = [];
                     const productItems = document.querySelectorAll('.product-item-wrap');
@@ -1071,7 +1071,7 @@ class KongfuziCrawler:
         """
         try:
             # 从搜索结果页面提取书籍信息
-            return await page.evaluate("""
+            return await page.evaluate(r"""
                 () => {
                     const productItems = document.querySelectorAll('.product-item-wrap');
                     const books = [];
@@ -1152,7 +1152,7 @@ class KongfuziCrawler:
             page: 浏览器页面
         """
         try:
-            sales = await page.evaluate("""
+            sales = await page.evaluate(r"""
                 () => {
                     const items = [];
                     const bookItems = document.querySelectorAll('.book-item, .item, .sold-item');
@@ -1233,15 +1233,7 @@ class KongfuziCrawler:
             max_pages: 最大爬取页数
             page: 浏览器页面（由装饰器自动注入）
         """
-        # 创建爬虫任务
-        task = CrawlTask(
-            task_name=f"爬取店铺 {shop_id} 的书籍",
-            task_type="shop_books",
-            target_platform="kongfuzi",
-            target_url=f"https://shop.kongfz.com/{shop_id}/all/0_50_0_0_1_newItem_desc_0_0/",
-            status="running"
-        )
-        task_id = self.task_repo.create(task)
+        # 不在此处创建任务，任务应该在外部创建
         
         try:
             books_crawled = 0
@@ -1255,7 +1247,7 @@ class KongfuziCrawler:
             while current_page <= max_pages:
                 try:
                     # 提取书籍信息
-                    books_data = await page.evaluate("""
+                    books_data = await page.evaluate(r"""
                     () => {
                         const items = [];
                         // 查找item-row元素，它包含了itemid和isbn属性
@@ -1397,9 +1389,7 @@ class KongfuziCrawler:
                     
                     logger.info(f"第 {current_page} 页爬取了 {len(books_data)} 本书籍")
                     
-                    # 更新任务进度
-                    progress = (current_page / max_pages) * 100
-                    self.task_repo.update_status(task_id, 'running', progress)
+                    # 任务进度由外部管理
                     
                     # 检查是否有下一页
                     has_next_page = await page.evaluate("""
@@ -1451,14 +1441,13 @@ class KongfuziCrawler:
                     await asyncio.sleep(5)
                     continue
             
-            # 更新任务为完成
-            self.task_repo.update_status(task_id, 'completed', 100)
+            # 任务完成状态由外部管理
             logger.info(f"成功爬取店铺 {shop_id} 的 {books_crawled} 本书籍")
             return books_crawled
             
         except Exception as e:
             logger.error(f"爬取店铺失败: {e}")
-            self.task_repo.update_status(task_id, 'failed', error_message=str(e))
+            # 任务失败状态由外部管理
             raise
     
     @WindowPoolManager()
@@ -1708,8 +1697,8 @@ class CrawlerTaskExecutor:
                     params.get('skip_if_recent', True)
                 )
             elif task_type == 'shop_books_crawl':
-                # 从target_url提取shop_id
-                shop_id = self._extract_shop_id_from_url(params['target_url'])
+                # 直接使用任务中的shop_id字段
+                shop_id = task['shop_id']
                 result = await method(shop_id, params.get('max_pages', 50))
                 result = {'books_crawled': result, 'status': 'completed'}
             elif task_type == 'duozhuayu_price':
@@ -1887,8 +1876,8 @@ class CrawlerManager:
                         )
                         
                 elif task['task_type'] == 'shop_books_crawl':
-                    # 店铺书籍爬取任务
-                    shop_id = task.get('target_url', '').split('/')[-2] if task.get('target_url') else None
+                    # 店铺书籍爬取任务 - 直接使用shop_id
+                    shop_id = task.get('shop_id', '')
                     if shop_id:
                         books_crawled = await self.kongfuzi.crawl_shop_books(shop_id)
                         self.task_repo.update_status(
@@ -1899,13 +1888,10 @@ class CrawlerManager:
                     else:
                         self.task_repo.update_status(
                             task['id'], 'failed',
-                            error_message="无法解析店铺ID"
+                            error_message="缺少shop_id参数"
                         )
                         
-                elif task['task_type'] == 'shop_books':
-                    # 兼容旧版本任务类型
-                    await self.kongfuzi.crawl_shop_books(task['target_url'])
-                    self.task_repo.update_status(task['id'], 'completed', progress=100.0)
+                # 删除旧版本 shop_books 类型，统一使用 shop_books_crawl
                     
                 elif task['task_type'] == 'book_sales':
                     # 兼容旧版本任务类型
