@@ -6,11 +6,14 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import statistics
 import logging
+import asyncio
 
 from ..models.repositories import (
     BookRepository, BookInventoryRepository, 
     SalesRepository, StatisticsRepository
 )
+from ..crawlers.active_listing_crawler import ActiveListingCrawler
+from ..crawlers.duozhuayu_price_crawler import DuozhuayuPriceCrawler
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +25,8 @@ class AnalysisService:
         self.inventory_repo = BookInventoryRepository()
         self.sales_repo = SalesRepository()
         self.stats_repo = StatisticsRepository()
+        self.listing_crawler = ActiveListingCrawler()
+        self.duozhuayu_crawler = DuozhuayuPriceCrawler()
         # 添加简单的内存缓存
         self._cache = {}
         self._cache_ttl = {}
@@ -492,3 +497,88 @@ class AnalysisService:
             "buckets": buckets,
             "counts": counts
         }
+    
+    async def get_active_listings(self, isbn: str) -> List[Dict]:
+        """
+        获取在售商品信息
+        
+        Args:
+            isbn: ISBN号
+            
+        Returns:
+            在售商品列表
+        """
+        try:
+            # 获取前3个在售商品
+            listings = await self.listing_crawler.fetch_active_listings(isbn, count=3)
+            return listings
+        except Exception as e:
+            logger.error(f"获取在售商品失败: {e}")
+            return []
+    
+    def get_active_listings_sync(self, isbn: str) -> List[Dict]:
+        """
+        同步方式获取在售商品信息
+        
+        Args:
+            isbn: ISBN号
+            
+        Returns:
+            在售商品列表
+        """
+        try:
+            # 创建新的事件循环或使用现有的
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # 运行异步任务
+            listings = loop.run_until_complete(self.get_active_listings(isbn))
+            return listings
+        except Exception as e:
+            logger.error(f"同步获取在售商品失败: {e}")
+            return []
+    
+    async def get_duozhuayu_price(self, isbn: str) -> Optional[Dict]:
+        """
+        获取多抓鱼价格信息
+        
+        Args:
+            isbn: ISBN号
+            
+        Returns:
+            多抓鱼价格信息
+        """
+        try:
+            price_info = await self.duozhuayu_crawler.get_price_info(isbn)
+            return price_info
+        except Exception as e:
+            logger.error(f"获取多抓鱼价格失败: {e}")
+            return None
+    
+    def get_duozhuayu_price_sync(self, isbn: str) -> Optional[Dict]:
+        """
+        同步方式获取多抓鱼价格信息
+        
+        Args:
+            isbn: ISBN号
+            
+        Returns:
+            多抓鱼价格信息
+        """
+        try:
+            # 创建新的事件循环或使用现有的
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # 运行异步任务
+            price_info = loop.run_until_complete(self.get_duozhuayu_price(isbn))
+            return price_info
+        except Exception as e:
+            logger.error(f"同步获取多抓鱼价格失败: {e}")
+            return None

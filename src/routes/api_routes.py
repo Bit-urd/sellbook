@@ -512,13 +512,25 @@ async def get_isbn_analysis(isbn: str, quality: str = Query("九品以上", patt
         price_distribution = analysis_service.calculate_price_distribution(isbn)
         sales_trend = analysis_service.get_sales_trend(30)  # 获取30天趋势
         
+        # 获取在售商品信息
+        active_listings = analysis_service.get_active_listings_sync(isbn)
+        
+        # 格式化在售信息为简单文本列表
+        active_listings_text = [item['display_text'] for item in active_listings]
+        
+        # 获取多抓鱼价格信息
+        duozhuayu_price_info = analysis_service.get_duozhuayu_price_sync(isbn)
+        
         return {
             "success": True,
             "data": {
                 "hot_sales": hot_sales,
                 "price_distribution": price_distribution,
                 "sales_trend": sales_trend,
-                "quality_filter": quality
+                "quality_filter": quality,
+                "active_listings": active_listings,  # 完整的在售商品信息
+                "active_listings_summary": active_listings_text,  # 简化的文本摘要
+                "duozhuayu_price": duozhuayu_price_info  # 多抓鱼价格信息
             }
         }
     except Exception as e:
@@ -542,6 +554,12 @@ async def analyze_book_sales(isbn: str, quality: str = Query("high", pattern="^(
         # 使用爬虫实时获取销售数据
         crawler = KongfuziCrawler()
         stats = await crawler.analyze_book_sales(isbn, days_limit=30, quality_filter=quality)
+        # 获取在售商品信息
+        active_listings = await analysis_service.get_active_listings(isbn)
+        active_listings_text = [item['display_text'] for item in active_listings]
+        
+        # 获取多抓鱼价格信息
+        duozhuayu_price_info = await analysis_service.get_duozhuayu_price(isbn)
         
         # 构建响应
         response = {
@@ -556,6 +574,9 @@ async def analyze_book_sales(isbn: str, quality: str = Query("high", pattern="^(
                 "price_range": stats.get("price_range"),
                 "sales_records": stats.get("sales_records", []),
             },
+            "active_listings": active_listings,  # 完整的在售商品信息
+            "active_listings_summary": active_listings_text,  # 简化的文本摘要
+            "duozhuayu_price": duozhuayu_price_info,  # 多抓鱼价格信息
             "message": "分析完成",
             "success": True
         }

@@ -200,6 +200,71 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         }
 
+        /* 在售商品和多抓鱼价格卡片样式 */
+        .active-listings-card, .duozhuayu-price-card {
+            min-height: 120px;
+        }
+
+        .active-listings-content, .duozhuayu-price-content {
+            margin-top: 10px;
+        }
+
+        .listing-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .listing-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .listing-rank {
+            color: #667eea;
+            font-weight: bold;
+            min-width: 20px;
+            font-size: 0.9em;
+        }
+
+        .listing-text {
+            font-size: 0.85em;
+            color: #333;
+            line-height: 1.3;
+            word-break: break-all;
+        }
+
+        .price-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 8px;
+        }
+
+        .price-link {
+            font-size: 0.8em;
+        }
+
+        .external-link {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .external-link:hover {
+            color: #4CAF50;
+            text-decoration: underline;
+        }
+
+        .no-data, .loading {
+            color: #999;
+            font-size: 0.9em;
+            text-align: center;
+            padding: 20px 0;
+        }
+
         .isbn-search-header {
             background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
             color: white;
@@ -1253,10 +1318,94 @@
                 document.getElementById('isbnLatestSale').textContent = '-';
             }
 
+            // 显示在售商品信息
+            displayActiveListings(data.active_listings_summary || []);
+            
+            // 显示多抓鱼价格信息
+            displayDuozhuayuPrice(data.duozhuayu_price);
+            
             // 更新品相分布
             updateQualityDistribution(stats);
             // 绘制价格分布饼状图
             drawPriceDistributionChart(stats);
+        }
+
+        // 显示在售商品信息
+        function displayActiveListings(listings) {
+            const container = document.getElementById('activeListingsContainer');
+            if (!container) {
+                // 如果容器不存在，创建一个
+                const newContainer = document.createElement('div');
+                newContainer.id = 'activeListingsContainer';
+                newContainer.className = 'isbn-stat-card active-listings-card';
+                newContainer.innerHTML = `
+                    <div class="isbn-stat-title">🛒 孔夫子网在售商品 (前三个)</div>
+                    <div class="active-listings-content" id="activeListingsContent">
+                        <div class="loading">暂无数据</div>
+                    </div>
+                `;
+                
+                // 插入到统计卡片区域
+                const statsGrid = document.querySelector('.isbn-stats-grid');
+                if (statsGrid) {
+                    statsGrid.appendChild(newContainer);
+                }
+                return;
+            }
+            
+            const content = document.getElementById('activeListingsContent');
+            if (!content) return;
+            
+            if (listings && listings.length > 0) {
+                content.innerHTML = listings.map((listing, index) => 
+                    `<div class="listing-item">
+                        <span class="listing-rank">${index + 1}.</span>
+                        <span class="listing-text">${listing}</span>
+                    </div>`
+                ).join('');
+            } else {
+                content.innerHTML = '<div class="no-data">暂无在售商品</div>';
+            }
+        }
+
+        // 显示多抓鱼价格信息
+        function displayDuozhuayuPrice(priceInfo) {
+            const container = document.getElementById('duozhuayuPriceContainer');
+            if (!container) {
+                // 如果容器不存在，创建一个
+                const newContainer = document.createElement('div');
+                newContainer.id = 'duozhuayuPriceContainer';
+                newContainer.className = 'isbn-stat-card duozhuayu-price-card';
+                newContainer.innerHTML = `
+                    <div class="isbn-stat-title">🐟 多抓鱼收购价</div>
+                    <div class="duozhuayu-price-content" id="duozhuayuPriceContent">
+                        <div class="loading">暂无数据</div>
+                    </div>
+                `;
+                
+                // 插入到统计卡片区域
+                const statsGrid = document.querySelector('.isbn-stats-grid');
+                if (statsGrid) {
+                    statsGrid.appendChild(newContainer);
+                }
+                return;
+            }
+            
+            const content = document.getElementById('duozhuayuPriceContent');
+            if (!content) return;
+            
+            if (priceInfo && priceInfo.duozhuayu_lowest_price !== null) {
+                content.innerHTML = `
+                    <div class="price-value">¥${priceInfo.duozhuayu_lowest_price.toFixed(2)}</div>
+                    <div class="price-link">
+                        <a href="${priceInfo.duozhuayu_url}" target="_blank" class="external-link">
+                            查看多抓鱼页面 ↗
+                        </a>
+                    </div>
+                `;
+            } else {
+                content.innerHTML = '<div class="no-data">暂无收购信息</div>';
+            }
         }
 
 
