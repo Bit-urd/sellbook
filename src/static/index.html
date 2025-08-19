@@ -1332,13 +1332,13 @@
 
         // 显示在售商品信息
         function displayActiveListings(listings) {
-            const container = document.getElementById('activeListingsContainer');
+            let container = document.getElementById('activeListingsContainer');
             if (!container) {
                 // 如果容器不存在，创建一个
-                const newContainer = document.createElement('div');
-                newContainer.id = 'activeListingsContainer';
-                newContainer.className = 'isbn-stat-card active-listings-card';
-                newContainer.innerHTML = `
+                container = document.createElement('div');
+                container.id = 'activeListingsContainer';
+                container.className = 'isbn-stat-card active-listings-card';
+                container.innerHTML = `
                     <div class="isbn-stat-title">🛒 孔夫子网在售商品 (前三个)</div>
                     <div class="active-listings-content" id="activeListingsContent">
                         <div class="loading">暂无数据</div>
@@ -1348,9 +1348,8 @@
                 // 插入到统计卡片区域
                 const statsGrid = document.querySelector('.isbn-stats-grid');
                 if (statsGrid) {
-                    statsGrid.appendChild(newContainer);
+                    statsGrid.appendChild(container);
                 }
-                return;
             }
             
             const content = document.getElementById('activeListingsContent');
@@ -1370,13 +1369,13 @@
 
         // 显示多抓鱼价格信息
         function displayDuozhuayuPrice(priceInfo) {
-            const container = document.getElementById('duozhuayuPriceContainer');
+            let container = document.getElementById('duozhuayuPriceContainer');
             if (!container) {
                 // 如果容器不存在，创建一个
-                const newContainer = document.createElement('div');
-                newContainer.id = 'duozhuayuPriceContainer';
-                newContainer.className = 'isbn-stat-card duozhuayu-price-card';
-                newContainer.innerHTML = `
+                container = document.createElement('div');
+                container.id = 'duozhuayuPriceContainer';
+                container.className = 'isbn-stat-card duozhuayu-price-card';
+                container.innerHTML = `
                     <div class="isbn-stat-title">🐟 多抓鱼收购价</div>
                     <div class="duozhuayu-price-content" id="duozhuayuPriceContent">
                         <div class="loading">暂无数据</div>
@@ -1386,9 +1385,8 @@
                 // 插入到统计卡片区域
                 const statsGrid = document.querySelector('.isbn-stats-grid');
                 if (statsGrid) {
-                    statsGrid.appendChild(newContainer);
+                    statsGrid.appendChild(container);
                 }
-                return;
             }
             
             const content = document.getElementById('duozhuayuPriceContent');

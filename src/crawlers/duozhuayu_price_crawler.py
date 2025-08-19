@@ -85,37 +85,42 @@ class DuozhuayuPriceCrawler:
             # 获取价格容器
             container_element = await page.query_selector(price_container_selector)
             if container_element:
-                # 在这个容器内直接查找价格元素
+                # 在这个容器内直接查找价格元素，尝试两种可能的类名
                 price_element = await container_element.query_selector(".Price.Price--clay")
+                if not price_element:
+                    price_element = await container_element.query_selector(".Price.Price--padEnd")
+                price_text = re.search(r'>(.*?)<', str(price_element)).group(1)
                 if price_element:
-                    price_text = await price_element.text_content()
                     logger.info(f"直接找到价格元素: {price_text}")
-                    
-                    # 提取数字价格
-                    price_match = re.search(r'¥?(\d+\.\d+)', price_text)
-                    if price_match:
-                        price = float(price_match.group(1))
-                        logger.info(f"解析出价格: {price}")
-                        return price
+                    # 直接提取¥后面的数字
+                    if price_text and price_text.startswith('¥'):
+                        price_str = price_text[1:]  # 去掉¥符号
+                        try:
+                            price = float(price_str)
+                            logger.info(f"解析出价格: {price}")
+                            return price
+                        except ValueError:
+                            logger.warning(f"无法解析价格: {price_str}")
+                            pass
                 
                 # 如果没找到Price元素，尝试在容器文本中查找
                 container_text = await container_element.text_content()
                 logger.info(f"价格容器文本: {container_text[:200]}...")
                 
-                # 在容器文本中查找价格模式
+                # 在容器文本中查找价格模式 - 优先匹配¥符号开头的价格
                 price_patterns = [
-                    r'¥(\d+\.\d+)',  # ¥7.80
-                    r'(\d+\.\d+)',   # 7.80
+                    r'¥(\d+\.?\d*)',  # ¥10.90 或 ¥10
                 ]
                 
                 for pattern in price_patterns:
                     matches = re.findall(pattern, container_text)
                     if matches:
                         for match in matches:
-                            price = float(match)
-                            if price > 1.0:  # 过滤掉明显不是价格的数字
-                                logger.info(f"从容器文本中解析出价格: {price}")
-                                return price
+                            if match and match != '.':
+                                price = float(match)
+                                if price > 1.0:  # 过滤掉明显不是价格的数字
+                                    logger.info(f"从容器文本中解析出价格: {price}")
+                                    return price
             
             # 尝试查找价格区间容器
             price_range_selector = f"{price_container_selector} .book-price-section .price-range-with-discount .Price"
@@ -127,8 +132,8 @@ class DuozhuayuPriceCrawler:
                 price_text = await first_price_element.text_content()
                 logger.info(f"找到价格区间文本: {price_text}")
                 
-                # 提取数字价格 - 确保至少有一个数字
-                price_match = re.search(r'¥?(\d+\.?\d*)', price_text)
+                # 提取数字价格 - 更精确的匹配，要求¥符号开头
+                price_match = re.search(r'¥(\d+\.?\d*)', price_text)
                 if price_match:
                     price_str = price_match.group(1)
                     # 确保不是只有小数点
@@ -146,8 +151,8 @@ class DuozhuayuPriceCrawler:
                     price_text = await price_element.text_content()
                     logger.info(f"检查价格文本: {price_text}")
                     
-                    # 提取数字价格 - 确保至少有一个数字且大于1
-                    price_match = re.search(r'¥?(\d+\.?\d*)', price_text)
+                    # 提取数字价格 - 更精确的匹配，要求¥符号开头
+                    price_match = re.search(r'¥(\d+\.?\d*)', price_text)
                     if price_match:
                         price_str = price_match.group(1)
                         # 确保不是只有小数点且价格合理
@@ -163,7 +168,7 @@ class DuozhuayuPriceCrawler:
                 price_text = await single_price_element.text_content()
                 logger.info(f"找到单一价格文本: {price_text}")
                 
-                price_match = re.search(r'¥?(\d+\.?\d*)', price_text)
+                price_match = re.search(r'¥(\d+\.?\d*)', price_text)
                 if price_match:
                     price_str = price_match.group(1)
                     # 确保不是只有小数点
